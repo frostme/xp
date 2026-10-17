@@ -1,0 +1,119 @@
+{
+  "name": "xp",
+  "version": "0.0.0",
+  "description": "Experiment Framework for your JavaScript/TypeScript projects.",
+  "keywords": [
+    "experiment",
+    "framework",
+    "xp"
+  ],
+  "license": "MIT",
+  "author": "frostme",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "wireit",
+    "build:swc": "swc src -d dist --config-file .swcrc --strip-leading-paths",
+    "build:tsc": "tsc -p tsconfig.json",
+    "format": "wireit",
+    "format:check": "wireit",
+    "lint": "wireit",
+    "lint:unused": "knip",
+    "prepare": "husky",
+    "test": "wireit",
+    "test:integration": "wireit",
+    "test:unit": "wireit",
+    "typecheck": "tsc -p tsconfig.json --noEmit --tsBuildInfoFile node_modules/.tmp/typecheck.tsbuildinfo"
+  },
+  "wireit": {
+    "build": {
+      "command": "concurrently \"pnpm build:swc\" \"pnpm build:tsc\"",
+      "files": [
+        "src/**/*.ts",
+        ".swcrc",
+        "tsconfig.json",
+        "package.json"
+      ],
+      "output": [
+        "dist/**/*.js",
+        "dist/**/*.js.map",
+        "dist/**/*.d.ts",
+        "dist/**/*.d.ts.map",
+        "node_modules/.tmp/tsconfig.tsbuildinfo"
+      ],
+      "allowUsuallyExcludedPaths": true
+    },
+    "test:unit": {
+      "command": "vitest run --config vitest.unit.config.ts",
+      "files": [
+        "src/**/*.ts",
+        "vitest.unit.config.ts"
+      ]
+    },
+    "test:integration": {
+      "command": "vitest run --config vitest.integration.config.ts",
+      "files": [
+        "src/**/*.ts",
+        "vitest.integration.config.ts"
+      ]
+    },
+    "circular:check": {
+      "command": "madge --circular --ts-config ./tsconfig.json --extensions ts,tsx ./src/index.ts",
+      "files": [
+        "src/**/*",
+        "package.json",
+        "tsconfig.json"
+      ],
+      "output": []
+    },
+    "format": {
+      "command": "oxfmt --write ."
+    },
+    "format:check": {
+      "command": "oxfmt --check ."
+    },
+    "lint": {
+      "command": "oxlint -c oxlint.config.ts . --ignore-pattern \"vitest*.ts\" --deny-warnings",
+      "files": [
+        "src/**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs}",
+        "*.ts",
+        "oxlint.config.ts",
+        "tsconfig.json"
+      ],
+      "output": []
+    }
+  },
+  "dependencies": {
+    "madge": "^8.0.0",
+    "pino": "^10.4.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@swc-node/register": "^1.12.1",
+    "@swc/cli": "^0.8.1",
+    "@swc/core": "^1.16.18",
+    "@types/node": "^26.6.5",
+    "concurrently": "^10.0.6",
+    "eslint-import-resolver-typescript": "^4.4.5",
+    "eslint-plugin-import-x": "^4.17.1",
+    "husky": "^9.1.7",
+    "knip": "^6.41.0",
+    "lint-staged": "^17.6.0",
+    "oxfmt": "^0.73.0",
+    "oxlint": "^1.88.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5",
+    "wireit": "^0.14.13"
+  },
+  "lint-staged": {
+    "*": "oxfmt --no-error-on-unmatched-pattern"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.14.0",
+      "onFail": "download"
+    }
+  },
+  "packageManager": "pnpm@12.14.0"
+}
