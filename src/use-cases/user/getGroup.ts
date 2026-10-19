@@ -55,7 +55,7 @@ export default class GetGroup implements IUseCase<CohortSlug | null> {
     const cohort = cohorts.find((c) => c.id === cohortId);
 
     if (cohort) {
-      await this.userDAO.joinCohort(userId, experiment.id, cohort.id);
+      await this.userDAO.addUserCohort(userId, experiment.id, cohort.id);
       return cohort.slug;
     }
 
