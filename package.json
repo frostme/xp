@@ -16,12 +16,13 @@
     "build": "wireit",
     "build:swc": "swc src -d dist --config-file .swcrc --strip-leading-paths",
     "build:tsc": "tsc -p tsconfig.json",
+    "ci": "wireit",
+    "circular:check": "wireit",
     "format": "wireit",
     "format:check": "wireit",
     "lint": "wireit",
     "lint:unused": "knip",
     "prepare": "husky",
-    "test": "wireit",
     "test:integration": "wireit",
     "test:unit": "wireit",
     "typecheck": "tsc -p tsconfig.json --noEmit --tsBuildInfoFile node_modules/.tmp/typecheck.tsbuildinfo"
@@ -43,6 +44,12 @@
         "node_modules/.tmp/tsconfig.tsbuildinfo"
       ],
       "allowUsuallyExcludedPaths": true
+    },
+    "ci": {
+      "command": "bun run --parallel lint lint:unused typecheck circular:check format:check test:unit test:integration",
+      "dependencies": [
+        "build"
+      ]
     },
     "test:unit": {
       "command": "vitest run --config vitest.unit.config.ts",
