@@ -12,7 +12,7 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "lib": ["ESNext", "DOM"],
-    "module": "ESNext",
+    "module": "Preserve",
     "moduleDetection": "force",
     "moduleResolution": "bundler",
     "noFallthroughCasesInSwitch": true,
@@ -35,7 +35,7 @@
     "target": "esnext",
     "tsBuildInfoFile": "node_modules/.tmp/tsconfig.tsbuildinfo",
     "typeRoots": ["./node_modules/@types", "./src/types"],
-    "types": [],
+    "types": ["bun"],
     "verbatimModuleSyntax": true
   },
   "include": ["src"],

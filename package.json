@@ -9,25 +9,27 @@
   ],
   "license": "MIT",
   "author": "frostme",
+  "bin": "./dist/cli/index.js",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "build": "wireit",
     "build:swc": "swc src -d dist --config-file .swcrc --strip-leading-paths",
     "build:tsc": "tsc -p tsconfig.json",
+    "ci": "wireit",
+    "circular:check": "wireit",
     "format": "wireit",
     "format:check": "wireit",
     "lint": "wireit",
     "lint:unused": "knip",
     "prepare": "husky",
-    "test": "wireit",
     "test:integration": "wireit",
     "test:unit": "wireit",
     "typecheck": "tsc -p tsconfig.json --noEmit --tsBuildInfoFile node_modules/.tmp/typecheck.tsbuildinfo"
   },
   "wireit": {
     "build": {
-      "command": "concurrently \"pnpm build:swc\" \"pnpm build:tsc\"",
+      "command": "concurrently \"bun build:swc\" \"bun build:tsc\"",
       "files": [
         "src/**/*.ts",
         ".swcrc",
@@ -42,6 +44,12 @@
         "node_modules/.tmp/tsconfig.tsbuildinfo"
       ],
       "allowUsuallyExcludedPaths": true
+    },
+    "ci": {
+      "command": "bun run --parallel lint lint:unused typecheck circular:check format:check test:unit test:integration",
+      "dependencies": [
+        "build"
+      ]
     },
     "test:unit": {
       "command": "vitest run --config vitest.unit.config.ts",
@@ -84,14 +92,17 @@
     }
   },
   "dependencies": {
+    "es-toolkit": "^1.52.0",
     "madge": "^8.0.0",
     "pino": "^10.4.0",
+    "type-fest": "^5.10.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@swc-node/register": "^1.12.1",
     "@swc/cli": "^0.8.1",
     "@swc/core": "^1.16.18",
+    "@types/bun": "^1.4.3",
     "@types/node": "^26.6.5",
     "concurrently": "^10.0.6",
     "eslint-import-resolver-typescript": "^4.4.5",
@@ -110,10 +121,10 @@
   },
   "devEngines": {
     "packageManager": {
-      "name": "pnpm",
-      "version": "12.14.0",
+      "name": "bun",
+      "version": "1.4.3",
       "onFail": "download"
     }
   },
-  "packageManager": "pnpm@12.14.0"
+  "packageManager": "bun@1.4.3"
 }
