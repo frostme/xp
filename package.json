@@ -92,6 +92,7 @@
     }
   },
   "dependencies": {
+    "@types/pg": "^8.23.1",
     "es-toolkit": "^1.52.0",
     "madge": "^8.0.0",
     "pino": "^10.4.0",
