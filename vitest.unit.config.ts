@@ -8,11 +8,9 @@ export default defineConfig({
         find: "~",
         replacement: fileURLToPath(new URL("./src", import.meta.url)),
       },
-      // Match Node/Yoga's GraphQL constructor; mixed ESM/CJS instances reject scalar values.
     ],
   },
   test: {
-    environment: "jsdom",
     globals: true,
     include: ["src/**/__tests__/**/*-unit.ts"],
   },

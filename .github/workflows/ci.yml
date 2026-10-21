@@ -1,0 +1,15 @@
+name: CI Pipeline
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  code-quality:
+    name: code-quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun ci
+      - run: bun run ci
