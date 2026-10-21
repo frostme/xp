@@ -1,4 +1,4 @@
-import * as cohort from "./cohort";
-import * as experiment from "./experiment";
+import cohort from "./cohort";
+import experiment from "./experiment";
 
-export { cohort, experiment };
+export default { cohort, experiment };

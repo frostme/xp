@@ -3,14 +3,14 @@ import { sumBy } from "es-toolkit/math";
 import { kebabCase } from "es-toolkit/string";
 import * as z from "zod";
 
-import { ExperimentTypeSchema, CohortNameSchema } from "~/entities";
+import { ExperimentNameSchema, ExperimentTypeSchema, CohortNameSchema } from "~/entities";
 
 import { createSchema as cohortCreateSchema } from "../cohort/create";
 import ZodValidator from "../validator";
 
 const createSchema = z
   .object({
-    name: z.string().min(5),
+    name: ExperimentNameSchema.min(5),
     slug: z.string().refine((val) => val === kebabCase(val), {
       message: "String must be in kebab-case",
     }),

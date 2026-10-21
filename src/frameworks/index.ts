@@ -1,5 +1,6 @@
-import CliPresenter from "./cli";
-import ClientPresenter from "./client";
-import ServerPresenter from "./server";
+import CliFramework from "./cli";
+import ClientFramework from "./client";
+import ServerFramework from "./server";
 
-export { ClientPresenter, ServerPresenter, CliPresenter };
+/** @beta */
+export { CliFramework, ClientFramework, ServerFramework };

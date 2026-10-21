@@ -1,5 +1,6 @@
 import type { IError } from "../interfaces";
 
+/** @beta */
 export class UnauthorizedError extends Error implements IError {
   public override name = "UnauthorizedError";
   public httpStatus = 401;
