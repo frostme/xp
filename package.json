@@ -24,6 +24,8 @@
     "build:tsc": "tsc -p tsconfig.json",
     "ci": "wireit",
     "circular:check": "wireit",
+    "docker:down": "docker compose -f docker-compose.test.yml down",
+    "docker:up": "docker compose -f docker-compose.test.yml up -d",
     "format": "wireit",
     "format:check": "wireit",
     "lint": "wireit",
@@ -135,9 +137,9 @@
   "devEngines": {
     "packageManager": {
       "name": "bun",
-      "version": "1.4.3",
+      "version": "1.4.4",
       "onFail": "download"
     }
   },
-  "packageManager": "bun@1.4.3"
+  "packageManager": "bun@1.4.4"
 }

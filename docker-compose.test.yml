@@ -1,0 +1,90 @@
+services:
+  postgres_test:
+    image: postgres:16-alpine
+    container_name: postgres_test_db
+    environment:
+      POSTGRES_USER: test_user
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_DB: test_db
+    ports:
+      - "5433:5432" # Use a separate port to avoid conflicts with local dev DBs
+    # Turn off durability settings to keep tests running strictly in memory / fast I/O
+    command: >
+      postgres 
+      -c fsync=off 
+      -c synchronous_commit=off 
+      -c full_page_writes=off 
+      -c max_connections=100
+    tmpfs:
+      - /var/lib/postgresql/data # Mount the data directory in RAM
+  mysql-test:
+    image: mysql:8.0
+    container_name: mysql_test_db
+    ports:
+      - "3307:3306" # Use a separate port to avoid conflicts with local dev DBs
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_USER: test_user
+      MYSQL_PASSWORD: test_password
+      MYSQL_DATABASE: test_db
+    # Run the database completely inside the host's RAM
+    tmpfs:
+      - /var/lib/mysql:rw,noexec,nosuid,size=1G
+    # Override MySQL default configuration to prioritize raw speed over data safety
+    command:
+      - --disable-log-bin
+      - --sync-binlog=0
+      - --innodb-flush-log-at-trx-commit=0
+      - --innodb-doublewrite=0
+      - --innodb-flush-method=O_DIRECT
+      - --innodb-buffer-pool-size=512M
+  sqlserver-test:
+    image: mcr.microsoft.com/mssql/server:2025-latest
+    container_name: mssql_test_db
+    platform: linux/amd64
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-test_password}"
+    ports:
+      - "1434:1433"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P '${MSSQL_SA_PASSWORD:-test_password}' -Q 'SELECT 1' -C || exit 1",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    # Optional: Use tmpfs for maximum test speed (stores DB data in RAM, wiped on container stop)
+    tmpfs:
+      - /var/opt/mssql/data
+  mongo:
+    image: mongo:9
+    ports:
+      - "27018:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: test_user
+      MONGO_INITDB_ROOT_PASSWORD: test_pass
+      MONGO_INITDB_DATABASE: test_db
+    tmpfs:
+      - /data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok", "--quiet"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+  localstack-test:
+    image: localstack/localstack:latest
+    container_name: localstack_test
+    ports:
+      - "127.0.0.1:4567:4566" # LocalStack Gateway (S3, DynamoDB, SQS, etc.)
+      - "127.0.0.1:4460-4509:4510-4559" # Port range for external services / Lambdas
+    environment:
+      - DEBUG=${DEBUG:-0}
+      - PERSISTENCE=0 # Keeps your AWS resources intact across restarts
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
+    restart: unless-stopped
