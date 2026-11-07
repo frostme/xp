@@ -1,3 +1,4 @@
+import dynamodb from "./dynamodb";
 import mongodb from "./mongodb";
 import mssql from "./mssql";
 import mysql from "./mysql";
@@ -8,6 +9,7 @@ const config = {
   mysql,
   mssql,
   mongodb,
+  dynamodb,
 };
 
 export default config;
