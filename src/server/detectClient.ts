@@ -27,7 +27,12 @@ export function detectClient(client: unknown, options: ServerOptions): IConfig {
     if (!options.databaseName?.trim()) throw new TypeError("MongoDB requires databaseName");
     return config.mongodb(client, options.databaseName);
   }
+  const dynamodb = optionalDriver<typeof import("@aws-sdk/lib-dynamodb")>("@aws-sdk/lib-dynamodb");
+  if (dynamodb && client instanceof dynamodb.DynamoDBDocumentClient) {
+    if (!options.tableName?.trim()) throw new TypeError("DynamoDB requires tableName");
+    return config.dynamodb(client, options.tableName);
+  }
   throw new TypeError(
-    "Unsupported database client. Expected pg.Client/Pool mysql2 promise Connection/Pool, mssql.ConnectionPool, or mongodb.MongoClient.",
+    "Unsupported database client. Expected pg.Client/Pool, mysql2 promise Connection/Pool, mssql.ConnectionPool, mongodb.MongoClient, or DynamoDBDocumentClient.",
   );
 }

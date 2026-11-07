@@ -16,7 +16,7 @@ try {
   });
   const drivers = process.env.XP_SMOKE_DRIVER
     ? [process.env.XP_SMOKE_DRIVER]
-    : Object.keys(manifest.peerDependencies);
+    : Object.keys(manifest.peerDependencies).filter((name) => name !== "@aws-sdk/client-dynamodb");
   for (const driver of [null, ...drivers]) {
     const directory = join(temporary, driver?.replaceAll("/", "-") ?? "no-driver");
     await mkdir(directory);
@@ -45,7 +45,9 @@ try {
       driver,
       ...(driver === "@aws-sdk/lib-dynamodb" ? ["@aws-sdk/client-dynamodb"] : []),
     ];
-    const absent = Object.keys(constructors).filter((name) => !installed.includes(name));
+    const absent = [...Object.keys(constructors), "@aws-sdk/client-dynamodb"].filter(
+      (name) => !installed.includes(name),
+    );
     await writeFile(
       join(directory, "smoke.mjs"),
       `import assert from 'node:assert/strict'; import {createRequire} from 'node:module'; import server from 'xp/server'; const require=createRequire(import.meta.url); for(const name of ${JSON.stringify(absent)}) { assert.throws(()=>require.resolve(name),{code:'MODULE_NOT_FOUND'}); } ${driver ? (constructors[driver] ?? "") : "assert.throws(()=>server({}),TypeError);"}`,

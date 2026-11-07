@@ -123,6 +123,8 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1164.0",
+    "@aws-sdk/lib-dynamodb": "^3.1164.0",
     "@swc-node/register": "^1.12.1",
     "@swc/cli": "^0.8.1",
     "@swc/core": "^1.16.18",
@@ -148,6 +150,8 @@
     "wireit": "^0.14.13"
   },
   "peerDependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1164.0",
+    "@aws-sdk/lib-dynamodb": "^3.1164.0",
     "mongodb": "^7.8.0",
     "mssql": "^12.7.14",
     "mysql2": "^3.24.6",
@@ -164,6 +168,12 @@
       "optional": true
     },
     "mongodb": {
+      "optional": true
+    },
+    "@aws-sdk/client-dynamodb": {
+      "optional": true
+    },
+    "@aws-sdk/lib-dynamodb": {
       "optional": true
     }
   },

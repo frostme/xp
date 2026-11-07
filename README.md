@@ -12,7 +12,19 @@ const xp = server(pool);
 
 Install the driver for the database you use. Drivers are optional peers; xp does not
 connect, create schemas, migrate data, or close your client. See
-[PostgreSQL setup](docs/databases/postgres.md) or [MySQL setup](docs/databases/mysql.md) before the first operation. [SQL Server setup](docs/databases/mssql.md) and [MongoDB setup](docs/databases/mongodb.md) are also available.
+the setup guide for your provider before the first operation:
+
+| Database   | Driver and client                                     | Construction                       | Setup                                                |
+| ---------- | ----------------------------------------------------- | ---------------------------------- | ---------------------------------------------------- |
+| PostgreSQL | `pg.Client` or `pg.Pool`                              | `server(client)`                   | [Schema](docs/databases/postgres.md)                 |
+| MySQL      | `mysql2/promise` connection or pool                   | `server(client)`                   | [Schema](docs/databases/mysql.md)                    |
+| SQL Server | `mssql.ConnectionPool`                                | `server(pool)`                     | [Schema](docs/databases/mssql.md)                    |
+| MongoDB    | `mongodb.MongoClient`                                 | `server(client, { databaseName })` | [Collections and indexes](docs/databases/mongodb.md) |
+| DynamoDB   | `DynamoDBDocumentClient` from `@aws-sdk/lib-dynamodb` | `server(client, { tableName })`    | [Table and keys](docs/databases/dynamodb.md)         |
+
+MongoDB requires a replica set. DynamoDB allows at most 32 initial cohorts per
+experiment; its staged deletions must be retried by ID after failures to finish
+cleanup. See the provider guides for size limits and operating requirements.
 
 The application must provide user records before assigning users. IDs are strings
 or numbers; use the same primitive representation when reading and writing them.
@@ -36,6 +48,9 @@ docker compose -f docker-compose.test.yml down -v
 
 Integration tests create and destroy isolated fixtures. Live database checks are
 not cached. Static checks and package-import smoke tests do not need a database.
+Select `postgres`, `mysql`, `mssql`, `mongodb`, or `dynamodb` with `XP_DATABASE`;
+start the matching Compose service. SQL Server integration runs on native Linux
+amd64 CI because local ARM emulation is unsupported.
 
 ## PostgreSQL compatibility changes
 

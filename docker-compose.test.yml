@@ -57,3 +57,12 @@ services:
       interval: 2s
       timeout: 10s
       retries: 60
+  dynamodb:
+    image: amazon/dynamodb-local@sha256:6ada631ec7aa5fc83446855eb17233e3dad184fec47477e8140c6c569cfe0c86
+    command: ["-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb"]
+    ports: ["127.0.0.1:8000:8000"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -o /dev/null http://localhost:8000/"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
