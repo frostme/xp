@@ -10,6 +10,12 @@
   "license": "MIT",
   "author": "frostme",
   "bin": "./dist/cli/index.js",
+  "files": [
+    "dist",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
   "type": "module",
   "main": "dist/index.js",
   "exports": {
@@ -20,8 +26,8 @@
   },
   "scripts": {
     "build": "wireit",
-    "build:swc": "swc src -d dist --config-file .swcrc --strip-leading-paths",
-    "build:tsc": "tsc -p tsconfig.json",
+    "build:swc": "swc src -d dist --config-file .swcrc --strip-leading-paths --ignore \"**/__tests__/**\"",
+    "build:tsc": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json --resolve-full-paths --resolve-full-extension .js",
     "ci": "wireit",
     "circular:check": "wireit",
     "docker:down": "docker compose -f docker-compose.test.yml down",
@@ -33,7 +39,8 @@
     "prepare": "husky",
     "test:integration": "wireit",
     "test:unit": "wireit",
-    "typecheck": "tsc -p tsconfig.json --noEmit --tsBuildInfoFile node_modules/.tmp/typecheck.tsbuildinfo"
+    "typecheck": "tsc -p tsconfig.json --noEmit --tsBuildInfoFile node_modules/.tmp/typecheck.tsbuildinfo",
+    "test:package": "wireit"
   },
   "wireit": {
     "build": {
@@ -62,22 +69,19 @@
         "circular:check",
         "format:check",
         "test:unit",
-        "test:integration"
+        "test:package"
       ]
     },
     "test:unit": {
       "command": "vitest run --config vitest.unit.config.ts",
       "files": [
         "src/**/*.ts",
-        "vitest.unit.config.ts"
+        "vitest.unit.config.ts",
+        "package.json"
       ]
     },
     "test:integration": {
-      "command": "vitest run --config vitest.integration.config.ts",
-      "files": [
-        "src/**/*.ts",
-        "vitest.integration.config.ts"
-      ]
+      "command": "vitest run --config vitest.integration.config.ts"
     },
     "circular:check": {
       "command": "dpdm",
@@ -103,10 +107,15 @@
         "tsconfig.json"
       ],
       "output": []
+    },
+    "test:package": {
+      "command": "node scripts/package-smoke.mjs",
+      "dependencies": [
+        "build"
+      ]
     }
   },
   "dependencies": {
-    "@types/pg": "^8.23.1",
     "dpdm": "^4.3.0",
     "es-toolkit": "^1.52.0",
     "pino": "^10.4.0",
@@ -119,6 +128,7 @@
     "@swc/core": "^1.16.18",
     "@types/bun": "^1.4.3",
     "@types/node": "^26.6.5",
+    "@types/pg": "^8.23.1",
     "concurrently": "^10.0.6",
     "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-import-x": "^4.17.1",
@@ -127,9 +137,19 @@
     "lint-staged": "^17.6.0",
     "oxfmt": "^0.73.0",
     "oxlint": "^1.88.0",
+    "pg": "^8.23.1",
+    "tsc-alias": "^1.9.10",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5",
     "wireit": "^0.14.13"
+  },
+  "peerDependencies": {
+    "pg": "^8.23.1"
+  },
+  "peerDependenciesMeta": {
+    "pg": {
+      "optional": true
+    }
   },
   "lint-staged": {
     "*": "oxfmt --no-error-on-unmatched-pattern"

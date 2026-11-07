@@ -1,10 +1,13 @@
-import type { Tagged, KebabCase, ConditionalOmitDeep } from "type-fest";
+import type { Tagged, KebabCase } from "type-fest";
 
 import { kebabCase } from "es-toolkit/string";
 import * as z from "zod";
 
 export type PKey<T extends string | number> = Tagged<string | number, T>;
-export type CreationPayload<T> = ConditionalOmitDeep<T, "id", { condition: "equality" }>;
+// Only strip fields owned by persistence, never keys inside arbitrary JSON values.
+export type CreationPayload<T> = T extends { cohorts: (infer C)[] }
+  ? Omit<T, "id" | "winner" | "cohorts"> & { cohorts: CreationPayload<C>[] }
+  : Omit<T, "id">;
 
 const KebabCaseSchema = z.string().refine((val) => val === kebabCase(val), {
   message: "String must be in kebab-case",

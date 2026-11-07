@@ -1,7 +1,7 @@
 import type { UserCohort, ExperimentSlug, CohortSlug, PKey } from "~/entities";
 import type { IUseCase, IUserDAO, IExperimentDAO, ICohortDAO } from "~/interfaces";
 
-import { NotFoundError } from "~/errors";
+import { DuplicateAssignmentError, NotFoundError } from "~/errors";
 
 export default class JoinCohort implements IUseCase<UserCohort> {
   constructor(
@@ -33,7 +33,7 @@ export default class JoinCohort implements IUseCase<UserCohort> {
 
     const existingUserCohort = await this.userDAO.findUserCohort(userId, experiment.id);
     if (existingUserCohort) {
-      throw new Error(`User ${userId} is already in a cohort for experiment ${experimentSlug}`);
+      throw new DuplicateAssignmentError();
     }
 
     const userCohort = await this.userDAO.addUserCohort(userId, experiment.id, cohort.id);

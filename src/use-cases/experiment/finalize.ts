@@ -15,6 +15,6 @@ export default class FinalizeExperiment implements IUseCase<void> {
       throw new Error("Cohort does not belong to the experiment");
     }
 
-    await this.experimentDAO.update(experimentId, { winner: cohort.slug });
+    await this.experimentDAO.update(experimentId, { winner: cohort.slug }, cohort.id);
   }
 }
