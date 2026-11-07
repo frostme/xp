@@ -20,7 +20,7 @@ services:
     ports: ["127.0.0.1:3307:3306"]
     tmpfs: [/var/lib/mysql]
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -proot_password --silent"]
+      test: ["CMD-SHELL", "mysql --protocol=TCP -h127.0.0.1 -uroot -proot_password -e 'SELECT 1'"]
       interval: 2s
       timeout: 5s
       retries: 60
