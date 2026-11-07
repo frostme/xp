@@ -310,6 +310,24 @@ export function registerStorageContract(name: Database, setup: () => Promise<Sto
       expect(await adaptor.cohortDAO.findBySlug(winner!.slug)).toBeNull();
     });
 
+    it("does not finalize a replacement cohort after its predecessor's slug is reused", async () => {
+      const { adaptor } = current();
+      const created = await adaptor.experimentDAO.create(experimentInput());
+      const original = created.cohorts[0]!;
+      await adaptor.cohortDAO.remove(original.id);
+      const replacement = await adaptor.cohortDAO.create({
+        ...experimentInput().cohorts[0]!,
+        slug: original.slug,
+        experiment_id: created.id,
+      });
+      await expect(
+        adaptor.experimentDAO.update(created.id, { winner: original.slug }, original.id),
+      ).rejects.toBeInstanceOf(NotFoundError);
+      expect((await adaptor.experimentDAO.getById(created.id)).winner).toBeNull();
+      await adaptor.experimentDAO.update(created.id, { winner: replacement.slug }, replacement.id);
+      expect((await adaptor.experimentDAO.getById(created.id)).winner).toBe(replacement.slug);
+    });
+
     it("cascades experiment deletion without deleting users or other experiments", async () => {
       const { adaptor, seedUser } = current();
       await seedUser(userId);
