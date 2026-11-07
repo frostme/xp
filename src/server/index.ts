@@ -1,8 +1,3 @@
-import { Client } from "pg";
-
-import type { IConfig } from "~/interfaces";
-
-import config from "~/config";
 import { ServerFramework } from "~/frameworks";
 import {
   GetGroup,
@@ -18,20 +13,10 @@ import {
   RemoveCohort,
 } from "~/use-cases";
 
-const getConfig = (client: unknown): IConfig | null => {
-  if (client instanceof Client) {
-    return config.postgres(client);
-  }
+import { detectClient, type ServerOptions } from "./detectClient";
 
-  return null;
-};
-
-const server = (client: unknown) => {
-  const serverConfig = getConfig(client);
-
-  if (!serverConfig) {
-    throw new Error("Invalid client type. Expected a PostgreSQL client.");
-  }
+const server = (client: unknown, options: ServerOptions = {}) => {
+  const serverConfig = detectClient(client, options);
 
   const groupUseCase = new GetGroup(
     serverConfig.dao.userDAO,

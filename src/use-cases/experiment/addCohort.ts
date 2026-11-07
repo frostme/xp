@@ -21,6 +21,10 @@ export default class AddCohortToExperiment implements IUseCase<Cohort> {
 
     const experiment = await this.experimentDAO.getById(experimentId);
 
+    if (!value.slug.startsWith(`${experiment.slug}_`)) {
+      throw new ValidationError("Cohort slug must start with the experiment slug and underscore");
+    }
+
     const cohort = await this.cohortDAO.create({
       ...value,
       experiment_id: experiment.id,

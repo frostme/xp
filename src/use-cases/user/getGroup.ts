@@ -1,7 +1,7 @@
 import type { IUseCase, IUserDAO, IExperimentDAO, ICohortDAO, IBucketer } from "~/interfaces";
 
 import { type ExperimentSlug, type CohortSlug, type PKey } from "~/entities";
-import { NotFoundError } from "~/errors";
+import { DuplicateAssignmentError, NotFoundError } from "~/errors";
 
 type UseCaseParams = {
   userId: PKey<"User">;
@@ -55,7 +55,14 @@ export default class GetGroup implements IUseCase<CohortSlug | null> {
     const cohort = cohorts.find((c) => c.id === cohortId);
 
     if (cohort) {
-      await this.userDAO.addUserCohort(userId, experiment.id, cohort.id);
+      try {
+        await this.userDAO.addUserCohort(userId, experiment.id, cohort.id);
+      } catch (error) {
+        if (!(error instanceof DuplicateAssignmentError)) throw error;
+        const persisted = await this.userDAO.findUserCohort(userId, experiment.id);
+        if (!persisted) throw error;
+        return (await this.cohortDAO.getById(persisted.cohort_id)).slug;
+      }
       return cohort.slug;
     }
 
