@@ -201,6 +201,9 @@ export function relationalAdaptor(database: SqlDatabase): IDataAccessAdaptor {
             !(await s.lock("experiments", `id = ${s.parameter(1)}`, [row["experiment_id"]])).length
           )
             return;
+          // The first read can precede another removal and slug reuse. Recheck
+          // the original ID under lock before touching the parent's winner.
+          if (!(await s.lock("cohorts", `id = ${s.parameter(1)}`, [id])).length) return;
           await s.query(
             `UPDATE experiments SET winner = NULL WHERE id = ${s.parameter(1)} AND winner = ${s.parameter(2)}`,
             [row["experiment_id"], row["slug"]],
