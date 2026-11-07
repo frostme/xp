@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        database: [postgres, mysql]
+        database: [postgres, mysql, mssql]
     env:
       XP_DATABASE: ${{ matrix.database }}
     steps:

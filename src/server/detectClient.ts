@@ -20,7 +20,9 @@ export function detectClient(client: unknown, _options: ServerOptions): IConfig 
   >("mysql2/promise");
   if (mysql && (client instanceof mysql.Connection || client instanceof mysql.PromisePool))
     return config.mysql(client);
+  const mssql = optionalDriver<typeof import("mssql")>("mssql");
+  if (mssql && client instanceof mssql.ConnectionPool) return config.mssql(client);
   throw new TypeError(
-    "Unsupported database client. Expected pg.Client/Pool or mysql2 promise Connection/Pool.",
+    "Unsupported database client. Expected pg.Client/Pool mysql2 promise Connection/Pool, or mssql.ConnectionPool.",
   );
 }
