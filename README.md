@@ -12,7 +12,7 @@ const xp = server(pool);
 
 Install the driver for the database you use. Drivers are optional peers; xp does not
 connect, create schemas, migrate data, or close your client. See
-[PostgreSQL setup](docs/databases/postgres.md) before the first operation.
+[PostgreSQL setup](docs/databases/postgres.md) or [MySQL setup](docs/databases/mysql.md) before the first operation.
 
 The application must provide user records before assigning users. IDs are strings
 or numbers; use the same primitive representation when reading and writing them.
