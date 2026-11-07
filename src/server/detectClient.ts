@@ -8,7 +8,7 @@ export interface ServerOptions {
   tableName?: string;
 }
 
-export function detectClient(client: unknown, _options: ServerOptions): IConfig {
+export function detectClient(client: unknown, options: ServerOptions): IConfig {
   const pg = optionalDriver<typeof import("pg")>("pg");
   if (pg && (client instanceof pg.Client || client instanceof pg.Pool))
     return config.postgres(client);
@@ -22,7 +22,12 @@ export function detectClient(client: unknown, _options: ServerOptions): IConfig 
     return config.mysql(client);
   const mssql = optionalDriver<typeof import("mssql")>("mssql");
   if (mssql && client instanceof mssql.ConnectionPool) return config.mssql(client);
+  const mongodb = optionalDriver<typeof import("mongodb")>("mongodb");
+  if (mongodb && client instanceof mongodb.MongoClient) {
+    if (!options.databaseName?.trim()) throw new TypeError("MongoDB requires databaseName");
+    return config.mongodb(client, options.databaseName);
+  }
   throw new TypeError(
-    "Unsupported database client. Expected pg.Client/Pool mysql2 promise Connection/Pool, or mssql.ConnectionPool.",
+    "Unsupported database client. Expected pg.Client/Pool mysql2 promise Connection/Pool, mssql.ConnectionPool, or mongodb.MongoClient.",
   );
 }

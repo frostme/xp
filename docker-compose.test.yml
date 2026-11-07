@@ -43,3 +43,17 @@ services:
       timeout: 10s
       retries: 60
       start_period: 20s
+  mongodb:
+    # MongoDB 9, single-node replica set for integration transactions.
+    image: mongo@sha256:452bdaf2127b8ff851e31410a267809b9829eded219979f2210e7c7efb85a058
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports: ["127.0.0.1:27018:27017"]
+    tmpfs: [/data/db]
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --eval "try { if (db.hello().isWritablePrimary) quit(0); try { rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]}); } catch {} quit(1); } catch { quit(1); }"
+      interval: 2s
+      timeout: 10s
+      retries: 60
