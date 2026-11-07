@@ -8,6 +8,7 @@ export default interface IExperimentDAO {
   update(
     id: PKey<"Experiment">,
     updates: Partial<Pick<Experiment, "name" | "description" | "winner">>,
+    winnerCohortId?: PKey<"Cohort">,
   ): Promise<void>;
   remove(id: PKey<"Experiment">): Promise<void>;
 }

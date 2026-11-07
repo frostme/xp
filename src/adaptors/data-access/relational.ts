@@ -114,15 +114,17 @@ export function relationalAdaptor(database: SqlDatabase): IDataAccessAdaptor {
           }
           return hydrate(s, row);
         }),
-      update: (id, values) =>
+      update: (id, values, winnerCohortId) =>
         database.transaction(async (s) => {
           const rows = await s.lock("experiments", `id = ${s.parameter(1)}`, [id]);
           if (!rows.length) return;
           if (values.winner != null) {
             required(
               await s.query(
-                `SELECT * FROM cohorts WHERE experiment_id = ${s.parameter(1)} AND slug = ${s.parameter(2)}`,
-                [id, values.winner],
+                `SELECT * FROM cohorts WHERE experiment_id = ${s.parameter(1)} AND slug = ${s.parameter(2)}${winnerCohortId === undefined ? "" : ` AND id = ${s.parameter(3)}`}`,
+                winnerCohortId === undefined
+                  ? [id, values.winner]
+                  : [id, values.winner, winnerCohortId],
               ),
               "Winning cohort",
             );
