@@ -66,6 +66,65 @@ export function userIdSql(options: ResolvedSetup): string {
   );
 }
 
+function userTableSql(options: ResolvedSetup, userType: string): string[] {
+  const { database, userIdType } = options;
+  const declaration = userIdType
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\s*\(\s*/g, "(")
+    .replace(/\s*\)/g, ")")
+    .replace(/\s*,\s*/g, ",");
+  const create = database === "mysql" ? "CREATE TABLE IF NOT EXISTS users" : "CREATE TABLE users";
+  const table = () =>
+    `${create} (\n  id ${userType} NOT NULL,\n  CONSTRAINT users_pkey PRIMARY KEY (id)\n)${database === "mysql" ? " ENGINE=InnoDB DEFAULT CHARSET=utf8mb4" : ""};`;
+  if (database === "postgres") {
+    const expected = declaration
+      .replace(/^int$/, "integer")
+      .replace(/^varchar\b/, "character varying")
+      .replace(/^char\b/, "character")
+      .replace(/^decimal\b/, "numeric");
+    return [
+      `DO $xp$ BEGIN\n  IF to_regclass('users') IS NULL THEN\n    ${table()}\n  END IF;\n  IF NOT EXISTS (\n    SELECT 1 FROM pg_attribute a\n    WHERE a.attrelid = to_regclass('users') AND a.attname = 'id' AND a.attnotnull\n      AND format_type(a.atttypid, a.atttypmod) = '${expected}'\n      AND EXISTS (\n        SELECT 1 FROM pg_constraint p\n        WHERE p.conrelid = a.attrelid AND p.contype = 'p' AND p.conkey = ARRAY[a.attnum]::smallint[]\n      )\n  ) THEN\n    RAISE EXCEPTION 'Existing users table has an incompatible id; xp will not alter user data.';\n  END IF;\nEND $xp$;`,
+    ];
+  }
+  if (database === "mysql") {
+    const expected = declaration
+      .replace(/^integer$/, "int")
+      .replace(/^character varying\b/, "varchar")
+      .replace(/^character\b/, "char")
+      .replace(/^numeric\b/, "decimal");
+    const charset = options.userIdCharset
+      ? ` AND CHARACTER_SET_NAME = '${options.userIdCharset}'`
+      : "";
+    const collation = options.userIdCollation
+      ? ` AND COLLATION_NAME = '${options.userIdCollation}'`
+      : "";
+    return [
+      table(),
+      `SELECT IF(EXISTS (\n  SELECT 1 FROM information_schema.columns\n  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'id'\n    AND IS_NULLABLE = 'NO' AND COLUMN_TYPE = '${expected}' AND COLUMN_KEY = 'PRI'${charset}${collation}\n    AND (SELECT COUNT(*) FROM information_schema.statistics\n      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND INDEX_NAME = 'PRIMARY') = 1\n), 1, (SELECT 1 UNION ALL SELECT 1));`,
+    ];
+  }
+  const parsed = /^([a-z ]+)(?:\((\d+)(?:,\s*(\d+))?\))?$/.exec(declaration)!;
+  const base = parsed[1]!
+    .trim()
+    .replace(/^integer$/, "int")
+    .replace(/^numeric$/, "decimal");
+  const checks = [`TYPE_NAME(c.user_type_id) = N'${base}'`, "c.is_nullable = 0"];
+  if (/^(?:n?varchar|n?char)$/.test(base) && parsed[2])
+    checks.push(`c.max_length = ${Number(parsed[2]) * (base.startsWith("n") ? 2 : 1)}`);
+  if (base === "decimal" && parsed[2]) {
+    checks.push(`c.precision = ${Number(parsed[2])}`);
+    checks.push(`c.scale = ${Number(parsed[3] ?? 0)}`);
+  }
+  checks.push(
+    `EXISTS (SELECT 1 FROM sys.indexes i JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id WHERE i.object_id = c.object_id AND i.is_primary_key = 1 AND ic.column_id = c.column_id AND ic.key_ordinal = 1 AND (SELECT COUNT(*) FROM sys.index_columns pkc WHERE pkc.object_id = i.object_id AND pkc.index_id = i.index_id AND pkc.key_ordinal > 0) = 1)`,
+  );
+  return [
+    `IF OBJECT_ID(N'users', N'U') IS NULL BEGIN\n  ${table()}\nEND;\nIF NOT EXISTS (SELECT 1 FROM sys.columns c WHERE c.object_id = OBJECT_ID(N'users') AND c.name = N'id' AND ${checks.join(" AND ")}) BEGIN\n  ;THROW 50000, 'Existing users table has an incompatible id; xp will not alter user data.', 1;\nEND;`,
+  ];
+}
+
 export function renderSql(options: ResolvedSetup): { up: string[]; down: string[] } {
   if (!isSql(options.database))
     throw new Error(`SQL generation is not supported for ${options.database}.`);
@@ -99,8 +158,7 @@ export function renderSql(options: ResolvedSetup): { up: string[]; down: string[
     `CREATE TABLE ${name} (\n  ${definitions.join(",\n  ")}\n)${suffix};`;
   const enums = (values: readonly string[]) => values.map((value) => `'${value}'`).join(", ");
   const up: string[] = [];
-  if (options.userStorage === "create")
-    up.push(table("users", [`id ${userType} NOT NULL`, "CONSTRAINT users_pkey PRIMARY KEY (id)"]));
+  if (options.userStorage === "create") up.push(...userTableSql(options, userType));
   up.push(
     table("experiments", [
       `id ${id}`,

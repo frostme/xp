@@ -92,6 +92,7 @@ export default function Wizard({
     const controller = new AbortController();
     cancellation.current = controller;
     const request = { ...next, signal: controller.signal };
+    setPlan(undefined);
     setPhase("loading");
     setError("");
     try {

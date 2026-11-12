@@ -93,6 +93,29 @@ describe("canonical storage generation", () => {
     );
     expect(sql.down.join("\n")).not.toContain("DROP TABLE users");
   });
+  it.each(["postgres", "mysql", "mssql"] as const)(
+    "reuses a retained compatible users identity for %s",
+    (database) => {
+      const userIdType =
+        database === "postgres" ? "integer" : database === "mysql" ? "int unsigned" : "int";
+      const sql = renderSql({ ...options(database), userStorage: "create", userIdType });
+      const createUsers = sql.up[0]!;
+      expect(sql.down.join("\n")).not.toContain("DROP TABLE users");
+      if (database === "postgres") {
+        expect(createUsers).toContain("to_regclass('users') IS NULL");
+        expect(createUsers).toContain("format_type(a.atttypid, a.atttypmod) = 'integer'");
+        expect(createUsers).toContain("p.contype = 'p'");
+      } else if (database === "mysql") {
+        expect(createUsers).toContain("CREATE TABLE IF NOT EXISTS users");
+        expect(sql.up[1]).toContain("information_schema.columns");
+        expect(sql.up[1]).toContain("COLUMN_TYPE = 'int unsigned'");
+      } else {
+        expect(createUsers).toContain("OBJECT_ID(N'users', N'U') IS NULL");
+        expect(createUsers).toContain("TYPE_NAME(c.user_type_id) = N'int'");
+        expect(createUsers).toContain("i.is_primary_key = 1");
+      }
+    },
+  );
   it("uses scalar-capable SQL Server JSON validation and PostgreSQL JSON null", () => {
     expect(renderSql(options("mssql")).up.join("\n")).toContain("ISJSON(value, VALUE) = 1");
     expect(renderSql(options()).up.join("\n")).toContain("JSONB NOT NULL DEFAULT 'null'::jsonb");
@@ -194,6 +217,9 @@ describe("document provisioning", () => {
     };
     expect(calls).toEqual([]);
     await up(db);
+    expect(findOne).toHaveBeenCalledWith({
+      $or: [{ id: { $type: "array" } }, { id: { $not: { $type: "string" } } }],
+    });
     expect(calls.slice(0, 3)).toEqual([["experiments"], ["cohorts"], ["user_cohorts"]]);
     expect(calls.slice(3)).toEqual(
       MONGO_INDEXES.map((index) => [index.collection, index.key, { unique: index.unique }]),

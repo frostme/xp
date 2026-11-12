@@ -37,8 +37,24 @@ function scalar(options: ResolvedSetup): { type: string; native: string } {
     text: { type: "String", native: "@db.Text" },
     uuid: { type: "String", native: "@db.Uuid" },
     uniqueidentifier: { type: "String", native: "@db.UniqueIdentifier" },
-    integer: { type: "Int", native: "@db.Int" },
-    int: { type: "Int", native: unsigned ? "@db.UnsignedInt" : "@db.Int" },
+    integer: {
+      type: "Int",
+      native:
+        options.database === "postgres"
+          ? "@db.Integer"
+          : unsigned && options.database === "mysql"
+            ? "@db.UnsignedInt"
+            : "@db.Int",
+    },
+    int: {
+      type: "Int",
+      native:
+        options.database === "postgres"
+          ? "@db.Integer"
+          : unsigned && options.database === "mysql"
+            ? "@db.UnsignedInt"
+            : "@db.Int",
+    },
     smallint: { type: "Int", native: unsigned ? "@db.UnsignedSmallInt" : "@db.SmallInt" },
     tinyint: { type: "Int", native: unsigned ? "@db.UnsignedTinyInt" : "@db.TinyInt" },
     mediumint: { type: "Int", native: unsigned ? "@db.UnsignedMediumInt" : "@db.MediumInt" },
@@ -258,11 +274,9 @@ export async function generatePrisma(
         : options.database === "mysql"
           ? "@db.VarChar(191)"
           : "@db.NVarChar(1000)"
-      : user?.type === "Int"
-        ? "@db.Int"
-        : user?.type === "BigInt"
-          ? "@db.BigInt"
-          : "";
+      : user?.type === "Int" || user?.type === "BigInt"
+        ? expected.native
+        : "";
   if (
     user &&
     !mongodb &&

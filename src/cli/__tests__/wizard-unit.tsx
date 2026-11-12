@@ -141,6 +141,25 @@ describe("setup wizard", () => {
     );
   });
 
+  it("does not return to review with a stale plan after edited choices fail planning", async () => {
+    const f = fixture();
+    const app = render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
+    await frameContains(app, "Using sequelize");
+    f.planning.mockImplementationOnce(async () => {
+      throw new Error("plan failed");
+    });
+    await input(app, "e");
+    await input(app, "supporting");
+    await input(app, "\r");
+    await input(app, "\u001b[B");
+    await input(app, "\r");
+    await frameContains(app, "plan failed");
+    await input(app, "e");
+    await frameContains(app, "Edit a setup choice");
+    await input(app, "\u001b");
+    await frameContains(app, "plan failed");
+  });
+
   it("lets a fresh application choose to scaffold users before asking for their type", async () => {
     const f = fixture();
     f.detect.mockImplementation(async (options: SetupOptions = {}) => ({

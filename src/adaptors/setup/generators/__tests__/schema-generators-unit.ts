@@ -114,6 +114,50 @@ describe("Prisma schema generation", () => {
     );
   });
 
+  it.each([
+    {
+      database: "postgres" as const,
+      provider: "postgresql",
+      userIdType: "integer",
+      field: "Int @id @db.Integer",
+    },
+    {
+      database: "mysql" as const,
+      provider: "mysql",
+      userIdType: "integer unsigned",
+      field: "Int @id @db.UnsignedInt",
+    },
+  ])("maps $database integer IDs to the provider's native type", async (mapping) => {
+    const { options, project } = await fixture({
+      database: mapping.database,
+      userStorage: "reuse",
+      userIdType: mapping.userIdType,
+    });
+    await put(
+      options.cwd,
+      "prisma/schema.prisma",
+      `datasource db {\n  provider = "${mapping.provider}"\n}\nmodel User {\n  id ${mapping.field}\n  @@map("users")\n}\n`,
+    );
+    const artifacts = await generatePrisma(options, project);
+    expect(artifacts.files.find((file) => file.path.endsWith("schema.prisma"))?.content).toContain(
+      `userId ${mapping.database === "postgres" ? "Int @db.Integer" : "Int @db.UnsignedInt"} @map("user_id")`,
+    );
+  });
+
+  it("uses the selected provider's native Int default when the existing Prisma field omits it", async () => {
+    const { options, project } = await fixture({
+      database: "mysql",
+      userStorage: "reuse",
+      userIdType: "integer unsigned",
+    });
+    await put(
+      options.cwd,
+      "prisma/schema.prisma",
+      'datasource db {\n  provider = "mysql"\n}\nmodel User {\n  id Int @id\n  @@map("users")\n}\n',
+    );
+    await expect(generatePrisma(options, project)).resolves.toBeDefined();
+  });
+
   it("merges only the user backrelation and xp contribution, preserving unrelated content", async () => {
     const { options, project } = await fixture({ userStorage: "reuse", userIdType: "uuid" });
     const source =
