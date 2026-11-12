@@ -1,5 +1,7 @@
 # PostgreSQL
 
+Use [`xp setup`](../cli.md) to generate the setup files for this provider and your selected ORM. Review and apply them through your application’s normal workflow.
+
 The PostgreSQL adaptor supports `pg.Client` and `pg.Pool`. PostgreSQL 16 is the integration-test baseline. Install `pg` in the application; xp treats database drivers as optional peer dependencies.
 
 ```ts

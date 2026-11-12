@@ -6,6 +6,8 @@ import {
   registerStorageContract,
   selectedDatabase,
 } from "~/__tests__/storage/contract";
+import { setupOptions } from "~/__tests__/storage/setup";
+import { renderSql } from "~/adaptors/setup/storage";
 import server from "~/server";
 
 import PostgresAdaptor from "..";
@@ -51,6 +53,29 @@ describe.skipIf(selectedDatabase() !== "postgres")("PostgreSQL connection owners
       expect((await client.query("SELECT 1 AS alive")).rows[0]).toEqual({ alive: 1 });
     } finally {
       await client.end();
+      await fixture.cleanup();
+    }
+  });
+});
+
+describe.skipIf(selectedDatabase() !== "postgres")("generated setup migration", () => {
+  it("rolls back xp storage while preserving application users and supports reapplication", async () => {
+    const fixture = await setupPostgres();
+    try {
+      await fixture.seedUser("retained-user");
+      const schema = renderSql({ ...setupOptions("postgres"), userStorage: "reuse" });
+      for (const statement of schema.down) {
+        await fixture.pool.query(statement);
+      }
+      expect((await fixture.pool.query("SELECT id FROM users")).rows).toEqual([
+        { id: "retained-user" },
+      ]);
+      for (const statement of schema.up) {
+        await fixture.pool.query(statement);
+      }
+      const experiment = await fixture.adaptor.experimentDAO.create(experimentInput());
+      expect(experiment.cohorts).toHaveLength(2);
+    } finally {
       await fixture.cleanup();
     }
   });

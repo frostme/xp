@@ -9,7 +9,9 @@
   ],
   "license": "MIT",
   "author": "frostme",
-  "bin": "./dist/cli/index.js",
+  "bin": {
+    "xp": "./dist/cli/bin.js"
+  },
   "files": [
     "dist",
     "docs",
@@ -40,13 +42,15 @@
     "test:integration": "wireit",
     "test:unit": "wireit",
     "typecheck": "tsc -p tsconfig.json --noEmit --tsBuildInfoFile node_modules/.tmp/typecheck.tsbuildinfo",
-    "test:package": "wireit"
+    "test:package": "wireit",
+    "test:generators": "wireit",
+    "test:schemas": "wireit"
   },
   "wireit": {
     "build": {
       "command": "concurrently \"bun build:swc\" \"bun build:tsc\"",
       "files": [
-        "src/**/*.ts",
+        "src/**/*.{ts,tsx}",
         ".swcrc",
         "tsconfig.json",
         "package.json"
@@ -69,13 +73,15 @@
         "circular:check",
         "format:check",
         "test:unit",
-        "test:package"
+        "test:package",
+        "test:generators",
+        "test:schemas"
       ]
     },
     "test:unit": {
       "command": "vitest run --config vitest.unit.config.ts",
       "files": [
-        "src/**/*.ts",
+        "src/**/*.{ts,tsx}",
         "vitest.unit.config.ts",
         "package.json"
       ]
@@ -113,12 +119,25 @@
       "dependencies": [
         "build"
       ]
+    },
+    "test:generators": {
+      "command": "node scripts/setup-generator-smoke.mjs",
+      "dependencies": [
+        "build"
+      ]
+    },
+    "test:schemas": {
+      "command": "node scripts/setup-schema-smoke.mjs"
     }
   },
   "dependencies": {
+    "@babel/parser": "^8.1.2",
     "dpdm": "^4.3.0",
     "es-toolkit": "^1.52.0",
+    "ink": "^8.0.0",
+    "meow": "^14.1.0",
     "pino": "^10.4.0",
+    "react": "^19.3.0",
     "type-fest": "^5.10.0",
     "zod": "^4.6.7"
   },
@@ -132,6 +151,7 @@
     "@types/mssql": "^12.3.0",
     "@types/node": "^26.6.5",
     "@types/pg": "^8.23.1",
+    "@types/react": "^19.3.0",
     "concurrently": "^10.0.6",
     "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-import-x": "^4.17.1",

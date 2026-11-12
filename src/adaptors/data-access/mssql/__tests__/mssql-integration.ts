@@ -5,6 +5,8 @@ import {
   registerStorageContract,
   selectedDatabase,
 } from "~/__tests__/storage/contract";
+import { setupOptions } from "~/__tests__/storage/setup";
+import { renderSql } from "~/adaptors/setup/storage";
 
 import { setupMssql } from "./fixture";
 
@@ -52,6 +54,29 @@ describe.skipIf(selectedDatabase() !== "mssql")("SQL Server connection ownership
       expect((await fixture.adaptor.experimentDAO.getById(created.id)).description).toBe(
         "Updated 'description' 🧪",
       );
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+});
+
+describe.skipIf(selectedDatabase() !== "mssql")("generated setup migration", () => {
+  it("rolls back xp storage while preserving application users and supports reapplication", async () => {
+    const fixture = await setupMssql();
+    try {
+      await fixture.seedUser("retained-user");
+      const schema = renderSql({ ...setupOptions("mssql"), userStorage: "reuse" });
+      for (const statement of schema.down) {
+        await fixture.pool.request().query(statement);
+      }
+      expect((await fixture.pool.request().query("SELECT id FROM users")).recordset).toEqual([
+        { id: "retained-user" },
+      ]);
+      for (const statement of schema.up) {
+        await fixture.pool.request().query(statement);
+      }
+      const experiment = await fixture.adaptor.experimentDAO.create(experimentInput());
+      expect(experiment.cohorts).toHaveLength(2);
     } finally {
       await fixture.cleanup();
     }

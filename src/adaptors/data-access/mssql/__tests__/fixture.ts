@@ -3,44 +3,12 @@ import { randomUUID } from "node:crypto";
 
 import type { StorageFixture } from "~/__tests__/storage/contract";
 
+import { generatedSql } from "~/__tests__/storage/setup";
 import server from "~/server";
 
 import MssqlAdaptor from "..";
 
-const mssqlSchema = `
-CREATE TABLE users (
-  id NVARCHAR(255) COLLATE Latin1_General_100_BIN2 NOT NULL PRIMARY KEY
-);
-CREATE TABLE experiments (
-  id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-  name NVARCHAR(MAX) NOT NULL,
-  slug NVARCHAR(255) COLLATE Latin1_General_100_BIN2 NOT NULL UNIQUE,
-  type NVARCHAR(20) NOT NULL CHECK (type IN ('flag', 'simple', 'multivariate', 'dynamic')),
-  description NVARCHAR(MAX) NOT NULL,
-  winner NVARCHAR(255) COLLATE Latin1_General_100_BIN2 NULL
-);
-CREATE TABLE cohorts (
-  id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-  experiment_id INT NOT NULL REFERENCES experiments(id),
-  slug NVARCHAR(255) COLLATE Latin1_General_100_BIN2 NOT NULL UNIQUE,
-  type NVARCHAR(20) NOT NULL CHECK (type IN ('control', 'treatment')),
-  description NVARCHAR(MAX) NOT NULL,
-  percentage FLOAT NOT NULL CHECK (percentage >= 0 AND percentage <= 100),
-  value NVARCHAR(MAX) NOT NULL DEFAULT N'null' CHECK (ISJSON(value, VALUE) = 1),
-  UNIQUE (id, experiment_id)
-);
-CREATE INDEX cohorts_experiment_id_idx ON cohorts(experiment_id);
-CREATE TABLE user_cohorts (
-  id INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-  user_id NVARCHAR(255) COLLATE Latin1_General_100_BIN2 NOT NULL REFERENCES users(id),
-  experiment_id INT NOT NULL REFERENCES experiments(id),
-  cohort_id INT NOT NULL,
-  UNIQUE (user_id, experiment_id),
-  FOREIGN KEY (cohort_id, experiment_id) REFERENCES cohorts(id, experiment_id)
-);
-CREATE INDEX user_cohorts_experiment_id_idx ON user_cohorts(experiment_id);
-CREATE INDEX user_cohorts_cohort_id_idx ON user_cohorts(cohort_id);
-`;
+const mssqlSchema = generatedSql("mssql");
 
 export interface MssqlFixture extends StorageFixture {
   pool: sql.ConnectionPool;

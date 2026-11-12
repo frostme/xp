@@ -15,6 +15,7 @@ jobs:
         with:
           bun-version: 1.4.4
       - run: bun install --frozen-lockfile
+      - run: bun install --global pnpm@12.14.0 yarn@1.22.22
       - run: bun run ci
   database:
     runs-on: ubuntu-latest

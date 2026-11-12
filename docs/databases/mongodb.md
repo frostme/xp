@@ -1,5 +1,7 @@
 # MongoDB
 
+Use [`xp setup`](../cli.md) to generate the setup files for this provider and your selected ORM. Review and apply them through your application’s normal workflow.
+
 The MongoDB adaptor uses the official `mongodb` Node.js driver and a replica set or sharded cluster supporting transactions. A standalone MongoDB server is not supported. The integration tests use a single-node replica set; production deployments should use an appropriately replicated topology.
 
 ```ts
@@ -18,7 +20,7 @@ Install `mongodb` in the consuming application. `databaseName` must be explicit 
 
 ## Provisioning
 
-Run the following in `mongosh` against the chosen database before using xp. The application owns provisioning; these commands are documentation, not an initialization API. Future CLI setup helpers are tracked in the project roadmap.
+Run the following in `mongosh` against the chosen database before using xp. The application owns provisioning; these commands are documentation, not an initialization API. The CLI can generate the corresponding files.
 
 ```js
 use experiments;
