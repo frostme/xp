@@ -1,5 +1,7 @@
 # DynamoDB
 
+Use [`xp setup`](../cli.md) to generate the setup files for this provider and your selected ORM. Review and apply them through your application’s normal workflow.
+
 The adaptor uses AWS SDK v3's `DynamoDBDocumentClient` and one pre-existing table. It supports Amazon DynamoDB and DynamoDB Local with the same key layout. No secondary indexes, streams, TTL configuration, or background workers are required.
 
 ## Connect
@@ -86,4 +88,4 @@ Use the repository's DynamoDB Local service and run:
 XP_DATABASE=dynamodb DYNAMODB_ENDPOINT=http://127.0.0.1:8000 bun run test:integration
 ```
 
-Tests create isolated tables with dummy local credentials and delete them afterward. They cover the shared storage contract, transaction/item limits, pagination, interrupted cleanup, overlapping cascades, leave/rejoin races, and slug reuse. Production table setup remains documentation-only; future CLI setup helpers are tracked in the project roadmap.
+Tests create isolated tables with dummy local credentials and delete them afterward. They cover the shared storage contract, transaction/item limits, pagination, interrupted cleanup, overlapping cascades, leave/rejoin races, and slug reuse. The CLI can generate the table input; production provisioning remains application-owned.

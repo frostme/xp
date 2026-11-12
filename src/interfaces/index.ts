@@ -20,3 +20,5 @@ export type {
   IValidator,
   IValidatorResult,
 };
+
+export type * from "./setup";

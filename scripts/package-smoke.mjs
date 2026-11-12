@@ -1,6 +1,7 @@
+import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import console from "node:console";
-import { mkdtemp, readFile, writeFile, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, mkdir, rm, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import process from "node:process";
@@ -50,7 +51,7 @@ try {
     );
     await writeFile(
       join(directory, "smoke.mjs"),
-      `import assert from 'node:assert/strict'; import {createRequire} from 'node:module'; import server from 'xp/server'; const require=createRequire(import.meta.url); for(const name of ${JSON.stringify(absent)}) { assert.throws(()=>require.resolve(name),{code:'MODULE_NOT_FOUND'}); } ${driver ? (constructors[driver] ?? "") : "assert.throws(()=>server({}),TypeError);"}`,
+      `import assert from 'node:assert/strict'; import {createRequire} from 'node:module'; import server from 'xp/server'; import cli from 'xp/cli'; assert.equal(typeof cli, 'function'); const require=createRequire(import.meta.url); for(const name of ${JSON.stringify(absent)}) { assert.throws(()=>require.resolve(name),{code:'MODULE_NOT_FOUND'}); } ${driver ? (constructors[driver] ?? "") : "assert.throws(()=>server({}),TypeError);"}`,
     );
     execFileSync("node", ["smoke.mjs"], { cwd: directory, stdio: "pipe" });
     await writeFile(
@@ -72,6 +73,61 @@ try {
       ],
       { cwd: directory, stdio: "pipe" },
     );
+    if (driver === null) {
+      const executable = join(directory, "node_modules", "xp", "dist", "cli", "bin.js");
+      for (const runtime of ["node", "bun"]) {
+        const help = execFileSync(runtime, [executable, "--help"], {
+          cwd: directory,
+          encoding: "utf8",
+        });
+        assert.match(help, /xp setup/);
+        assert.doesNotMatch(help, /Hello, World/);
+      }
+      const bunHelp = execFileSync("bun", ["run", "xp", "--help"], {
+        cwd: directory,
+        encoding: "utf8",
+      });
+      assert.match(bunHelp, /xp setup/);
+      const npmHelp = execFileSync("npm", ["exec", "--offline", "--", "xp", "--help"], {
+        cwd: directory,
+        encoding: "utf8",
+      });
+      assert.match(npmHelp, /xp setup/);
+      for (const launcher of ["pnpm", "yarn"]) {
+        try {
+          execFileSync(launcher, ["--version"], { cwd: directory, stdio: "pipe" });
+        } catch (error) {
+          if (error.code === "ENOENT") continue;
+          throw error;
+        }
+        const args = ["exec", "xp", "--help"];
+        assert.match(
+          execFileSync(launcher, args, { cwd: directory, encoding: "utf8" }),
+          /xp setup/,
+        );
+      }
+      const args = ["setup", "--orm", "none", "--database", "postgres", "--user-storage", "create"];
+      const before = (await readdir(directory)).sort();
+      const preview = execFileSync("node", [executable, ...args, "--dry-run"], {
+        cwd: directory,
+        encoding: "utf8",
+      });
+      assert.match(preview, /CREATE TABLE experiments/);
+      assert.deepEqual(
+        (await readdir(directory)).sort(),
+        before,
+        "dry run must not change the consumer project",
+      );
+      execFileSync("node", [executable, ...args, "--yes"], { cwd: directory, stdio: "pipe" });
+      const state = await readFile(join(directory, ".xp", "setup.json"), "utf8");
+      const repeated = execFileSync("node", [executable, ...args, "--yes"], {
+        cwd: directory,
+        encoding: "utf8",
+      });
+      assert.match(repeated, /already generated/);
+      assert.equal(await readFile(join(directory, ".xp", "setup.json"), "utf8"), state);
+      console.log("CLI package smoke passed: imports, launchers, dry run, generation, rerun");
+    }
     console.log(`Package smoke passed: ${driver ?? "no drivers"}`);
   }
 } catch (error) {

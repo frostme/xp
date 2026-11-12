@@ -1,5 +1,7 @@
 # Microsoft SQL Server
 
+Use [`xp setup`](../cli.md) to generate the setup files for this provider and your selected ORM. Review and apply them through your application’s normal workflow.
+
 The SQL Server adaptor accepts a connected `mssql.ConnectionPool` using the default Tedious driver. SQL Server 2025 on Linux amd64 is the integration-test baseline. Install `mssql` in your application; xp loads its optional peer dependency only when needed.
 
 ```ts

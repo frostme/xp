@@ -3,44 +3,12 @@ import { Client, Pool, type PoolConfig } from "pg";
 
 import type { StorageFixture } from "~/__tests__/storage/contract";
 
+import { generatedSql } from "~/__tests__/storage/setup";
 import server from "~/server";
 
 import PostgresAdaptor from "..";
 
-const postgresSchema = `
-CREATE TABLE users (
-  id TEXT PRIMARY KEY
-);
-CREATE TABLE experiments (
-  id SERIAL PRIMARY KEY,
-  name TEXT NOT NULL,
-  slug TEXT NOT NULL UNIQUE,
-  type TEXT NOT NULL CHECK (type IN ('flag', 'simple', 'multivariate', 'dynamic')),
-  description TEXT NOT NULL,
-  winner TEXT
-);
-CREATE TABLE cohorts (
-  id SERIAL PRIMARY KEY,
-  experiment_id INTEGER NOT NULL REFERENCES experiments(id),
-  slug TEXT NOT NULL UNIQUE,
-  type TEXT NOT NULL CHECK (type IN ('control', 'treatment')),
-  description TEXT NOT NULL,
-  percentage DOUBLE PRECISION NOT NULL CHECK (percentage >= 0 AND percentage <= 100),
-  value JSONB NOT NULL DEFAULT 'null'::jsonb,
-  UNIQUE (id, experiment_id)
-);
-CREATE INDEX cohorts_experiment_id_idx ON cohorts(experiment_id);
-CREATE TABLE user_cohorts (
-  id SERIAL PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id),
-  experiment_id INTEGER NOT NULL REFERENCES experiments(id),
-  cohort_id INTEGER NOT NULL,
-  UNIQUE (user_id, experiment_id),
-  FOREIGN KEY (cohort_id, experiment_id) REFERENCES cohorts(id, experiment_id)
-);
-CREATE INDEX user_cohorts_experiment_id_idx ON user_cohorts(experiment_id);
-CREATE INDEX user_cohorts_cohort_id_idx ON user_cohorts(cohort_id);
-`;
+const postgresSchema = generatedSql("postgres");
 
 function postgresConnectionConfig(): PoolConfig {
   if (process.env["POSTGRES_URL"]) return { connectionString: process.env["POSTGRES_URL"] };

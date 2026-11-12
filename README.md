@@ -10,6 +10,17 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const xp = server(pool);
 ```
 
+Generate your application’s setup files with the interactive CLI:
+
+```sh
+bun run xp setup
+# or: pnpm exec xp setup
+```
+
+The wizard detects your ORM and project layout, previews migrations/schema changes,
+and optionally generates supporting models. It writes files without applying them.
+See the [CLI guide](docs/cli.md) for supported tools, flags, and automation.
+
 Install the driver for the database you use. Drivers are optional peers; xp does not
 connect, create schemas, migrate data, or close your client. See
 the setup guide for your provider before the first operation:
@@ -61,4 +72,4 @@ records are no-ops. Duplicate assignments are rejected; concurrent `getGroup()`
 calls return the stored assignment. Review the documented uniqueness/foreign-key
 constraints and cascade behavior before upgrading an existing schema.
 
-See the [roadmap](docs/roadmap.md) for planned setup tooling.
+See the [CLI guide](docs/cli.md) for setup tooling and the [roadmap](docs/roadmap.md) for remaining work.
