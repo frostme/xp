@@ -16,18 +16,14 @@ import { FocusScope } from "../termcn/hooks/use-interaction";
 import { cleanup, render } from "./terminal";
 
 afterEach(cleanup);
-const input = async (app: ReturnType<typeof render>, value: string) => {
-  await new Promise((resolve) => setTimeout(resolve, 30));
-  app.stdin.write(value);
-  await new Promise((resolve) => setTimeout(resolve, 40));
-};
-const contains = async (app: ReturnType<typeof render>, text: string) =>
+const input = (app: Awaited<ReturnType<typeof render>>, value: string) => app.input(value);
+const contains = async (app: Awaited<ReturnType<typeof render>>, text: string) =>
   vi.waitFor(() => expect(app.lastFrame()).toContain(text));
 
 describe("TermCN integration", () => {
   it("uses the latest selection when navigation and submission arrive in one read", async () => {
     const submit = vi.fn();
-    const app = render(
+    const app = await render(
       <FocusScope active>
         <Select
           options={[
@@ -47,7 +43,7 @@ describe("TermCN integration", () => {
   it("confirms the latest selection when the arrow and Enter arrive together", async () => {
     const confirm = vi.fn();
     const cancel = vi.fn();
-    const app = render(
+    const app = await render(
       <FocusScope active>
         <Confirm message="Generate?" onConfirm={confirm} onCancel={cancel} />
       </FocusScope>,
@@ -77,7 +73,7 @@ describe("TermCN integration", () => {
       expect(getCompletions("link/mi", root)).toEqual([]);
       expect(process.cwd()).toBe(original);
       const submit = vi.fn();
-      const app = render(
+      const app = await render(
         <FocusScope active>
           <PathInput cwd={root} dirsOnly onSubmit={submit} />
         </FocusScope>,
@@ -93,7 +89,7 @@ describe("TermCN integration", () => {
   it("lets Tab change focus without appending a tab to a path", async () => {
     const submit = vi.fn();
     const selected = vi.fn();
-    const app = render(
+    const app = await render(
       <FocusScope active initialFocusId="path">
         <Box flexDirection="column">
           <PathInput id="path" defaultValue="db/new" onSubmit={submit} />
@@ -115,7 +111,7 @@ describe("TermCN integration", () => {
     const disabled = vi.fn();
     const active = vi.fn();
     const options = [{ value: "item", label: "Item" }];
-    const app = render(
+    const app = await render(
       <FocusScope active>
         <Box>
           <Select isActive={false} options={options} onSubmit={inactive} />
@@ -134,7 +130,7 @@ describe("TermCN integration", () => {
     const first = vi.fn();
     const second = vi.fn();
     const options = [{ value: "item", label: "Item" }];
-    const app = render(
+    const app = await render(
       <Box>
         <Select autoFocus options={options} onSubmit={first} />
         <Select options={options} onSubmit={second} />
@@ -149,7 +145,7 @@ describe("TermCN integration", () => {
     const content =
       Array.from({ length: 45 }, (_, i) => `line ${i}: ${"wide words ".repeat(8)}`).join("\n") +
       "\nFINAL LINE";
-    const app = render(
+    const app = await render(
       <FocusScope active>
         <Box width="100%">
           <ScrollView height={8}>
@@ -163,7 +159,7 @@ describe("TermCN integration", () => {
     expect(app.lastFrame()).not.toContain("FINAL LINE");
     await input(app, "\u001b[F");
     await contains(app, "FINAL LINE");
-    app.resize(32, 20);
+    await app.resize(32, 20);
     await input(app, "\u001b[F");
     await contains(app, "FINAL LINE");
     await input(app, "\u001b[H");
@@ -192,7 +188,7 @@ describe("TermCN integration", () => {
         },
       ],
     } as SetupPlan;
-    const app = render(
+    const app = await render(
       <FocusScope active initialFocusId="preview-mode">
         <FilePreview plan={plan} height={20} />
       </FocusScope>,

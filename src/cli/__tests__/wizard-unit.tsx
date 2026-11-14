@@ -1,3 +1,4 @@
+import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ProjectDetection, SetupOptions, SetupPlan } from "~/interfaces/setup";
@@ -78,19 +79,16 @@ function fixture(missing = false) {
     applying,
   };
 }
-const frameContains = async (app: ReturnType<typeof render>, text: string) =>
+const frameContains = async (app: Awaited<ReturnType<typeof render>>, text: string) =>
   vi.waitFor(() => expect(app.lastFrame()).toContain(text));
-const input = async (app: ReturnType<typeof render>, value: string) => {
-  app.stdin.write(value);
-  await new Promise((resolve) => setTimeout(resolve, 30));
-};
+const input = (app: Awaited<ReturnType<typeof render>>, value: string) => app.input(value);
 
-const choose = async (app: ReturnType<typeof render>, index: number) => {
+const choose = async (app: Awaited<ReturnType<typeof render>>, index: number) => {
   await input(app, "\u001b[H");
   for (let i = 0; i < index; i++) await input(app, "\u001b[B");
   await input(app, "\r");
 };
-const editOutput = async (app: ReturnType<typeof render>) => {
+const editOutput = async (app: Awaited<ReturnType<typeof render>>) => {
   await choose(app, 1);
   await frameContains(app, "Edit settings");
   await choose(app, 1);
@@ -101,15 +99,19 @@ describe("setup wizard", () => {
   it("opens at review and applies once only after explicit confirmation", async () => {
     const f = fixture();
     const finish = vi.fn();
-    const app = render(<Wizard framework={f.framework} options={{}} onFinish={finish} />);
+    const app = await render(<Wizard framework={f.framework} options={{}} onFinish={finish} />);
     await frameContains(app, "Using sequelize");
     expect(f.applying).not.toHaveBeenCalled();
-    await input(app, "\r");
-    await frameContains(app, "Generate the reviewed files");
-    expect(f.applying).not.toHaveBeenCalled();
-    // Confirmation defaults to returning to review.
-    await input(app, "\r");
-    await frameContains(app, "Review actions");
+    // Each screen remounts its focus scope. Exercise consecutive transitions
+    // without sleeps so input always follows committed focus/effect updates.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await input(app, "\r");
+      await frameContains(app, "Generate the reviewed files");
+      expect(f.applying).not.toHaveBeenCalled();
+      // Confirmation defaults to returning to review.
+      await input(app, "\r");
+      await frameContains(app, "Review actions");
+    }
     await input(app, "\r");
     await input(app, "\u001b[D");
     await input(app, "\r");
@@ -122,7 +124,7 @@ describe("setup wizard", () => {
 
   it("resolves missing settings through the native select then returns to its group", async () => {
     const f = fixture(true);
-    const app = render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
+    const app = await render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
     await frameContains(app, "ORM / query tool");
     await choose(app, 6); // knex
     await frameContains(app, "Storage settings");
@@ -134,7 +136,7 @@ describe("setup wizard", () => {
 
   it("edits models and a new directory without copying unrelated detected defaults", async () => {
     const f = fixture();
-    const app = render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
+    const app = await render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
     await frameContains(app, "Review actions");
     await editOutput(app);
     await choose(app, 1);
@@ -158,7 +160,7 @@ describe("setup wizard", () => {
 
   it("keeps text input separate from wizard navigation and discards cancelled edits", async () => {
     const f = fixture();
-    const app = render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
+    const app = await render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
     await frameContains(app, "Review actions");
     await choose(app, 1); // groups
     await choose(app, 2); // identity
@@ -177,7 +179,7 @@ describe("setup wizard", () => {
 
   it("invalidates the previous plan after a failed edit and supports retry", async () => {
     const f = fixture();
-    const app = render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
+    const app = await render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
     await frameContains(app, "Review actions");
     await editOutput(app);
     await choose(app, 1);
@@ -200,7 +202,7 @@ describe("setup wizard", () => {
       options: { ...project.options, ...options },
       missing: options.userStorage === "create" ? [] : ["userIdType"],
     }));
-    const app = render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
+    const app = await render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
     await frameContains(app, "User storage");
     await choose(app, 1);
     await frameContains(app, "User identity settings");
@@ -220,13 +222,13 @@ describe("setup wizard", () => {
         complete = resolve;
       });
     });
-    const app = render(<Wizard framework={f.framework} options={{}} onFinish={finish} />);
+    const app = await render(<Wizard framework={f.framework} options={{}} onFinish={finish} />);
     await vi.waitFor(() => expect(signal).toBeDefined());
     await input(app, "\r");
     await input(app, "y");
     expect(f.applying).not.toHaveBeenCalled();
     await input(app, "\u0003");
-    complete(plan);
+    await act(async () => complete(plan));
     await input(app, "\r");
     expect(signal?.aborted).toBe(true);
     expect(finish).toHaveBeenCalledExactlyOnceWith(130);
@@ -237,7 +239,9 @@ describe("setup wizard", () => {
   it("previews files, returns on Escape, and never writes in a dry run", async () => {
     const f = fixture();
     const finish = vi.fn();
-    const app = render(<Wizard framework={f.framework} options={{}} dryRun onFinish={finish} />);
+    const app = await render(
+      <Wizard framework={f.framework} options={{}} dryRun onFinish={finish} />,
+    );
     await frameContains(app, "Review actions");
     await choose(app, 2);
     await frameContains(app, "+exports.up");
@@ -256,7 +260,7 @@ describe("setup wizard", () => {
   it("requires replanning after an apply error", async () => {
     const f = fixture();
     f.applying.mockRejectedValueOnce(new Error("inputs changed"));
-    const app = render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
+    const app = await render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
     await frameContains(app, "Review actions");
     await input(app, "\r");
     await input(app, "y");
@@ -277,7 +281,7 @@ describe("setup wizard", () => {
           complete = resolve;
         }),
     );
-    const app = render(<Wizard framework={f.framework} options={{}} onFinish={finish} />);
+    const app = await render(<Wizard framework={f.framework} options={{}} onFinish={finish} />);
     await frameContains(app, "Review actions");
     await input(app, "\r");
     await input(app, "y");
@@ -286,7 +290,9 @@ describe("setup wizard", () => {
     await input(app, "\r");
     expect(finish).not.toHaveBeenCalled();
     expect(f.applying).toHaveBeenCalledTimes(1);
-    complete({ status: "complete", files: [], warnings: [], prerequisites: [], nextSteps: [] });
+    await act(async () =>
+      complete({ status: "complete", files: [], warnings: [], prerequisites: [], nextSteps: [] }),
+    );
     await vi.waitFor(() => expect(finish).toHaveBeenCalledExactlyOnceWith(0));
   });
 });
