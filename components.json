@@ -1,0 +1,15 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "new-york",
+  "rsc": false,
+  "tsx": true,
+  "tailwind": { "config": "", "css": "", "baseColor": "neutral", "cssVariables": false },
+  "aliases": {
+    "components": "~/cli/termcn/components",
+    "ui": "~/cli/termcn/components/ui",
+    "hooks": "~/cli/termcn/hooks",
+    "lib": "~/cli/termcn/lib",
+    "utils": "~/cli/termcn/lib/utils"
+  },
+  "registries": { "@termcn": "https://www.termcn.dev/r/{name}.json" }
+}

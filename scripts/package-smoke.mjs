@@ -75,6 +75,40 @@ try {
     );
     if (driver === null) {
       const executable = join(directory, "node_modules", "xp", "dist", "cli", "bin.js");
+      assert.match(
+        await readFile(join(directory, "node_modules/xp/docs/termcn.md"), "utf8"),
+        /MIT License/,
+      );
+      // Exercise the lazy interactive graph in an isolated production install.
+      await writeFile(
+        join(directory, "interactive-smoke.mjs"),
+        `
+        import assert from 'node:assert/strict';
+        import { PassThrough } from 'node:stream';
+        import { createElement } from 'react';
+        import { render } from 'ink';
+        import Wizard from './node_modules/xp/dist/cli/wizard.js';
+        const stdout = Object.assign(new PassThrough(), { columns: 80, rows: 30, isTTY: true });
+        const stdin = Object.assign(new PassThrough(), { isTTY: true, setRawMode() {}, ref() {}, unref() {} });
+        let output = ''; stdout.on('data', chunk => { output += chunk; });
+        const options = { cwd: '/project', orm: 'none', database: 'postgres', migrationsDir: 'migrations', models: false,
+          modelsDir: 'models', language: 'typescript', moduleFormat: 'esm', userStorage: 'create', userIdType: 'uuid', tableName: 'xp' };
+        const framework = {
+          async detectProject() { return { cwd: '/project', options, missing: [], warnings: [] }; },
+          async planSetup() { return { options, files: [], warnings: [], prerequisites: [] }; },
+          async applySetup() { throw new Error('must not write'); }
+        };
+        const app = render(createElement(Wizard, { framework, options: {}, onFinish() {} }),
+          { stdout, stdin, stderr: stdout, debug: true, exitOnCtrlC: false, patchConsole: false });
+        try {
+          for (let i = 0; i < 100 && !output.includes('Review actions'); i++) await new Promise(resolve => setTimeout(resolve, 20));
+          assert.match(output, /Review actions/);
+          assert.match(output, /Generate files/);
+        } finally { app.unmount(); app.cleanup(); }
+      `,
+      );
+      execFileSync("node", ["interactive-smoke.mjs"], { cwd: directory, stdio: "pipe" });
+
       for (const runtime of ["node", "bun"]) {
         const help = execFileSync(runtime, [executable, "--help"], {
           cwd: directory,

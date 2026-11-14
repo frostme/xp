@@ -132,12 +132,14 @@
   },
   "dependencies": {
     "@babel/parser": "^8.1.2",
+    "cli-spinners": "^3.4.0",
     "dpdm": "^4.3.0",
     "es-toolkit": "^1.52.0",
     "ink": "^8.0.0",
     "meow": "^14.1.0",
     "pino": "^10.4.0",
     "react": "^19.3.0",
+    "string-width": "^9.0.0",
     "type-fest": "^5.10.0",
     "zod": "^4.6.7"
   },

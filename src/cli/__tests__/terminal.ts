@@ -6,9 +6,9 @@ import { PassThrough } from "node:stream";
 const instances: { unmount(): void; cleanup(): void }[] = [];
 
 /** Real Ink renderer with in-memory terminal streams; works with isolated package installs. */
-export function render(element: ReactElement) {
-  const stdout = Object.assign(new PassThrough(), { columns: 100, rows: 30, isTTY: true });
-  const stderr = Object.assign(new PassThrough(), { columns: 100, rows: 30, isTTY: true });
+export function render(element: ReactElement, dimensions = { columns: 100, rows: 30 }) {
+  const stdout = Object.assign(new PassThrough(), { ...dimensions, isTTY: true });
+  const stderr = Object.assign(new PassThrough(), { ...dimensions, isTTY: true });
   const stdin = Object.assign(new PassThrough(), {
     isTTY: true,
     setRawMode: (_value: boolean) => {},
@@ -26,7 +26,17 @@ export function render(element: ReactElement) {
     patchConsole: false,
   });
   instances.push(app);
-  return { stdin, frames, lastFrame: () => frames.at(-1), unmount: () => app.unmount() };
+  return {
+    stdin,
+    frames,
+    resize(columns: number, rows: number) {
+      stdout.columns = columns;
+      stdout.rows = rows;
+      stdout.emit("resize");
+    },
+    lastFrame: () => frames.at(-1),
+    unmount: () => app.unmount(),
+  };
 }
 
 export function cleanup() {
