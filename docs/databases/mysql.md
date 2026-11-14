@@ -1,5 +1,7 @@
 # MySQL
 
+Use [`xp setup`](../cli.md) to generate the setup files for this provider and your selected ORM. Review and apply them through your application’s normal workflow.
+
 The MySQL adaptor supports `mysql2/promise` connections and pools. MySQL 8.0 is the integration-test baseline. Install `mysql2` in the application; it is an optional peer dependency of xp.
 
 ```ts
@@ -24,7 +26,7 @@ xp does not connect an externally supplied standalone connection, close a connec
 
 ## Manual schema setup
 
-Run this schema in the database selected by the supplied client. Use InnoDB so transactions and foreign keys are enforced. These commands belong in the application's provisioning or migration process; future CLI setup helpers are tracked in the project roadmap.
+Run this schema in the database selected by the supplied client. Use InnoDB so transactions and foreign keys are enforced. These commands belong in the application's provisioning or migration process; the CLI can generate the corresponding files.
 
 ```sql
 CREATE TABLE users (

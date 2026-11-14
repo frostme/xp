@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 
 import type { StorageFixture } from "~/__tests__/storage/contract";
 
+import { generatedMongo } from "~/__tests__/storage/setup";
 import server from "~/server";
 
 import MongoDBAdaptor from "..";
@@ -18,18 +19,7 @@ export async function mongoFixture(): Promise<
   await client.connect();
   const db = client.db(databaseName);
   try {
-    for (const name of ["experiments", "cohorts", "users", "user_cohorts"]) {
-      await db.createCollection(name);
-      await db.collection(name).createIndex({ id: 1 }, { unique: true });
-    }
-    await db.collection("experiments").createIndex({ slug: 1 }, { unique: true });
-    await db.collection("cohorts").createIndex({ slug: 1 }, { unique: true });
-    await db.collection("cohorts").createIndex({ experiment_id: 1 });
-    await db
-      .collection("user_cohorts")
-      .createIndex({ user_id: 1, experiment_id: 1 }, { unique: true });
-    await db.collection("user_cohorts").createIndex({ experiment_id: 1 });
-    await db.collection("user_cohorts").createIndex({ cohort_id: 1 });
+    await generatedMongo(db);
     return {
       client,
       databaseName,

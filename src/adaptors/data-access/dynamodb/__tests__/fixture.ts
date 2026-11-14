@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 
 import type { StorageFixture } from "~/__tests__/storage/contract";
 
+import { generatedDynamo } from "~/__tests__/storage/setup";
 import server from "~/server";
 
 import DynamoDBAdaptor from "..";
@@ -25,20 +26,7 @@ export async function dynamodbFixture(): Promise<
   const client = DynamoDBDocumentClient.from(raw);
   const tableName = `xp_test_${randomUUID().replaceAll("-", "")}`;
   try {
-    await raw.send(
-      new CreateTableCommand({
-        TableName: tableName,
-        AttributeDefinitions: [
-          { AttributeName: "pk", AttributeType: "S" },
-          { AttributeName: "sk", AttributeType: "S" },
-        ],
-        KeySchema: [
-          { AttributeName: "pk", KeyType: "HASH" },
-          { AttributeName: "sk", KeyType: "RANGE" },
-        ],
-        BillingMode: "PAY_PER_REQUEST",
-      }),
-    );
+    await raw.send(new CreateTableCommand(generatedDynamo(tableName)));
     const adaptor = new DynamoDBAdaptor(client, tableName);
     const seedPrimitiveUser = async (id: string | number) => {
       await client.send(new PutCommand({ TableName: tableName, Item: { ...userKey(id), id } }));

@@ -9,47 +9,12 @@ import { randomUUID } from "node:crypto";
 
 import type { StorageFixture } from "~/__tests__/storage/contract";
 
+import { generatedSql } from "~/__tests__/storage/setup";
 import server from "~/server";
 
 import MysqlAdaptor from "..";
 
-const mysqlSchema = `
-CREATE TABLE users (
-  id VARCHAR(191) COLLATE utf8mb4_0900_bin PRIMARY KEY
-) ENGINE=InnoDB;
-CREATE TABLE experiments (
-  id INTEGER AUTO_INCREMENT PRIMARY KEY,
-  name TEXT NOT NULL,
-  slug VARCHAR(191) COLLATE utf8mb4_0900_bin NOT NULL UNIQUE,
-  type VARCHAR(32) NOT NULL CHECK (type IN ('flag', 'simple', 'multivariate', 'dynamic')),
-  description TEXT NOT NULL,
-  winner VARCHAR(191) COLLATE utf8mb4_0900_bin
-) ENGINE=InnoDB;
-CREATE TABLE cohorts (
-  id INTEGER AUTO_INCREMENT PRIMARY KEY,
-  experiment_id INTEGER NOT NULL,
-  slug VARCHAR(191) COLLATE utf8mb4_0900_bin NOT NULL UNIQUE,
-  type VARCHAR(32) NOT NULL CHECK (type IN ('control', 'treatment')),
-  description TEXT NOT NULL,
-  percentage DOUBLE NOT NULL CHECK (percentage >= 0 AND percentage <= 100),
-  value JSON NOT NULL,
-  UNIQUE (id, experiment_id),
-  FOREIGN KEY (experiment_id) REFERENCES experiments(id),
-  INDEX cohorts_experiment_id_idx (experiment_id)
-) ENGINE=InnoDB;
-CREATE TABLE user_cohorts (
-  id INTEGER AUTO_INCREMENT PRIMARY KEY,
-  user_id VARCHAR(191) COLLATE utf8mb4_0900_bin NOT NULL,
-  experiment_id INTEGER NOT NULL,
-  cohort_id INTEGER NOT NULL,
-  UNIQUE (user_id, experiment_id),
-  FOREIGN KEY (user_id) REFERENCES users(id),
-  FOREIGN KEY (experiment_id) REFERENCES experiments(id),
-  FOREIGN KEY (cohort_id, experiment_id) REFERENCES cohorts(id, experiment_id),
-  INDEX user_cohorts_experiment_id_idx (experiment_id),
-  INDEX user_cohorts_cohort_id_idx (cohort_id)
-) ENGINE=InnoDB;
-`;
+const mysqlSchema = generatedSql("mysql");
 
 export interface MysqlFixture extends StorageFixture {
   pool: Pool;

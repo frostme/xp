@@ -2,7 +2,7 @@ import type { KnipConfig } from "knip";
 
 const config: KnipConfig = {
   $schema: "https://unpkg.com/knip@6/schema.json",
-  entry: ["src/**/__tests__/*-integration.ts", "src/**/__tests__/*-unit.ts"],
+  entry: ["src/**/__tests__/*-integration.ts", "src/**/__tests__/*-unit.{ts,tsx}"],
   ignoreExportsUsedInFile: true,
   tags: ["-lintignore"],
   ignoreDependencies: ["lint-staged", "@swc-node/register", "pino"],

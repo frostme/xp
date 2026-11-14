@@ -6,6 +6,8 @@ import {
   registerStorageContract,
   selectedDatabase,
 } from "~/__tests__/storage/contract";
+import { setupOptions } from "~/__tests__/storage/setup";
+import { renderSql } from "~/adaptors/setup/storage";
 import server from "~/server";
 
 import MysqlAdaptor from "..";
@@ -69,6 +71,29 @@ describe.skipIf(selectedDatabase() !== "mysql")("MySQL connection ownership and 
       expect((await fixture.adaptor.cohortDAO.getById(created.cohorts[0]!.id)).value).toBe(
         input.cohorts[0]!.value,
       );
+    } finally {
+      await fixture.cleanup();
+    }
+  });
+});
+
+describe.skipIf(selectedDatabase() !== "mysql")("generated setup migration", () => {
+  it("rolls back xp storage while preserving application users and supports reapplication", async () => {
+    const fixture = await setupMysql();
+    try {
+      await fixture.seedUser("retained-user");
+      const schema = renderSql({ ...setupOptions("mysql"), userStorage: "reuse" });
+      for (const statement of schema.down) {
+        await fixture.pool.query(statement);
+      }
+      expect((await fixture.pool.query("SELECT id FROM users"))[0]).toEqual([
+        { id: "retained-user" },
+      ]);
+      for (const statement of schema.up) {
+        await fixture.pool.query(statement);
+      }
+      const experiment = await fixture.adaptor.experimentDAO.create(experimentInput());
+      expect(experiment.cohorts).toHaveLength(2);
     } finally {
       await fixture.cleanup();
     }
