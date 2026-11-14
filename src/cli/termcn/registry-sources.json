@@ -1,0 +1,137 @@
+[
+  {
+    "name": "ink/types",
+    "url": "https://www.termcn.dev/r/ink/types.json",
+    "dependencies": []
+  },
+  {
+    "name": "ink/theme-default",
+    "url": "https://www.termcn.dev/r/ink/theme-default.json",
+    "dependencies": []
+  },
+  {
+    "name": "ink/use-theme",
+    "url": "https://www.termcn.dev/r/ink/use-theme.json",
+    "dependencies": []
+  },
+  {
+    "name": "ink/theme-provider",
+    "url": "https://www.termcn.dev/r/ink/theme-provider.json",
+    "dependencies": []
+  },
+  {
+    "name": "ink/interaction",
+    "url": "https://www.termcn.dev/r/ink/interaction.json",
+    "dependencies": ["ink"]
+  },
+  {
+    "name": "ink/terminal-symbols",
+    "url": "https://www.termcn.dev/r/ink/terminal-symbols.json",
+    "dependencies": []
+  },
+  {
+    "name": "ink/use-unicode",
+    "url": "https://www.termcn.dev/r/ink/use-unicode.json",
+    "dependencies": []
+  },
+  {
+    "name": "ink/wizard",
+    "url": "https://www.termcn.dev/r/ink/wizard.json",
+    "dependencies": ["ink"]
+  },
+  {
+    "name": "ink/heading",
+    "url": "https://www.termcn.dev/r/ink/heading.json",
+    "dependencies": ["ink"]
+  },
+  {
+    "name": "ink/terminal-style",
+    "url": "https://www.termcn.dev/r/ink/terminal-style.json",
+    "dependencies": ["ink"]
+  },
+  {
+    "name": "ink/box",
+    "url": "https://www.termcn.dev/r/ink/box.json",
+    "dependencies": ["ink"]
+  },
+  {
+    "name": "ink/form-field",
+    "url": "https://www.termcn.dev/r/ink/form-field.json",
+    "dependencies": ["ink"]
+  },
+  {
+    "name": "ink/select",
+    "url": "https://www.termcn.dev/r/ink/select.json",
+    "dependencies": ["ink"]
+  },
+  {
+    "name": "ink/terminal-text",
+    "url": "https://www.termcn.dev/r/ink/terminal-text.json",
+    "dependencies": ["string-width@8.2.0"]
+  },
+  {
+    "name": "ink/text-input",
+    "url": "https://www.termcn.dev/r/ink/text-input.json",
+    "dependencies": ["ink"]
+  },
+  {
+    "name": "ink/path-input",
+    "url": "https://www.termcn.dev/r/ink/path-input.json",
+    "dependencies": ["ink"]
+  },
+  {
+    "name": "ink/use-motion",
+    "url": "https://www.termcn.dev/r/ink/use-motion.json",
+    "dependencies": []
+  },
+  {
+    "name": "ink/use-animation",
+    "url": "https://www.termcn.dev/r/ink/use-animation.json",
+    "dependencies": ["ink"]
+  },
+  {
+    "name": "ink/spinner",
+    "url": "https://www.termcn.dev/r/ink/spinner.json",
+    "dependencies": ["cli-spinners", "ink"]
+  },
+  {
+    "name": "ink/alert",
+    "url": "https://www.termcn.dev/r/ink/alert.json",
+    "dependencies": ["ink"]
+  },
+  {
+    "name": "ink/status-message",
+    "url": "https://www.termcn.dev/r/ink/status-message.json",
+    "dependencies": ["ink"]
+  },
+  {
+    "name": "ink/key-value",
+    "url": "https://www.termcn.dev/r/ink/key-value.json",
+    "dependencies": ["ink"]
+  },
+  {
+    "name": "ink/table",
+    "url": "https://www.termcn.dev/r/ink/table.json",
+    "dependencies": ["ink"]
+  },
+  {
+    "name": "ink/confirm",
+    "url": "https://www.termcn.dev/r/ink/confirm.json",
+    "dependencies": ["ink"]
+  },
+  {
+    "name": "ink/diff-view",
+    "url": "https://www.termcn.dev/r/ink/diff-view.json",
+    "dependencies": ["ink"]
+  },
+  {
+    "name": "ink/code",
+    "url": "https://www.termcn.dev/r/ink/code.json",
+    "dependencies": ["ink"]
+  },
+  {
+    "name": "ink/scroll-view",
+    "url": "https://www.termcn.dev/r/ink/scroll-view.json",
+    "dependencies": ["ink"]
+  }
+]

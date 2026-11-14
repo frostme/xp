@@ -15,7 +15,15 @@ yarn exec xp setup
 
 Setup inspects the selected package, installed ORM versions, configuration literals, schema/model files, and conventional directories. It recognizes Sequelize, Prisma, Drizzle, TypeORM, MikroORM, Knex, Kysely, Mongoose, and native database drivers. Project detection does not execute application configuration.
 
-A fully detected project opens directly on a confirmation screen. Missing or ambiguous choices open individual prompts. The summary shows the selected database, paths, language, module format, user identity contract, and all file changes. Press **e** to edit choices, **p** to inspect before/after contents, **Enter** to generate, or **q** to cancel. Directory fields support arrow-key browsing and **Tab** for typing a new or existing path. **Esc** returns to the previous step, and **Ctrl+E** opens all setup choices while answering a prompt. No files are written before confirmation.
+A fully detected project opens directly at **Review**. Missing choices open the relevant field. Settings are grouped into **Storage**, **Output**, and **User identity**; saving a field returns to its group, and **Continue to review** validates the choices and prepares a fresh file plan.
+
+The wizard uses TermCN Ink components and the default terminal theme. Use **Tab / Shift+Tab** to change focus, **arrow keys** to operate the focused control, and **Enter** to select or submit. When the wizard navigation is focused, left/right move between settings groups. **Esc** returns from a field or preview; from review it cancels. **Ctrl+C** cancels inspection or planning before writing starts.
+
+Review includes the resolved settings, every proposed file, warnings, and manual prerequisites. Use its action selector to **Generate files**, **Edit settings**, **Preview files**, or **Cancel**. Generation requires a separate confirmation, which defaults to returning to review. Dry runs offer **Finish dry run** and never write files.
+
+Path fields accept new or existing paths relative to the selected project (`--cwd`). Use **up/down** to choose a completion and **right arrow** to accept it; Tab moves focus. Completion excludes symlinks and paths outside the project. Filesystem validation still runs during planning and application.
+
+Preview offers **Changes**, **Complete before**, and **Complete after**, plus a file selector. Tab into the content viewport to scroll with arrows, Page Up / Page Down, or Home / End. Long lines wrap and the viewport adjusts when the terminal is resized. Unchanged files remain readable. No files are written before confirmation.
 
 Supporting models/entities/types are optional and off by default. Prisma and Drizzle schemas are required parts of their migration workflows. Models use explicit physical names and do not enable automatic synchronization, collection creation, or index creation.
 

@@ -1,4 +1,4 @@
-import { Box, Text, useInput, useStdout } from "ink";
+import { useInput } from "ink";
 import { useEffect, useRef, useState } from "react";
 
 import type CliFramework from "~/frameworks/cli";
@@ -12,13 +12,36 @@ import {
   type SetupResult,
 } from "~/interfaces/setup";
 
-import { DirectoryField, SelectField, TextField } from "./fields";
-import { describePlan, describeResult, previewFile } from "./presentation";
+import { SetupField } from "./fields";
+import { FilePreview, PlanSummary, ResultSummary } from "./screens";
+import { Alert } from "./termcn/components/ui/alert";
+import { Box } from "./termcn/components/ui/box";
+import { Confirm } from "./termcn/components/ui/confirm";
+import { Heading } from "./termcn/components/ui/heading";
+import { ScrollView } from "./termcn/components/ui/scroll-view";
+import { Select } from "./termcn/components/ui/select";
+import { Spinner } from "./termcn/components/ui/spinner";
+import { StatusMessage } from "./termcn/components/ui/status-message";
+import { Wizard as TermWizard } from "./termcn/components/ui/wizard";
+import { FocusScope } from "./termcn/hooks/use-interaction";
+import { ThemeProvider } from "./termcn/providers/theme-provider";
+import { useTerminalSize } from "./use-terminal-size";
 
-type Phase = "loading" | "field" | "review" | "edit" | "preview" | "applying" | "done" | "error";
-const labels: Partial<Record<keyof SetupOptions, string>> = {
+type Phase =
+  | "loading"
+  | "settings"
+  | "field"
+  | "review"
+  | "groups"
+  | "preview"
+  | "confirm"
+  | "applying"
+  | "done"
+  | "error";
+const labels = {
   orm: "ORM / query tool",
   database: "Database",
+  ormVersion: "ORM version",
   config: "Configuration file",
   schema: "Schema file or directory",
   migrationsDir: "Migrations directory",
@@ -31,10 +54,17 @@ const labels: Partial<Record<keyof SetupOptions, string>> = {
   userIdCollation: "User ID collation",
   userIdCharset: "User ID character set",
   tableName: "DynamoDB table name",
-  ormVersion: "ORM version",
-};
-const editFields = Object.keys(labels) as (keyof SetupOptions)[];
-function selections(field: keyof SetupOptions): readonly string[] | undefined {
+} as const;
+type Field = keyof typeof labels;
+const groups: { title: string; fields: Field[] }[] = [
+  { title: "Storage", fields: ["orm", "database", "ormVersion", "config", "schema"] },
+  { title: "Output", fields: ["migrationsDir", "models", "modelsDir", "language", "moduleFormat"] },
+  {
+    title: "User identity",
+    fields: ["userStorage", "userIdType", "userIdCharset", "userIdCollation", "tableName"],
+  },
+];
+function selections(field: Field): readonly string[] | undefined {
   switch (field) {
     case "orm":
       return ORMS;
@@ -52,6 +82,16 @@ function selections(field: keyof SetupOptions): readonly string[] | undefined {
       return undefined;
   }
 }
+function fieldValue(options: SetupOptions, field: Field): string {
+  const value = options[field];
+  return field === "models" ? (value ? "yes" : "no") : typeof value === "string" ? value : "";
+}
+function groupFor(field: Field) {
+  return Math.max(
+    0,
+    groups.findIndex((group) => group.fields.includes(field)),
+  );
+}
 
 export interface WizardProps {
   framework: CliFramework;
@@ -60,7 +100,15 @@ export interface WizardProps {
   onFinish(code: number): void;
 }
 
-export default function Wizard({
+export default function Wizard(props: WizardProps) {
+  return (
+    <ThemeProvider>
+      <SetupWizard {...props} />
+    </ThemeProvider>
+  );
+}
+
+function SetupWizard({
   framework,
   options: initialOptions,
   dryRun = false,
@@ -70,23 +118,31 @@ export default function Wizard({
   const [project, setProject] = useState<ProjectDetection>();
   const [plan, setPlan] = useState<SetupPlan>();
   const [phase, setPhase] = useState<Phase>("loading");
-  const [field, setField] = useState<keyof SetupOptions>("orm");
+  const [group, setGroup] = useState(0);
+  const [field, setField] = useState<Field>("orm");
   const [error, setError] = useState("");
   const [result, setResult] = useState<SetupResult>();
-  const [fileIndex, setFileIndex] = useState(0);
-  const [offset, setOffset] = useState(0);
-  const [horizontal, setHorizontal] = useState(0);
   const cancellation = useRef<AbortController | null>(null);
-  const history = useRef<SetupOptions[]>([]);
   const mounted = useRef(true);
   const pending = useRef(0);
-  const { stdout } = useStdout();
-  const pageSize = Math.max(
-    6,
-    ("rows" in stdout && typeof stdout.rows === "number" ? stdout.rows : 24) - 7,
-  );
+  const finished = useRef(false);
+  const writing = useRef(false);
+  const { columns, rows } = useTerminalSize();
+  const width = Math.max(20, columns);
+  const bodyHeight = Math.max(5, rows - (columns < 65 ? 10 : 8));
 
-  async function resolve(next: SetupOptions) {
+  function finish(code: number) {
+    if (finished.current) return;
+    finished.current = true;
+    onFinish(code);
+  }
+  function cancel() {
+    if (writing.current || finished.current) return;
+    pending.current++;
+    cancellation.current?.abort();
+    finish(130);
+  }
+  async function resolve(next: SetupOptions, returnGroup?: number) {
     const operation = ++pending.current;
     cancellation.current?.abort();
     const controller = new AbortController();
@@ -95,30 +151,38 @@ export default function Wizard({
     setPlan(undefined);
     setPhase("loading");
     setError("");
+    const current = () => mounted.current && !finished.current && operation === pending.current;
     try {
       const detection = await framework.detectProject(request);
-      if (!mounted.current || operation !== pending.current) return;
+      if (!current()) return;
       setProject(detection);
       const missing = detection.missing[0];
       if (missing) {
-        setField(
-          missing === "userIdType" && next.userStorage === undefined ? "userStorage" : missing,
-        );
-        setPhase("field");
+        const required =
+          missing === "userIdType" && next.userStorage === undefined ? "userStorage" : missing;
+        if (!(required in labels)) throw new Error(`Missing setup choice: ${required}`);
+        setField(required as Field);
+        setGroup(returnGroup ?? groupFor(required as Field));
+        setPhase(returnGroup === undefined ? "field" : "settings");
         return;
       }
       const proposed = await framework.planSetup(request);
-      if (!mounted.current || operation !== pending.current) return;
+      if (!current()) return;
       setPlan(proposed);
-      setPhase("review");
+      if (returnGroup !== undefined) {
+        setGroup(returnGroup);
+        setPhase("settings");
+      } else {
+        setGroup(3);
+        setPhase("review");
+      }
     } catch (reason) {
-      if (mounted.current && operation === pending.current) {
+      if (current()) {
         setError(reason instanceof Error ? reason.message : String(reason));
         setPhase("error");
       }
     }
   }
-
   useEffect(() => {
     mounted.current = true;
     void resolve(initialOptions);
@@ -128,24 +192,13 @@ export default function Wizard({
       cancellation.current?.abort();
     };
   }, []);
-
   useEffect(() => {
-    if (phase === "done") onFinish(0);
-  }, [phase, onFinish]);
-
-  function cancel() {
-    if (phase === "applying") return;
-    pending.current++;
-    cancellation.current?.abort();
-    onFinish(130);
-  }
+    if (phase === "done") finish(0);
+  }, [phase]);
 
   async function apply() {
-    if (!plan) return;
-    if (dryRun) {
-      onFinish(0);
-      return;
-    }
+    if (!plan || phase !== "confirm" || writing.current || finished.current) return;
+    writing.current = true;
     setPhase("applying");
     try {
       const applied = await framework.applySetup(plan);
@@ -153,195 +206,216 @@ export default function Wizard({
       setResult(applied);
       setPhase("done");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
-      setPhase("error");
+      if (mounted.current) {
+        // A failed apply may have changed inputs: require a fresh plan before retrying.
+        setPlan(undefined);
+        setError(reason instanceof Error ? reason.message : String(reason));
+        setPhase("error");
+      }
+    } finally {
+      writing.current = false;
     }
   }
-
   useInput((input, key) => {
-    if (key.ctrl && input === "c") {
-      cancel();
-      return;
-    }
-    if (key.ctrl && input === "e" && phase === "field") {
-      setPhase("edit");
-      return;
-    }
-    if (phase === "review") {
-      if (input === "e") setPhase("edit");
-      else if (input === "p") {
-        setFileIndex(0);
-        setOffset(0);
-        setHorizontal(0);
-        setPhase("preview");
-      } else if (input === "q" || key.escape) cancel();
-      else if (input === "g" || key.return) void apply();
-    } else if (phase === "error") {
-      if (input === "e") setPhase("edit");
-      else if (input === "r") void resolve(choices);
-      else if (input === "q" || key.escape) cancel();
-    } else if (phase === "preview" && plan) {
-      if (key.escape || input === "q") setPhase("review");
-      else if (key.tab && !key.shift) {
-        setFileIndex(Math.min(plan.files.length - 1, fileIndex + 1));
-        setOffset(0);
-        setHorizontal(0);
-      } else if (key.tab && key.shift) {
-        setFileIndex(Math.max(0, fileIndex - 1));
-        setOffset(0);
-        setHorizontal(0);
-      } else if (key.rightArrow) {
-        const width = Math.max(
-          0,
-          ...previewFile(plan, fileIndex).map((line) => Array.from(line).length),
-        );
-        setHorizontal(Math.min(width, horizontal + 20));
-      } else if (key.leftArrow) {
-        setHorizontal(Math.max(0, horizontal - 20));
-      } else if (key.downArrow || key.pageDown)
-        setOffset(
-          Math.min(
-            Math.max(0, previewFile(plan, fileIndex).length - pageSize),
-            offset + (key.pageDown ? pageSize : 1),
-          ),
-        );
-      else if (key.upArrow || key.pageUp)
-        setOffset(Math.max(0, offset - (key.pageUp ? pageSize : 1)));
-    }
+    if (key.ctrl && input === "c") cancel();
   });
 
   function back() {
-    if (plan) {
-      setPhase("edit");
-      return;
-    }
-    const previous = history.current.pop();
-    if (previous) {
-      setChoices(previous);
-      void resolve(previous);
+    if (finished.current || writing.current) return;
+    if (phase === "field") setPhase("settings");
+    else if (phase === "preview" || phase === "confirm") {
+      setGroup(3);
+      setPhase("review");
+    } else if (phase === "settings") setPhase("groups");
+    else if (phase === "groups") {
+      if (plan) setGroup(3);
+      setPhase(plan ? "review" : error ? "error" : "settings");
     } else cancel();
   }
-
   function submit(value: string) {
-    history.current.push(choices);
     const next = { ...choices, [field]: field === "models" ? value === "yes" : value };
     if (!value && field !== "models") delete next[field];
-    if (field === "orm") {
-      delete next.ormVersion;
-      // Derived paths are not copied into choices, so changing the tool redetects them.
-    }
+    if (field === "orm") delete next.ormVersion;
     setChoices(next);
-    void resolve(next);
+    void resolve(next, groupFor(field));
   }
-
-  const current = project?.options[field];
-  const initial =
-    field === "models" ? (current ? "yes" : "no") : typeof current === "string" ? current : "";
-  const label = labels[field] ?? field;
-  const select = selections(field);
-
-  return (
-    <Box flexDirection="column" paddingY={1}>
-      <Text bold color="cyan">
-        xp setup
-      </Text>
-      <Text dimColor>Generate project files · Ctrl+C to cancel before writing</Text>
-      <Box marginTop={1} flexDirection="column">
-        {phase === "loading" && <Text>Inspecting the project and preparing a file preview…</Text>}
-        {phase === "field" && (
-          <>
-            <Text dimColor>Ctrl+E to edit any setup choice</Text>
-            {project?.warnings.map((warning) => (
-              <Text key={warning} color="yellow">
-                {warning}
-              </Text>
-            ))}
-            {select ? (
-              <SelectField
-                key={field}
-                label={label}
-                choices={[...select]}
-                initial={initial}
-                onSubmit={submit}
-                onBack={back}
-              />
-            ) : field === "migrationsDir" || field === "modelsDir" ? (
-              <DirectoryField
-                key={field}
-                label={label}
-                cwd={project?.cwd ?? "."}
-                initial={initial}
-                onSubmit={submit}
-                onBack={back}
-              />
-            ) : (
-              <TextField
-                key={field}
-                label={label}
-                initial={initial}
-                onSubmit={submit}
-                onBack={back}
-              />
-            )}
-          </>
-        )}
-        {phase === "review" && plan && (
-          <>
-            <Text>{describePlan(plan)}</Text>
-            <Text color="cyan">
-              {dryRun ? "Enter finish dry run" : "Enter generate files"} · e edit choices · p
-              preview contents · q cancel
-            </Text>
-          </>
-        )}
-        {phase === "edit" && (
-          <SelectField
-            label="Edit a setup choice"
-            choices={editFields.map((key) => labels[key] ?? key)}
-            onBack={() => setPhase(plan ? "review" : project?.missing.length ? "field" : "error")}
+  function navigate(next: number) {
+    if (next === 3) {
+      void resolve(choices);
+      return;
+    }
+    setGroup(next);
+    setPhase("settings");
+  }
+  const resolved = { ...project?.options, ...choices };
+  const fieldOptions = (groups[group]?.fields ?? []).map((key) => ({
+    value: key,
+    label: labels[key],
+    hint: fieldValue(resolved, key) || "automatic",
+  }));
+  const busy = phase === "loading" || phase === "applying" || phase === "done";
+  const focusId =
+    phase === "field"
+      ? "field"
+      : phase === "settings"
+        ? "settings-fields"
+        : phase === "groups"
+          ? "groups"
+          : phase === "review"
+            ? "review-actions"
+            : phase === "confirm"
+              ? "confirm"
+              : phase === "preview"
+                ? "preview-mode"
+                : "error-actions";
+  const body = (
+    <>
+      {phase === "settings" && (
+        <Select
+          id="settings-fields"
+          label={`${groups[group]?.title} settings`}
+          options={[
+            ...fieldOptions,
+            { value: "continue", label: "Continue to review", hint: "validate choices" },
+          ]}
+          onSubmit={(value) => {
+            if (value === "continue") void resolve(choices);
+            else {
+              setField(value as Field);
+              setPhase("field");
+            }
+          }}
+        />
+      )}
+      {phase === "field" && (
+        <>
+          {project?.warnings.map((warning, i) => (
+            <Alert key={i} variant="warning">
+              {warning}
+            </Alert>
+          ))}
+          <SetupField
+            key={field}
+            label={labels[field]}
+            initial={fieldValue(resolved, field)}
+            width={Math.min(65, width - 4)}
+            cwd={project?.cwd ?? initialOptions.cwd ?? "."}
+            choices={selections(field)}
+            path={["migrationsDir", "modelsDir", "config", "schema"].includes(field)}
+            dirsOnly={field === "migrationsDir" || field === "modelsDir"}
+            onSubmit={submit}
+          />
+        </>
+      )}
+      {phase === "groups" && (
+        <Select
+          id="groups"
+          label="Edit settings"
+          options={[
+            ...groups.map((entry, index) => ({ value: index, label: entry.title })),
+            { value: 3, label: "Return to review" },
+          ]}
+          onSubmit={navigate}
+        />
+      )}
+      {phase === "review" && plan && (
+        <>
+          <ScrollView id="review-content" height={Math.max(3, bodyHeight - 7)}>
+            <PlanSummary plan={plan} width={width - 2} />
+          </ScrollView>
+          <Select
+            id="review-actions"
+            label="Review actions"
+            options={[
+              { value: "generate", label: dryRun ? "Finish dry run" : "Generate files" },
+              { value: "edit", label: "Edit settings" },
+              { value: "preview", label: "Preview files" },
+              { value: "cancel", label: "Cancel" },
+            ]}
             onSubmit={(value) => {
-              const selected = editFields.find((key) => labels[key] === value);
-              if (selected) {
-                setField(selected);
-                setPhase("field");
-              }
+              if (value === "generate") {
+                if (dryRun) finish(0);
+                else setPhase("confirm");
+              } else if (value === "edit") setPhase("groups");
+              else if (value === "preview") setPhase("preview");
+              else cancel();
             }}
           />
-        )}
-        {phase === "preview" && plan && (
-          <>
-            <Text bold>
-              {fileIndex + 1}/{plan.files.length} {plan.files[fileIndex]?.path}
-            </Text>
-            {previewFile(plan, fileIndex)
-              .slice(offset, offset + pageSize)
-              .map((line, i) => (
-                <Text
-                  key={offset + i}
-                  wrap="truncate"
-                  {...(line.startsWith("+")
-                    ? { color: "green" as const }
-                    : line.startsWith("-")
-                      ? { color: "red" as const }
-                      : {})}
-                >
-                  {Array.from(line).slice(horizontal).join("")}
-                </Text>
-              ))}
-            <Text dimColor>
-              Tab/Shift+Tab file · ←/→ horizontal · ↑/↓ or PgUp/PgDn scroll · Esc return
-            </Text>
-          </>
-        )}
-        {phase === "applying" && <Text>Writing approved files…</Text>}
-        {phase === "done" && result && <Text>{describeResult(result)}</Text>}
-        {phase === "error" && (
-          <>
-            <Text color="red">{error}</Text>
-            <Text>e edit choices · r retry · q cancel</Text>
-          </>
-        )}
-      </Box>
+        </>
+      )}
+      {phase === "preview" && plan && <FilePreview plan={plan} height={bodyHeight} />}
+      {phase === "confirm" && plan && (
+        <Confirm
+          id="confirm"
+          message={`Generate the reviewed files in ${plan.options.cwd}?`}
+          confirmLabel="Generate files"
+          cancelLabel="Back to review"
+          onConfirm={() => {
+            void apply();
+          }}
+          onCancel={back}
+        />
+      )}
+    </>
+  );
+
+  return (
+    <Box flexDirection="column" width={width}>
+      <Heading level={1}>xp setup</Heading>
+      <StatusMessage>Generate project files · Ctrl+C cancels before writing</StatusMessage>
+      {phase === "loading" && (
+        <Spinner label="Inspecting the project and preparing a file preview…" />
+      )}
+      {phase === "applying" && <Spinner label="Writing approved files…" />}
+      {phase === "done" && result && <ResultSummary result={result} />}
+      {!busy && (
+        <FocusScope
+          key={`${phase}-${group}-${field}`}
+          active
+          initialFocusId={focusId}
+          onEscapeKey={back}
+        >
+          {phase === "error" ? (
+            <>
+              <Alert variant="error" title="Setup could not continue">
+                {error}
+              </Alert>
+              <Select
+                id="error-actions"
+                label="Recovery actions"
+                options={[
+                  { value: "retry", label: "Retry planning" },
+                  { value: "edit", label: "Edit settings" },
+                  { value: "cancel", label: "Cancel" },
+                ]}
+                onSubmit={(value) => {
+                  if (value === "retry") void resolve(choices);
+                  else if (value === "edit") setPhase("groups");
+                  else cancel();
+                }}
+              />
+            </>
+          ) : (
+            <TermWizard
+              id="wizard-navigation"
+              activeStep={group}
+              onStepChange={navigate}
+              compact={columns < 65}
+              showNavigation={phase === "settings"}
+              isActive={phase === "settings"}
+              completionLabel="Review files"
+              steps={[
+                ...groups.map((entry) => ({ key: entry.title, title: entry.title, content: body })),
+                { key: "review", title: "Review", content: body },
+              ]}
+              onComplete={() => {
+                void resolve(choices);
+              }}
+            />
+          )}
+          <StatusMessage>Tab focus · Arrows navigate · Enter select · Esc back</StatusMessage>
+        </FocusScope>
+      )}
     </Box>
   );
 }

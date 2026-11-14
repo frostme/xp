@@ -1,3 +1,4 @@
+import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ProjectDetection, SetupOptions, SetupPlan } from "~/interfaces/setup";
@@ -8,9 +9,6 @@ import { parseArguments } from "../run";
 import Wizard from "../wizard";
 import { cleanup, render } from "./terminal";
 
-vi.mock("~/adaptors/setup/directories", () => ({
-  listDirectories: async () => ["migrations", "src"],
-}));
 afterEach(cleanup);
 
 const plan: SetupPlan = {
@@ -81,132 +79,221 @@ function fixture(missing = false) {
     applying,
   };
 }
-const frameContains = async (app: ReturnType<typeof render>, text: string) =>
+const frameContains = async (app: Awaited<ReturnType<typeof render>>, text: string) =>
   vi.waitFor(() => expect(app.lastFrame()).toContain(text));
-const input = async (app: ReturnType<typeof render>, value: string) => {
-  app.stdin.write(value);
-  await new Promise((resolve) => setTimeout(resolve, 30));
+const input = (app: Awaited<ReturnType<typeof render>>, value: string) => app.input(value);
+
+const choose = async (app: Awaited<ReturnType<typeof render>>, index: number) => {
+  await input(app, "\u001b[H");
+  for (let i = 0; i < index; i++) await input(app, "\u001b[B");
+  await input(app, "\r");
+};
+const editOutput = async (app: Awaited<ReturnType<typeof render>>) => {
+  await choose(app, 1);
+  await frameContains(app, "Edit settings");
+  await choose(app, 1);
+  await frameContains(app, "Output settings");
 };
 
 describe("setup wizard", () => {
-  it("goes directly to confirmation for a detected project and writes only on confirmation", async () => {
+  it("opens at review and applies once only after explicit confirmation", async () => {
     const f = fixture();
     const finish = vi.fn();
-    const app = render(<Wizard framework={f.framework} options={{}} onFinish={finish} />);
+    const app = await render(<Wizard framework={f.framework} options={{}} onFinish={finish} />);
     await frameContains(app, "Using sequelize");
     expect(f.applying).not.toHaveBeenCalled();
+    // Each screen remounts its focus scope. Exercise consecutive transitions
+    // without sleeps so input always follows committed focus/effect updates.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      await input(app, "\r");
+      await frameContains(app, "Generate the reviewed files");
+      expect(f.applying).not.toHaveBeenCalled();
+      // Confirmation defaults to returning to review.
+      await input(app, "\r");
+      await frameContains(app, "Review actions");
+    }
+    await input(app, "\r");
+    await input(app, "\u001b[D");
     await input(app, "\r");
     await vi.waitFor(() => expect(f.applying).toHaveBeenCalledWith(plan));
-    await vi.waitFor(() => expect(finish).toHaveBeenCalledWith(0));
     await frameContains(app, "Setup files generated.");
+    await input(app, "\r");
+    expect(f.applying).toHaveBeenCalledTimes(1);
+    expect(finish).toHaveBeenCalledExactlyOnceWith(0);
   });
 
-  it("filters tools and resolves only a missing choice", async () => {
+  it("resolves missing settings through the native select then returns to its group", async () => {
     const f = fixture(true);
-    const app = render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
+    const app = await render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
     await frameContains(app, "ORM / query tool");
-    await input(app, "knex");
-    await input(app, "\r");
-    await frameContains(app, "Using knex");
+    await choose(app, 6); // knex
+    await frameContains(app, "Storage settings");
     expect(f.planning).toHaveBeenCalledWith(expect.objectContaining({ orm: "knex" }));
+    await choose(app, 5); // continue
+    await frameContains(app, "Using knex");
+    expect(f.applying).not.toHaveBeenCalled();
   });
 
-  it("supports reviewed model selection and manual directory entry", async () => {
+  it("edits models and a new directory without copying unrelated detected defaults", async () => {
     const f = fixture();
-    const app = render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
-    await frameContains(app, "Using sequelize");
-    await input(app, "e");
-    await input(app, "supporting");
-    await input(app, "\r");
-    await frameContains(app, "Generate supporting models");
-    await input(app, "\u001b[B");
-    await input(app, "\r");
-    await vi.waitFor(() =>
-      expect(f.planning).toHaveBeenLastCalledWith(expect.objectContaining({ models: true })),
-    );
-    await frameContains(app, "Using sequelize");
-    await input(app, "e");
-    await input(app, "Migrations");
-    await input(app, "\r");
-    await frameContains(app, "Browsing .");
-    await input(app, "\t");
-    await frameContains(app, "new or existing path");
+    const app = await render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
+    await frameContains(app, "Review actions");
+    await editOutput(app);
+    await choose(app, 1);
+    await frameContains(app, "Enter to save");
+    await choose(app, 1);
+    await frameContains(app, "Output settings");
+    expect(f.planning).toHaveBeenLastCalledWith(expect.objectContaining({ models: true }));
+    await choose(app, 0);
+    await frameContains(app, "Enter to save");
     for (let i = 0; i < "migrations".length; i++) await input(app, "\u007f");
-    await input(app, "db/migrations");
+    await input(app, "db/new migrations");
     await input(app, "\r");
-    await vi.waitFor(() =>
-      expect(f.planning).toHaveBeenLastCalledWith(
-        expect.objectContaining({ models: true, migrationsDir: "db/migrations" }),
-      ),
+    await frameContains(app, "Output settings");
+    expect(f.planning).toHaveBeenLastCalledWith(
+      expect.objectContaining({ models: true, migrationsDir: "db/new migrations" }),
     );
+    expect(f.planning.mock.calls.at(-1)?.[0]).not.toHaveProperty("orm");
+    await choose(app, 5);
+    await frameContains(app, "Review actions");
   });
 
-  it("does not return to review with a stale plan after edited choices fail planning", async () => {
+  it("keeps text input separate from wizard navigation and discards cancelled edits", async () => {
     const f = fixture();
-    const app = render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
-    await frameContains(app, "Using sequelize");
-    f.planning.mockImplementationOnce(async () => {
-      throw new Error("plan failed");
-    });
-    await input(app, "e");
-    await input(app, "supporting");
-    await input(app, "\r");
-    await input(app, "\u001b[B");
-    await input(app, "\r");
+    const app = await render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
+    await frameContains(app, "Review actions");
+    await choose(app, 1); // groups
+    await choose(app, 2); // identity
+    await choose(app, 1); // ID type
+    await frameContains(app, "Enter to save");
+    await input(app, "\u001b[D");
+    await input(app, "X");
+    await input(app, "\u001b");
+    await frameContains(app, "User identity settings");
+    expect(f.planning).toHaveBeenCalledTimes(1);
+    await input(app, "\t"); // navigation now owns arrows
+    await input(app, "\u001b[D");
+    await frameContains(app, "Output settings");
+    expect(f.applying).not.toHaveBeenCalled();
+  });
+
+  it("invalidates the previous plan after a failed edit and supports retry", async () => {
+    const f = fixture();
+    const app = await render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
+    await frameContains(app, "Review actions");
+    await editOutput(app);
+    await choose(app, 1);
+    f.planning.mockRejectedValueOnce(new Error("plan failed"));
+    await choose(app, 1);
     await frameContains(app, "plan failed");
-    await input(app, "e");
-    await frameContains(app, "Edit a setup choice");
+    await choose(app, 1); // edit
     await input(app, "\u001b");
     await frameContains(app, "plan failed");
+    expect(f.applying).not.toHaveBeenCalled();
+    await choose(app, 0);
+    await frameContains(app, "Review actions");
+    expect(f.planning).toHaveBeenLastCalledWith(expect.objectContaining({ models: true }));
   });
 
-  it("lets a fresh application choose to scaffold users before asking for their type", async () => {
+  it("asks whether to create users before requiring their key type", async () => {
     const f = fixture();
     f.detect.mockImplementation(async (options: SetupOptions = {}) => ({
       ...project,
       options: { ...project.options, ...options },
       missing: options.userStorage === "create" ? [] : ["userIdType"],
     }));
-    const app = render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
+    const app = await render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
     await frameContains(app, "User storage");
-    await input(app, "create");
-    await input(app, "\r");
-    await frameContains(app, "Using sequelize");
+    await choose(app, 1);
+    await frameContains(app, "User identity settings");
     expect(f.planning).toHaveBeenCalledWith(expect.objectContaining({ userStorage: "create" }));
+    await choose(app, 5);
+    await frameContains(app, "Review actions");
   });
 
-  it("cancels pending generation without applying files", async () => {
+  it("ignores input while planning and cancels even when a stale request later resolves", async () => {
     const f = fixture();
     const finish = vi.fn();
     let signal: AbortSignal | undefined;
+    let complete!: (value: SetupPlan) => void;
     f.planning.mockImplementation(async (options: SetupOptions = {}) => {
       signal = options.signal;
-      return new Promise<SetupPlan>((_resolve, reject) => {
-        signal?.addEventListener("abort", () => reject(new Error("cancelled")), { once: true });
+      return new Promise<SetupPlan>((resolve) => {
+        complete = resolve;
       });
     });
-    const app = render(<Wizard framework={f.framework} options={{}} onFinish={finish} />);
+    const app = await render(<Wizard framework={f.framework} options={{}} onFinish={finish} />);
     await vi.waitFor(() => expect(signal).toBeDefined());
+    await input(app, "\r");
+    await input(app, "y");
+    expect(f.applying).not.toHaveBeenCalled();
     await input(app, "\u0003");
+    await act(async () => complete(plan));
+    await input(app, "\r");
     expect(signal?.aborted).toBe(true);
-    expect(finish).toHaveBeenCalledWith(130);
+    expect(finish).toHaveBeenCalledExactlyOnceWith(130);
+    expect(app.lastFrame()).not.toContain("Review actions");
     expect(f.applying).not.toHaveBeenCalled();
   });
 
-  it("previews content, cancels, and never applies during dry run", async () => {
+  it("previews files, returns on Escape, and never writes in a dry run", async () => {
     const f = fixture();
     const finish = vi.fn();
-    const app = render(<Wizard framework={f.framework} options={{}} dryRun onFinish={finish} />);
-    await frameContains(app, "Using sequelize");
-    await input(app, "p");
-    await frameContains(app, "+ exports.up");
+    const app = await render(
+      <Wizard framework={f.framework} options={{}} dryRun onFinish={finish} />,
+    );
+    await frameContains(app, "Review actions");
+    await choose(app, 2);
+    await frameContains(app, "+exports.up");
+    await choose(app, 1);
+    await frameContains(app, "does not exist yet");
+    await choose(app, 2);
+    await frameContains(app, "exports.up");
     await input(app, "\u001b");
-    await frameContains(app, "finish dry run");
+    await frameContains(app, "Finish dry run");
     await input(app, "\r");
-    expect(finish).toHaveBeenCalledWith(0);
+    await input(app, "\u0003");
+    expect(finish).toHaveBeenCalledExactlyOnceWith(0);
     expect(f.applying).not.toHaveBeenCalled();
-    await input(app, "q");
-    expect(finish).toHaveBeenCalledWith(130);
+  });
+
+  it("requires replanning after an apply error", async () => {
+    const f = fixture();
+    f.applying.mockRejectedValueOnce(new Error("inputs changed"));
+    const app = await render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
+    await frameContains(app, "Review actions");
+    await input(app, "\r");
+    await input(app, "y");
+    await frameContains(app, "inputs changed");
+    await input(app, "\r");
+    await frameContains(app, "Review actions");
+    expect(f.planning).toHaveBeenCalledTimes(2);
+    expect(f.applying).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps applying non-cancellable and prevents duplicate writes", async () => {
+    const f = fixture();
+    const finish = vi.fn();
+    let complete!: (value: Awaited<ReturnType<typeof f.applying>>) => void;
+    f.applying.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const app = await render(<Wizard framework={f.framework} options={{}} onFinish={finish} />);
+    await frameContains(app, "Review actions");
+    await input(app, "\r");
+    await input(app, "y");
+    await frameContains(app, "Writing approved files");
+    await input(app, "\u0003");
+    await input(app, "\r");
+    expect(finish).not.toHaveBeenCalled();
+    expect(f.applying).toHaveBeenCalledTimes(1);
+    await act(async () =>
+      complete({ status: "complete", files: [], warnings: [], prerequisites: [], nextSteps: [] }),
+    );
+    await vi.waitFor(() => expect(finish).toHaveBeenCalledExactlyOnceWith(0));
   });
 });
 
