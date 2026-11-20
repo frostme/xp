@@ -6,7 +6,7 @@ import type { ProjectDetection, ResolvedSetup, SetupDatabase } from "~/interface
 
 import { generateDynamo } from "~/adaptors/setup/generators/dynamodb";
 import { generateMongoBootstrap } from "~/adaptors/setup/generators/mongodb";
-import { renderSql } from "~/adaptors/setup/storage";
+import { renderAvailabilityUpgrade, renderSql } from "~/adaptors/setup/storage";
 
 export function setupOptions(database: SetupDatabase): ResolvedSetup {
   return {
@@ -36,8 +36,12 @@ export function setupOptions(database: SetupDatabase): ResolvedSetup {
 }
 
 /** Integration fixtures consume the same storage output shipped by xp setup. */
-export function generatedSql(database: SetupDatabase): string {
-  return renderSql(setupOptions(database)).up.join("\n");
+export function generatedSql(database: SetupDatabase, version: 1 | 2 = 2): string {
+  return renderSql(setupOptions(database), { version }).up.join("\n");
+}
+
+export function generatedUpgrade(database: SetupDatabase): string[] {
+  return renderAvailabilityUpgrade(setupOptions(database)).up;
 }
 
 export async function generatedMongo(db: Db): Promise<void> {

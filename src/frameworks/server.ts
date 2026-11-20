@@ -15,6 +15,7 @@ export default class ServerFramework {
     protected viewCohortUseCase: IUseCase<Cohort>,
     protected updateCohortUseCase: IUseCase<void>,
     protected removeCohortUseCase: IUseCase<void>,
+    protected availabilityUseCase: IUseCase<void>,
   ) {}
 
   async getGroup<ID extends string | number, Slug extends string>(
@@ -30,6 +31,14 @@ export default class ServerFramework {
     cohortSlug: Slug,
   ): Promise<UserCohort> {
     return this.joinCohortUseCase.call(userId, experimentSlug, cohortSlug);
+  }
+
+  async pauseExperiment(experimentSlug: string): Promise<void> {
+    await this.availabilityUseCase.call(experimentSlug, false);
+  }
+
+  async resumeExperiment(experimentSlug: string): Promise<void> {
+    await this.availabilityUseCase.call(experimentSlug, true);
   }
 
   async leaveExperiment<ID extends string | number, Slug extends string>(

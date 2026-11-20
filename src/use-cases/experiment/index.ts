@@ -4,6 +4,8 @@ import FinalizeExperiment from "./finalize";
 import RemoveExperiment from "./remove";
 import UpdateExperiment from "./update";
 
+export { default as SetExperimentAvailability } from "./setAvailability";
+
 export {
   AddCohortToExperiment,
   RemoveExperiment,

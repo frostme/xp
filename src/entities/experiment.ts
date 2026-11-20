@@ -8,6 +8,7 @@ export default class Experiment extends Entity<Experiment, "Experiment"> {
   slug!: ExperimentSlug;
   type!: ExperimentType;
   description!: string;
+  enabled!: boolean;
   winner!: CohortSlug | null;
   cohorts!: Cohort[];
 }

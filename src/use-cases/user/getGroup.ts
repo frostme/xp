@@ -1,7 +1,7 @@
 import type { IUseCase, IUserDAO, IExperimentDAO, ICohortDAO, IBucketer } from "~/interfaces";
 
 import { type ExperimentSlug, type CohortSlug, type PKey } from "~/entities";
-import { DuplicateAssignmentError, NotFoundError } from "~/errors";
+import { DuplicateAssignmentError, ExperimentPausedError, NotFoundError } from "~/errors";
 
 type UseCaseParams = {
   userId: PKey<"User">;
@@ -29,6 +29,8 @@ export default class GetGroup implements IUseCase<CohortSlug | null> {
     if (!experiment) {
       throw new NotFoundError(`Experiment with slug ${experimentSlug} not found`);
     }
+
+    if (!experiment.enabled) return null;
 
     if (experiment.winner) {
       return experiment.winner;
@@ -58,6 +60,7 @@ export default class GetGroup implements IUseCase<CohortSlug | null> {
       try {
         await this.userDAO.addUserCohort(userId, experiment.id, cohort.id);
       } catch (error) {
+        if (error instanceof ExperimentPausedError) return null;
         if (!(error instanceof DuplicateAssignmentError)) throw error;
         const persisted = await this.userDAO.findUserCohort(userId, experiment.id);
         if (!persisted) throw error;

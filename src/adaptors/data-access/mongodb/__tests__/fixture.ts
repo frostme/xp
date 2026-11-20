@@ -25,6 +25,9 @@ export async function mongoFixture(): Promise<
       databaseName,
       adaptor: new MongoDBAdaptor(client, databaseName),
       server: server(client, { databaseName }),
+      reopen: () => server(client, { databaseName }),
+      // Version 1 experiments omit enabled and require no storage alteration.
+      applyUpgrade: () => Promise.resolve(),
       async seedUser(id) {
         await db.collection("users").updateOne({ id }, { $setOnInsert: { id } }, { upsert: true });
       },

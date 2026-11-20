@@ -1,3 +1,4 @@
+import type { CancellationReason } from "@aws-sdk/client-dynamodb";
 import type { DynamoDBDocumentClient, TransactWriteCommandInput } from "@aws-sdk/lib-dynamodb";
 
 import { randomUUID } from "node:crypto";
@@ -14,7 +15,12 @@ import type {
   UserCohort,
 } from "~/entities";
 
-import { DuplicateAssignmentError, NotFoundError, ValidationError } from "~/errors";
+import {
+  DuplicateAssignmentError,
+  ExperimentPausedError,
+  NotFoundError,
+  ValidationError,
+} from "~/errors";
 
 import { loadDriver } from "../optionalDriver";
 import {
@@ -32,29 +38,31 @@ import {
 type Action = NonNullable<TransactWriteCommandInput["TransactItems"]>[number];
 type Item = Record<string, any>;
 type State = "active" | "deleting";
-type StoredExperiment = Omit<Experiment, "cohorts"> & Key & { state: State };
+type StoredExperiment = Omit<Experiment, "cohorts" | "enabled"> &
+  Key & { enabled?: boolean; state: State };
 type StoredCohort = Cohort & Key & { experiment_id: PKey<"Experiment">; state: State };
 type StoredMembership = UserCohort & Key;
 const attempts = 5;
 const pageSize = 25;
 
+function cancellationReasons(error: unknown): CancellationReason[] | undefined {
+  const failure = error as { name?: string; CancellationReasons?: CancellationReason[] };
+  return failure?.name === "TransactionCanceledException" ? failure.CancellationReasons : undefined;
+}
+
 function conditionalFailure(error: unknown): boolean {
-  const failure = error as { name?: string; CancellationReasons?: { Code?: string }[] };
   return (
-    failure?.name === "ConditionalCheckFailedException" ||
-    (failure?.name === "TransactionCanceledException" &&
-      failure.CancellationReasons?.some((reason) => reason.Code === "ConditionalCheckFailed") ===
-        true)
+    (error as Error)?.name === "ConditionalCheckFailedException" ||
+    cancellationReasons(error)?.some((reason) => reason.Code === "ConditionalCheckFailed") === true
   );
 }
 
 function transactionConflict(error: unknown): boolean {
-  const failure = error as { name?: string; CancellationReasons?: { Code?: string }[] };
+  const name = (error as Error)?.name;
   return (
-    failure?.name === "TransactionConflictException" ||
-    failure?.name === "TransactionInProgressException" ||
-    (failure?.name === "TransactionCanceledException" &&
-      failure.CancellationReasons?.some((reason) => reason.Code === "TransactionConflict") === true)
+    name === "TransactionConflictException" ||
+    name === "TransactionInProgressException" ||
+    cancellationReasons(error)?.some((reason) => reason.Code === "TransactionConflict") === true
   );
 }
 
@@ -216,6 +224,7 @@ export default class DynamoDBStore {
       slug: current.slug,
       type: current.type,
       description: current.description,
+      enabled: current.enabled ?? true,
       winner: current.winner,
       cohorts,
     };
@@ -285,22 +294,20 @@ export default class DynamoDBStore {
       type: cohort.type,
       value: cohort.value ?? null,
     }));
-    const experiment: Experiment = {
+    const fields = {
       id,
       name: input.name,
       slug: input.slug,
       description: input.description,
       type: input.type,
       winner: null,
-      cohorts,
     };
-    const { cohorts: _cohorts, ...fields } = experiment;
     await this.write([
       this.put({ ...experimentKey(id), ...fields, state: "active" }),
       this.put({ ...experimentClaim(input.slug), experiment_id: id }),
       ...cohorts.flatMap((cohort) => this.cohortItems(cohort).map((item) => this.put(item))),
     ]);
-    return experiment;
+    return { ...fields, enabled: true, cohorts };
   }
 
   private updateAction(key: Key, updates: Item): Action | null {
@@ -323,6 +330,20 @@ export default class DynamoDBStore {
         ExpressionAttributeValues: values,
       },
     };
+  }
+
+  async setEnabled(slug: ExperimentSlug, enabled: boolean): Promise<void> {
+    const claim = await this.get<{ experiment_id: PKey<"Experiment"> } & Item>(
+      experimentClaim(slug),
+    );
+    if (!claim) throw new NotFoundError(`Experiment with slug ${slug} not found`);
+    try {
+      await this.write([this.updateAction(experimentKey(claim.experiment_id), { enabled })!]);
+    } catch (error) {
+      if (conditionalFailure(error))
+        throw new NotFoundError(`Experiment with slug ${slug} not found`, { cause: error });
+      throw error;
+    }
   }
 
   async updateExperiment(
@@ -470,7 +491,17 @@ export default class DynamoDBStore {
       await this.write([
         this.put({ ...membershipKey(experimentId, userId), ...membership }),
         this.put({ ...membershipReference(cohortId, userId), ...membership }),
-        this.active(experimentKey(experimentId)),
+        {
+          ConditionCheck: {
+            TableName: this.tableName,
+            Key: experimentKey(experimentId),
+            ConditionExpression:
+              "#state = :active AND (attribute_not_exists(#enabled) OR #enabled = :enabled)",
+            ExpressionAttributeNames: { "#state": "state", "#enabled": "enabled" },
+            ExpressionAttributeValues: { ":active": "active", ":enabled": true },
+            ReturnValuesOnConditionCheckFailure: "ALL_OLD",
+          },
+        },
         this.active(cohortKey(experimentId, cohortId)),
         {
           ConditionCheck: {
@@ -482,10 +513,19 @@ export default class DynamoDBStore {
       ]);
     } catch (error) {
       if (conditionalFailure(error)) {
+        // The SDK exposes cancellation reason items as DynamoDB AttributeValues.
+        // Use the condition's snapshot even if a subsequent resume has already committed.
+        const parent = cancellationReasons(error)?.[2]?.Item;
+        if (parent?.["state"]?.S === "active" && parent["enabled"]?.BOOL === false) {
+          throw new ExperimentPausedError({ cause: error });
+        }
+        const experiment = await this.get<StoredExperiment>(experimentKey(experimentId));
+        if (experiment?.state !== "active")
+          throw new NotFoundError(`Experiment with id ${experimentId} not found`, { cause: error });
+        if (experiment.enabled === false) throw new ExperimentPausedError({ cause: error });
         if (await this.findMembership(userId, experimentId))
           throw new DuplicateAssignmentError({ cause: error });
         await this.getUser(userId);
-        await this.getExperiment(experimentId);
         const cohort = await this.getCohort(cohortId);
         if (cohort.experiment_id !== experimentId) {
           throw new NotFoundError("Cohort does not belong to the experiment", { cause: error });

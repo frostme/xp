@@ -21,6 +21,12 @@ export default class MongoExperimentDAO implements IExperimentDAO {
     return record ? this.store.experiment(record) : null;
   }
 
+  async setEnabled(slug: ExperimentSlug, enabled: boolean): Promise<void> {
+    const result = await this.store.experiments.updateOne({ slug }, { $set: { enabled } });
+    if (result.matchedCount === 0)
+      throw new NotFoundError(`Experiment with slug ${slug} not found`);
+  }
+
   async list(): Promise<Experiment[]> {
     const records = await this.store.experiments.find({}, { readPreference: "primary" }).toArray();
     return Promise.all(records.map((record) => this.store.experiment(record)));
@@ -61,6 +67,7 @@ export default class MongoExperimentDAO implements IExperimentDAO {
       type: record.type,
       description: record.description,
       winner: null,
+      enabled: true,
       cohorts: cohorts.map(mapCohort),
     };
   }

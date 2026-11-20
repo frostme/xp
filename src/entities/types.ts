@@ -6,7 +6,7 @@ import * as z from "zod";
 export type PKey<T extends string | number> = Tagged<string | number, T>;
 // Only strip fields owned by persistence, never keys inside arbitrary JSON values.
 export type CreationPayload<T> = T extends { cohorts: (infer C)[] }
-  ? Omit<T, "id" | "winner" | "cohorts"> & { cohorts: CreationPayload<C>[] }
+  ? Omit<T, "id" | "winner" | "enabled" | "cohorts"> & { cohorts: CreationPayload<C>[] }
   : Omit<T, "id">;
 
 const KebabCaseSchema = z.string().refine((val) => val === kebabCase(val), {

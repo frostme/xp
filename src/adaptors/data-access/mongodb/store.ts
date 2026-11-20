@@ -2,7 +2,10 @@ import type { ClientSession, MongoClient } from "mongodb";
 
 import type { Cohort, Experiment, PKey, User, UserCohort } from "~/entities";
 
-export type ExperimentDocument = Omit<Experiment, "cohorts"> & { version: number };
+export type ExperimentDocument = Omit<Experiment, "cohorts" | "enabled"> & {
+  enabled?: boolean;
+  version: number;
+};
 export type CohortDocument = Cohort & { experiment_id: PKey<"Experiment"> };
 
 /** Coordinates mutations through an experiment write, preventing transaction write skew. */
@@ -57,6 +60,7 @@ export default class MongoStore {
       slug: record.slug,
       type: record.type,
       description: record.description,
+      enabled: record.enabled ?? true,
       winner: record.winner,
       cohorts: cohorts.map(mapCohort),
     };

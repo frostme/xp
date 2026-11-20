@@ -6,11 +6,14 @@ import type { CreationPayload, Experiment, CohortSlug, ExperimentSlug, PKey } fr
 import type { ServerFramework } from "~/frameworks";
 import type { IDataAccessAdaptor } from "~/interfaces";
 
-import { DuplicateAssignmentError, NotFoundError } from "~/errors";
+import { DuplicateAssignmentError, ExperimentPausedError, NotFoundError } from "~/errors";
+import { GetGroup } from "~/use-cases";
 
 export interface StorageFixture {
   adaptor: IDataAccessAdaptor;
   server: ServerFramework;
+  reopen(): ServerFramework;
+  applyUpgrade(): Promise<void>;
   seedUser(id: string): Promise<void>;
   cleanup(): Promise<void>;
 }
@@ -60,7 +63,53 @@ function sortedCohorts(experiment: Experiment) {
   return [...experiment.cohorts].sort((left, right) => left.slug.localeCompare(right.slug));
 }
 
-export function registerStorageContract(name: Database, setup: () => Promise<StorageFixture>) {
+export function registerStorageContract(
+  name: Database,
+  setup: () => Promise<StorageFixture>,
+  setupV1: () => Promise<StorageFixture> = setup,
+) {
+  describe.skipIf(selectedDatabase() !== name)(`${name} version 1 storage upgrade`, () => {
+    it("preserves winners and sticky memberships across upgrade, restart and repeated pause/resume", async () => {
+      const fixture = await setupV1();
+      try {
+        const { adaptor, server, seedUser } = fixture;
+        await seedUser(userId);
+        await seedUser(anotherUserId);
+        const sticky = await server.createExperiment(experimentInput("sticky-experiment"));
+        const finished = await server.createExperiment(experimentInput("finished-experiment"));
+        const cases = [sticky, finished].map((experiment) => ({
+          experiment,
+          assigned: experiment.cohorts.find((c) => c.type === "control")!,
+          treatment: experiment.cohorts.find((c) => c.type === "treatment")!,
+        }));
+        for (const { experiment, assigned } of cases)
+          await server.joinCohort(userId, experiment.slug, assigned.slug);
+        const winner = cases[1]!.treatment;
+        await server.finalizeExperiment(finished.id, winner.id);
+        await fixture.applyUpgrade();
+        for (const { experiment, assigned } of cases) {
+          const expected = experiment.id === finished.id ? winner.slug : assigned.slug;
+          const before = await adaptor.userDAO.findUserCohort(userId, experiment.id);
+          expect(await server.getGroup(userId, experiment.slug)).toBe(expected);
+          await server.pauseExperiment(experiment.slug);
+          await server.pauseExperiment(experiment.slug);
+          const reopened = fixture.reopen();
+          expect(await reopened.getGroup(userId, experiment.slug)).toBeNull();
+          expect(await reopened.getGroup(anotherUserId, experiment.slug)).toBeNull();
+          await expect(
+            reopened.joinCohort(anotherUserId, experiment.slug, assigned.slug),
+          ).rejects.toBeInstanceOf(ExperimentPausedError);
+          expect(await adaptor.userDAO.findUserCohort(anotherUserId, experiment.id)).toBeNull();
+          expect(await adaptor.userDAO.findUserCohort(userId, experiment.id)).toEqual(before);
+          await reopened.resumeExperiment(experiment.slug);
+          await reopened.resumeExperiment(experiment.slug);
+          expect(await server.getGroup(userId, experiment.slug)).toBe(expected);
+        }
+      } finally {
+        await fixture.cleanup();
+      }
+    });
+  });
   describe.skipIf(selectedDatabase() !== name)(`${name} storage contract`, () => {
     let fixture: StorageFixture | undefined;
 
@@ -77,6 +126,47 @@ export function registerStorageContract(name: Database, setup: () => Promise<Sto
       if (!fixture) throw new Error("Storage fixture is not initialized");
       return fixture;
     };
+
+    it("fences a stale decision when pause commits before membership creation", async () => {
+      const { adaptor, server, seedUser } = current();
+      await seedUser(userId);
+      const experiment = await server.createExperiment(experimentInput());
+      // Pause after resolution reads availability, before the DAO commits an assignment.
+      const getGroup = new GetGroup(
+        adaptor.userDAO,
+        adaptor.experimentDAO,
+        adaptor.cohortDAO,
+        async (_user, _experiment, ids) => {
+          await server.pauseExperiment(experiment.slug);
+          return ids[0]!;
+        },
+      );
+      expect(await getGroup.call({ userId, experimentSlug: experiment.slug })).toBeNull();
+      expect(await adaptor.userDAO.findUserCohort(userId, experiment.id)).toBeNull();
+      await server.resumeExperiment(experiment.slug);
+      const assigned = await server.getGroup(userId, experiment.slug);
+      expect(assigned).not.toBeNull();
+      await server.pauseExperiment(experiment.slug);
+      expect(await server.getGroup(userId, experiment.slug)).toBeNull();
+      await server.resumeExperiment(experiment.slug);
+      expect(await server.getGroup(userId, experiment.slug)).toBe(assigned);
+    });
+
+    it("raises typed errors for missing availability targets and permits cleanup while paused", async () => {
+      const { adaptor, server, seedUser } = current();
+      await expect(server.pauseExperiment("absent")).rejects.toBeInstanceOf(NotFoundError);
+      await expect(server.resumeExperiment("absent")).rejects.toBeInstanceOf(NotFoundError);
+      await seedUser(userId);
+      const experiment = await server.createExperiment(experimentInput());
+      expect(experiment.enabled).toBe(true);
+      await server.getGroup(userId, experiment.slug);
+      await server.pauseExperiment(experiment.slug);
+      expect((await adaptor.experimentDAO.getById(experiment.id)).enabled).toBe(false);
+      await server.leaveExperiment(userId, experiment.slug);
+      expect(await adaptor.userDAO.findUserCohort(userId, experiment.id)).toBeNull();
+      await server.removeExperiment(experiment.id);
+      expect(await adaptor.experimentDAO.findBySlug(experiment.slug)).toBeNull();
+    });
 
     it("creates and hydrates complete experiments with supplied percentages and primitive IDs", async () => {
       const { adaptor } = current();
