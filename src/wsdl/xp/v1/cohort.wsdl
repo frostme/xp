@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+                  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+                  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  xmlns:xp="urn:frostme:xp:v1"
+                  targetNamespace="urn:frostme:xp:v1" name="CohortService">
+  <wsdl:types>
+    <xs:schema targetNamespace="urn:frostme:xp:v1" elementFormDefault="qualified">
+      <xs:element name="ResolveCohort">
+        <xs:complexType><xs:sequence><xs:element name="slug" type="xs:string"/></xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="ResolveCohortResponse">
+        <xs:complexType><xs:sequence><xs:element name="slug" type="xs:string" nillable="true"/></xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="XpFault">
+        <xs:complexType><xs:sequence><xs:element name="code" type="xs:string"/></xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:schema>
+  </wsdl:types>
+  <wsdl:message name="ResolveCohortInput"><wsdl:part name="parameters" element="xp:ResolveCohort"/></wsdl:message>
+  <wsdl:message name="ResolveCohortOutput"><wsdl:part name="parameters" element="xp:ResolveCohortResponse"/></wsdl:message>
+  <wsdl:message name="XpFaultMessage"><wsdl:part name="fault" element="xp:XpFault"/></wsdl:message>
+  <wsdl:portType name="CohortPortType">
+    <wsdl:operation name="ResolveCohort">
+      <wsdl:input message="xp:ResolveCohortInput"/>
+      <wsdl:output message="xp:ResolveCohortOutput"/>
+      <wsdl:fault name="XpFault" message="xp:XpFaultMessage"/>
+    </wsdl:operation>
+  </wsdl:portType>
+  <wsdl:binding name="CohortBinding" type="xp:CohortPortType">
+    <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+    <wsdl:operation name="ResolveCohort">
+      <soap:operation soapAction="urn:frostme:xp:v1:ResolveCohort"/>
+      <wsdl:input><soap:body use="literal"/></wsdl:input>
+      <wsdl:output><soap:body use="literal"/></wsdl:output>
+      <wsdl:fault name="XpFault"><soap:fault name="XpFault" use="literal"/></wsdl:fault>
+    </wsdl:operation>
+  </wsdl:binding>
+  <wsdl:service name="CohortService">
+    <wsdl:port name="CohortPort" binding="xp:CohortBinding">
+      <soap:address location="http://localhost/xp/soap"/>
+    </wsdl:port>
+  </wsdl:service>
+</wsdl:definitions>

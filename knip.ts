@@ -9,6 +9,7 @@ const config: KnipConfig = {
     "scripts/toolchains/solid-v*/vite.config.mjs",
     "src/client/solid/{index.tsx,lifecycle.ts,v1/lifecycle.ts}",
     "scripts/fixtures/protocol-browser/*.{ts,mjs}",
+    "scripts/fixtures/soap/*.{ts,js,mjs}",
     "scripts/fixtures/xp-journey/journey.test.mjs",
     "scripts/fixtures/host-package-smoke/*.{ts,tsx,mjs}",
     "src/**/__tests__/*-integration.{ts,tsx}",
