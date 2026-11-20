@@ -1,3 +1,4 @@
+import { createXpSoapHandler } from "@frostme/xp/server/soap";
 import assert from "node:assert/strict";
 import console from "node:console";
 import process from "node:process";
@@ -12,6 +13,7 @@ import {
   startNativeHost,
 } from "./hosts.mjs";
 import { checkPreflight, startEnvoy } from "./proxy.mjs";
+import { runReactJourney } from "./react-journey.mjs";
 
 const pending = Promise.withResolvers();
 const release = Promise.withResolvers();
@@ -121,7 +123,13 @@ async function verifyWireValidation(page) {
 }
 
 await using cleanup = new AsyncDisposableStack();
-const closeDirect = await startDirectHosts(runtime);
+const soapPath = "/api/xp/soap";
+const soap = await createXpSoapHandler({
+  runtime,
+  path: soapPath,
+  publicEndpoint: pageOrigin + soapPath,
+});
+const closeDirect = await startDirectHosts(runtime, { routes: { [soapPath]: soap } });
 cleanup.defer(closeDirect);
 const browser = await chromium.launch({
   executablePath: process.env.XP_CHROMIUM_EXECUTABLE_PATH,
@@ -173,4 +181,13 @@ cleanup.defer(await startEnvoy());
 await exercise(page, envoyOrigin + "/api");
 console.log(
   "Chromium Envoy → HTTP/2 native gRPC passed, including credentialed preflight, cookies and RPC status.",
+);
+
+await runReactJourney(page, {
+  directBase: "/api",
+  proxyBase: envoyOrigin + "/api",
+  soapEndpoint: soapPath,
+});
+console.log(
+  "Packed React shortcuts distinguished guests and denials, retried, and kept Bob visible after Alice completed.",
 );
