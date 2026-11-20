@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { PKey, User, UserCohort } from "~/entities";
 import type { IUserDAO } from "~/interfaces";
 
-import { DuplicateAssignmentError, NotFoundError } from "~/errors";
+import { DuplicateAssignmentError, ExperimentPausedError, NotFoundError } from "~/errors";
 
 import MongoStore, { isDuplicateKey, mapMembership } from "./store";
 
@@ -40,9 +40,11 @@ export default class MongoUserDAO implements IUserDAO {
     };
     try {
       await this.store.transaction(async (session) => {
-        if (!(await this.store.lockExperiment(experimentId, session))) {
+        const experiment = await this.store.lockExperiment(experimentId, session);
+        if (!experiment) {
           throw new NotFoundError(`Experiment with id ${experimentId} not found`);
         }
+        if (experiment.enabled === false) throw new ExperimentPausedError();
         if (!(await this.store.users.findOne({ id: userId }, { session }))) {
           throw new NotFoundError(`User with id ${userId} not found`);
         }

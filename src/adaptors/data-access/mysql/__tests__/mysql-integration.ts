@@ -13,7 +13,7 @@ import server from "~/server";
 import MysqlAdaptor from "..";
 import { setupMysql } from "./fixture";
 
-registerStorageContract("mysql", setupMysql);
+registerStorageContract("mysql", setupMysql, () => setupMysql({}, 1));
 
 describe.skipIf(selectedDatabase() !== "mysql")("MySQL connection ownership and JSON", () => {
   it("releases its only pool connection after both rollback and success", async () => {

@@ -11,6 +11,7 @@ import {
   ViewCohort,
   UpdateCohort,
   RemoveCohort,
+  SetExperimentAvailability,
 } from "~/use-cases";
 
 import { detectClient, type ServerOptions } from "./detectClient";
@@ -80,7 +81,9 @@ const server = (client: unknown, options: ServerOptions = {}) => {
     viewCohortUseCase,
     updateCohortUseCase,
     removeCohortUseCase,
+    new SetExperimentAvailability(serverConfig.dao.experimentDAO),
   );
 };
 
+export { ExperimentPausedError, NotFoundError } from "~/errors";
 export default server;

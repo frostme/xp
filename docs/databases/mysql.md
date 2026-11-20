@@ -39,6 +39,7 @@ CREATE TABLE experiments (
   slug VARCHAR(191) COLLATE utf8mb4_0900_bin NOT NULL UNIQUE,
   type VARCHAR(32) NOT NULL CHECK (type IN ('flag', 'simple', 'multivariate', 'dynamic')),
   description TEXT NOT NULL,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
   winner VARCHAR(191) COLLATE utf8mb4_0900_bin
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -92,3 +93,13 @@ XP_DATABASE=mysql bun run test:integration
 ```
 
 Tests default to host `127.0.0.1`, port `3307`, user `root`, and password `root_password`. Override `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, and `MYSQL_PASSWORD` for another dedicated test server. Each fixture creates and drops a uniquely named database, so the test account requires database creation privileges. This test-only provisioning is not a production initialization API.
+
+## Upgrading storage from v1
+
+With the original `.xp/setup.json` in place, run `xp setup`, review the additive migration, and apply it before starting the new server. Existing rows pick up the enabled default. For a manually managed schema, apply the same change through your migration runner.
+
+```sql
+ALTER TABLE experiments ADD enabled BOOLEAN NOT NULL DEFAULT TRUE;
+```
+
+Pause and resume preserve the experiment's winner and stored assignments.

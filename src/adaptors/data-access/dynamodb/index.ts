@@ -14,6 +14,7 @@ export default class DynamoDBAdaptor implements IDataAccessAdaptor {
     this.experimentDAO = {
       getById: (id) => store.getExperiment(id),
       findBySlug: (slug) => store.findExperiment(slug),
+      setEnabled: (slug, enabled) => store.setEnabled(slug, enabled),
       list: () => store.listExperiments(),
       create: (input) => store.createExperiment(input),
       update: (id, updates, winnerCohortId) => store.updateExperiment(id, updates, winnerCohortId),

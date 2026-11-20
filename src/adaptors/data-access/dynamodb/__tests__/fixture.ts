@@ -34,6 +34,9 @@ export async function dynamodbFixture(): Promise<
     return {
       adaptor,
       server: server(client, { tableName }),
+      reopen: () => server(client, { tableName }),
+      // Version 1 experiments omit enabled and require no storage alteration.
+      applyUpgrade: () => Promise.resolve(),
       client,
       tableName,
       seedUser: seedPrimitiveUser,

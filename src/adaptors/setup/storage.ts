@@ -1,7 +1,7 @@
 import type { ResolvedSetup, SetupDatabase } from "~/interfaces/setup";
 
 /** Persistence contract, intentionally separate from the public domain entities. */
-export const STORAGE_VERSION = 1;
+export const STORAGE_VERSION = 2;
 export const STORAGE = {
   experimentTypes: ["flag", "simple", "multivariate", "dynamic"],
   cohortTypes: ["control", "treatment"],
@@ -125,7 +125,32 @@ function userTableSql(options: ResolvedSetup, userType: string): string[] {
   ];
 }
 
-export function renderSql(options: ResolvedSetup): { up: string[]; down: string[] } {
+function enabledColumn(database: SetupDatabase): string {
+  return database === "mssql"
+    ? "enabled BIT NOT NULL CONSTRAINT experiments_enabled_df DEFAULT 1"
+    : "enabled BOOLEAN NOT NULL DEFAULT TRUE";
+}
+
+export function renderAvailabilityUpgrade(options: ResolvedSetup): {
+  up: string[];
+  down: string[];
+} {
+  if (!isSql(options.database)) return { up: [], down: [] };
+  return {
+    up: [`ALTER TABLE experiments ADD ${enabledColumn(options.database)};`],
+    down: [
+      ...(options.database === "mssql"
+        ? ["ALTER TABLE experiments DROP CONSTRAINT experiments_enabled_df;"]
+        : []),
+      "ALTER TABLE experiments DROP COLUMN enabled;",
+    ],
+  };
+}
+
+export function renderSql(
+  options: ResolvedSetup,
+  { version = STORAGE_VERSION } = {},
+): { up: string[]; down: string[] } {
   if (!isSql(options.database))
     throw new Error(`SQL generation is not supported for ${options.database}.`);
   const database = options.database;
@@ -167,6 +192,7 @@ export function renderSql(options: ResolvedSetup): { up: string[]; down: string[
       `type ${enumType} NOT NULL`,
       `description ${text} NOT NULL`,
       `winner ${slug} NULL`,
+      ...(version >= 2 ? [enabledColumn(database)] : []),
       "CONSTRAINT experiments_pkey PRIMARY KEY (id)",
       "CONSTRAINT experiments_slug_key UNIQUE (slug)",
       `CONSTRAINT experiments_type_check CHECK (type IN (${enums(STORAGE.experimentTypes)}))`,

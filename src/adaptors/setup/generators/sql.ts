@@ -1,6 +1,6 @@
 import type { GeneratedArtifacts, ProjectDetection, ResolvedSetup } from "~/interfaces/setup";
 
-import { renderSql } from "../storage";
+import { renderSql, renderAvailabilityUpgrade } from "../storage";
 import {
   codeExtension,
   command,
@@ -12,31 +12,42 @@ import {
   shellQuote,
 } from "./common";
 
-export function generateSql(options: ResolvedSetup, project: ProjectDetection): GeneratedArtifacts {
-  const { up, down } = renderSql(options);
+export function generateSql(
+  options: ResolvedSetup,
+  project: ProjectDetection,
+  upgrade = false,
+): GeneratedArtifacts {
+  const { up, down } = upgrade ? renderAvailabilityUpgrade(options) : renderSql(options);
+  const label = upgrade ? "xp_storage_v2" : "xp_setup";
   const stamp = migrationStamp();
   const result: GeneratedArtifacts = { files: [], warnings: [], prerequisites: [], nextSteps: [] };
   const directory = options.migrationsDir;
   const typed = options.language === "typescript";
   const esm = typed || options.moduleFormat === "esm";
-  let name = `${stamp}_xp_setup.${codeExtension(options)}`;
+  let name = `${stamp}_${label}.${codeExtension(options)}`;
   let code = "";
   if (options.orm === "none") {
-    const upPath = outputPath(directory, `${stamp}_xp_setup.up.sql`);
+    const upPath = outputPath(directory, `${stamp}_${label}.up.sql`);
     result.files.push(
-      { path: upPath, content: sqlHeader + up.join("\n\n") + "\n", purpose: "Create xp storage" },
       {
-        path: outputPath(directory, `${stamp}_xp_setup.down.sql`),
+        path: upPath,
+        content: sqlHeader + up.join("\n\n") + "\n",
+        purpose: upgrade ? "Add experiment availability" : "Create xp storage",
+      },
+      {
+        path: outputPath(directory, `${stamp}_${label}.down.sql`),
         content:
           sqlHeader + "-- Application users are deliberately preserved.\n" + down.join("\n") + "\n",
-        purpose: "Remove xp-owned storage; preserve users",
+        purpose: upgrade
+          ? "Remove the experiment availability column"
+          : "Remove xp-owned storage; preserve users",
       },
     );
     result.nextSteps.push(
       `Apply ${upPath} using your normal ${options.database} SQL client or deployment migration process.`,
     );
   } else if (options.orm === "sequelize") {
-    name = `${stamp}_xp_setup.cjs`;
+    name = `${stamp}_${label}.cjs`;
     code = `"use strict";\n\nmodule.exports = {\n  async up(queryInterface) {\n${up.map((sql) => `    await queryInterface.sequelize.query(${JSON.stringify(sql)});`).join("\n")}\n  },\n  async down(queryInterface) {\n    // Preserve the application users table, including one scaffolded by setup.\n${down.map((sql) => `    await queryInterface.sequelize.query(${JSON.stringify(sql)});`).join("\n")}\n  },\n};\n`;
     if (typed || options.moduleFormat === "esm")
       result.warnings.push(
@@ -49,8 +60,8 @@ export function generateSql(options: ResolvedSetup, project: ProjectDetection): 
     );
   } else if (options.orm === "typeorm") {
     const timestamp = Date.now();
-    const className = `XpSetup${timestamp}`;
-    name = `${timestamp}-XpSetup.${codeExtension(options)}`;
+    const className = `${upgrade ? "XpStorageV2" : "XpSetup"}${timestamp}`;
+    name = `${timestamp}-${upgrade ? "XpStorageV2" : "XpSetup"}.${codeExtension(options)}`;
     code =
       (typed ? `import type { MigrationInterface, QueryRunner } from "typeorm";\n\n` : "") +
       `${esm ? "export " : ""}class ${className}${typed ? " implements MigrationInterface" : ""} {\n  name = ${JSON.stringify(className)};\n  async up(queryRunner${typed ? ": QueryRunner" : ""})${typed ? ": Promise<void>" : ""} {\n${up.map((sql) => `    await queryRunner.query(${JSON.stringify(sql)});`).join("\n")}\n  }\n  async down(queryRunner${typed ? ": QueryRunner" : ""})${typed ? ": Promise<void>" : ""} {\n${down.map((sql) => `    await queryRunner.query(${JSON.stringify(sql)});`).join("\n")}\n  }\n}\n${esm ? "" : `module.exports = { ${className} };\n`}`;
@@ -61,7 +72,7 @@ export function generateSql(options: ResolvedSetup, project: ProjectDetection): 
       `${command(project, typed ? (options.moduleFormat === "commonjs" ? "typeorm-ts-node-commonjs" : "typeorm-ts-node-esm") : "typeorm")} migration:run -d ${shellQuote(options.config ?? "path/to/data-source")}`,
     );
   } else if (options.orm === "mikroorm") {
-    const className = `Migration${stamp}_xp_setup`;
+    const className = `Migration${stamp}_${label}`;
     name = `${className}.${codeExtension(options)}`;
     code = `${esm ? 'import { Migration } from "@mikro-orm/migrations";' : 'const { Migration } = require("@mikro-orm/migrations");'}\n\n${esm ? "export " : ""}class ${className} extends Migration {\n  ${typed ? "override " : ""}async up()${typed ? ": Promise<void>" : ""} {\n${up.map((sql) => `    this.addSql(${JSON.stringify(sql)});`).join("\n")}\n  }\n  ${typed ? "override " : ""}async down()${typed ? ": Promise<void>" : ""} {\n${down.map((sql) => `    this.addSql(${JSON.stringify(sql)});`).join("\n")}\n  }\n}\n${esm ? "" : `module.exports = { ${className} };\n`}`;
     result.files.push({

@@ -1,7 +1,7 @@
 import type { Cohort, Experiment, User, UserCohort, PKey } from "~/entities";
 import type { IDataAccessAdaptor } from "~/interfaces";
 
-import { DuplicateAssignmentError, NotFoundError } from "~/errors";
+import { DuplicateAssignmentError, ExperimentPausedError, NotFoundError } from "~/errors";
 
 export type Row = Record<string, unknown>;
 export interface SqlSession {
@@ -39,6 +39,10 @@ function membership(row: Row): UserCohort {
     cohort_id: row["cohort_id"],
   } as UserCohort;
 }
+function isEnabled(row: Row): boolean {
+  // MySQL returns TINYINT(1) as a number. PostgreSQL and SQL Server return booleans.
+  return row["enabled"] !== false && row["enabled"] !== 0;
+}
 async function hydrate(s: SqlSession, row: Row): Promise<Experiment> {
   const rows = await s.query(`SELECT * FROM cohorts WHERE experiment_id = ${s.parameter(1)}`, [
     row["id"],
@@ -49,6 +53,7 @@ async function hydrate(s: SqlSession, row: Row): Promise<Experiment> {
     slug: row["slug"],
     description: row["description"],
     type: row["type"],
+    enabled: isEnabled(row),
     winner: row["winner"] ?? null,
     cohorts: rows.map(cohort),
   } as Experiment;
@@ -85,6 +90,14 @@ export function relationalAdaptor(database: SqlDatabase): IDataAccessAdaptor {
             slug,
           ]);
           return rows[0] ? hydrate(s, rows[0]) : null;
+        }),
+      setEnabled: (slug, enabled) =>
+        database.transaction(async (s) => {
+          const row = required(
+            await s.lock("experiments", `slug = ${s.parameter(1)}`, [slug]),
+            "Experiment",
+          );
+          await update(s, "experiments", row["id"], { enabled });
         }),
       list: () =>
         database.read(async (s) => {
@@ -235,7 +248,8 @@ export function relationalAdaptor(database: SqlDatabase): IDataAccessAdaptor {
         }),
       addUserCohort: (userId, experimentId, cohortId) =>
         database.transaction(async (s) => {
-          await lockExperiment(s, experimentId);
+          const experiment = await lockExperiment(s, experimentId);
+          if (!isEnabled(experiment)) throw new ExperimentPausedError();
           required(
             await s.query(`SELECT * FROM users WHERE id = ${s.parameter(1)}`, [userId]),
             "User",

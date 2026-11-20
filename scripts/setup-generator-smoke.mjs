@@ -116,6 +116,7 @@ try {
             });
             const models = (loaded.defineXpModels ?? loaded.default.defineXpModels)(sequelize);
             assert.equal(models.XpExperiment.getTableName(), "experiments");
+            assert.equal(models.XpExperiment.getAttributes().enabled.defaultValue, true);
             await sequelize.close();
           }
           if (file.path.includes("models") && orm === "typeorm") {
@@ -132,6 +133,7 @@ try {
             assert.equal(source.entityMetadatas.length, 3);
             const experiment = source.getMetadata("XpExperiment");
             assert.equal(experiment.tableName, "experiments");
+            assert.equal(experiment.findColumnWithPropertyName("enabled").default, true);
             if (database === "mongodb") {
               assert.equal(experiment.objectIdColumn.databaseName, "_id");
               assert.equal(
@@ -148,6 +150,10 @@ try {
               entities: Object.values(loaded.default ?? loaded),
               connect: false,
             });
+            assert.equal(
+              ormInstance.getMetadata().get("XpExperiment").properties.enabled.default,
+              true,
+            );
             assert.equal(ormInstance.getMetadata().get("XpExperiment").tableName, "experiments");
             if (database === "mongodb") {
               const metadata = ormInstance.getMetadata().get("XpExperiment");
@@ -161,6 +167,7 @@ try {
             const connection = mongoose.createConnection();
             const models = (loaded.defineXpModels ?? loaded.default.defineXpModels)(connection);
             assert.equal(models.XpExperiment.collection.name, "experiments");
+            assert.equal(models.XpExperiment.schema.path("enabled").defaultValue, true);
             assert.equal(models.XpExperiment.schema.options.autoCreate, false);
             await connection.close();
           }

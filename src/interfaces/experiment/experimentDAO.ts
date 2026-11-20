@@ -4,6 +4,7 @@ export default interface IExperimentDAO {
   getById(id: PKey<"Experiment">): Promise<Experiment>;
   findBySlug(slug: ExperimentSlug): Promise<Experiment | null>;
   create(experiment: CreationPayload<Experiment>): Promise<Experiment>;
+  setEnabled(slug: ExperimentSlug, enabled: boolean): Promise<void>;
   list(): Promise<Experiment[]>;
   update(
     id: PKey<"Experiment">,

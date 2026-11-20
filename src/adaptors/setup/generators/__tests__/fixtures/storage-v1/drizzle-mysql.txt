@@ -1,0 +1,51 @@
+// xp storage schema v1. Migrations preserve the database contract.
+import { mysqlTable, int, double, json, varchar, text, unique, index, check, foreignKey, primaryKey, customType } from "drizzle-orm/mysql-core";
+import { sql } from "drizzle-orm";
+
+const xpUserKey = customType({ dataType() { return "VARCHAR(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_bin"; } });
+const xpSlug = customType({ dataType() { return "varchar(191) COLLATE utf8mb4_0900_bin"; } });
+export const xpUsers = mysqlTable("users", { id: xpUserKey("id").notNull() }, (table) => [primaryKey({columns: [table.id], name: "users_pkey"})]);
+
+export const xpExperiments = mysqlTable("experiments", {
+  id: int("id").autoincrement().notNull(),
+  name: text("name").notNull(),
+  slug: xpSlug("slug").notNull().unique("experiments_slug_key"),
+  type: varchar("type", { length: 32 }).notNull(),
+  description: text("description").notNull(),
+  winner: xpSlug("winner"),
+}, (table) => [
+  primaryKey({columns: [table.id], name: "experiments_pkey"}),
+  check("experiments_type_check", sql`${table.type} in ('flag', 'simple', 'multivariate', 'dynamic')`),
+]);
+
+export const xpCohorts = mysqlTable("cohorts", {
+  id: int("id").autoincrement().notNull(),
+  experimentId: int("experiment_id").notNull(),
+  slug: xpSlug("slug").notNull().unique("cohorts_slug_key"),
+  type: varchar("type", { length: 32 }).notNull(),
+  description: text("description").notNull(),
+  percentage: double("percentage").notNull(),
+  value: json("value").notNull(),
+}, (table) => [
+  primaryKey({columns: [table.id], name: "cohorts_pkey"}),
+  foreignKey({name: "cohorts_experiment_id_fkey", columns: [table.experimentId], foreignColumns: [xpExperiments.id]}).onDelete("no action").onUpdate("no action"),
+  unique("cohorts_id_experiment_id_key").on(table.id, table.experimentId),
+  index("cohorts_experiment_id_idx").on(table.experimentId),
+  check("cohorts_type_check", sql`${table.type} in ('control', 'treatment')`),
+  check("cohorts_percentage_check", sql`${table.percentage} >= 0 and ${table.percentage} <= 100`),
+]);
+
+export const xpUserCohorts = mysqlTable("user_cohorts", {
+  id: int("id").autoincrement().notNull(),
+  userId: xpUserKey("user_id").notNull(),
+  experimentId: int("experiment_id").notNull(),
+  cohortId: int("cohort_id").notNull(),
+}, (table) => [
+  primaryKey({columns: [table.id], name: "user_cohorts_pkey"}),
+  foreignKey({name: "user_cohorts_user_id_fkey", columns: [table.userId], foreignColumns: [xpUsers.id]}).onDelete("no action").onUpdate("no action"),
+  foreignKey({name: "user_cohorts_experiment_id_fkey", columns: [table.experimentId], foreignColumns: [xpExperiments.id]}).onDelete("no action").onUpdate("no action"),
+  unique("user_cohorts_user_id_experiment_id_key").on(table.userId, table.experimentId),
+  foreignKey({name: "user_cohorts_cohort_id_experiment_id_fkey", columns: [table.cohortId, table.experimentId], foreignColumns: [xpCohorts.id, xpCohorts.experimentId]}).onDelete("no action").onUpdate("no action"),
+  index("user_cohorts_experiment_id_idx").on(table.experimentId),
+  index("user_cohorts_cohort_id_idx").on(table.cohortId),
+]);

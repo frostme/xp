@@ -9,12 +9,10 @@ import { randomUUID } from "node:crypto";
 
 import type { StorageFixture } from "~/__tests__/storage/contract";
 
-import { generatedSql } from "~/__tests__/storage/setup";
+import { generatedSql, generatedUpgrade } from "~/__tests__/storage/setup";
 import server from "~/server";
 
 import MysqlAdaptor from "..";
-
-const mysqlSchema = generatedSql("mysql");
 
 export interface MysqlFixture extends StorageFixture {
   pool: Pool;
@@ -23,6 +21,7 @@ export interface MysqlFixture extends StorageFixture {
 
 export async function setupMysql(
   options: Pick<PoolOptions, "connectionLimit" | "jsonStrings"> = {},
+  version: 1 | 2 = 2,
 ): Promise<MysqlFixture> {
   const database = `xp_${randomUUID().replaceAll("-", "")}`;
   const config: ConnectionOptions = {
@@ -42,7 +41,7 @@ export async function setupMysql(
     await admin.query(
       `CREATE DATABASE \`${database}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_bin`,
     );
-    for (const statement of mysqlSchema
+    for (const statement of generatedSql("mysql", version)
       .split(";")
       .map((sql) => sql.trim())
       .filter(Boolean)) {
@@ -53,6 +52,10 @@ export async function setupMysql(
       connectionConfig,
       adaptor: new MysqlAdaptor(pool),
       server: server(pool),
+      reopen: () => server(pool),
+      async applyUpgrade() {
+        for (const sql of generatedUpgrade("mysql")) await pool.query(sql);
+      },
       async seedUser(id) {
         await pool.execute("INSERT INTO users (id) VALUES (?) ON DUPLICATE KEY UPDATE id = id", [
           id,

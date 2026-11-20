@@ -1,0 +1,57 @@
+
+generator client {
+  provider = "prisma-client"
+  output = "./generated/xp-client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model XpUser {
+  id String @db.Text @id
+  xpAssignments XpUserCohort[]
+  @@map("users")
+}
+
+// xp storage schema v1. Apply the accompanying SQL migration; preserve its CHECK constraints/collations.
+model XpExperiment {
+  id Int @id @default(autoincrement())
+  name String @db.Text
+  slug String @unique @db.Text
+  type String @db.Text
+  description String @db.Text
+  winner String? @db.Text
+  cohorts XpCohort[]
+  assignments XpUserCohort[]
+  @@map("experiments")
+}
+
+model XpCohort {
+  id Int @id @default(autoincrement())
+  experimentId Int @map("experiment_id")
+  slug String @unique @db.Text
+  type String @db.Text
+  description String @db.Text
+  percentage Float @db.DoublePrecision
+  value Json @default("null") @db.JsonB
+  experiment XpExperiment @relation(fields: [experimentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assignments XpUserCohort[]
+  @@unique([id, experimentId])
+  @@index([experimentId], map: "cohorts_experiment_id_idx")
+  @@map("cohorts")
+}
+
+model XpUserCohort {
+  id Int @id @default(autoincrement())
+  userId String @db.Text @map("user_id")
+  experimentId Int @map("experiment_id")
+  cohortId Int @map("cohort_id")
+  user XpUser @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  experiment XpExperiment @relation(fields: [experimentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cohort XpCohort @relation(fields: [cohortId, experimentId], references: [id, experimentId], onDelete: NoAction, onUpdate: NoAction)
+  @@unique([userId, experimentId])
+  @@index([experimentId], map: "user_cohorts_experiment_id_idx")
+  @@index([cohortId], map: "user_cohorts_cohort_id_idx")
+  @@map("user_cohorts")
+}

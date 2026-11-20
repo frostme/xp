@@ -1,7 +1,7 @@
 import type { UserCohort, ExperimentSlug, CohortSlug, PKey } from "~/entities";
 import type { IUseCase, IUserDAO, IExperimentDAO, ICohortDAO } from "~/interfaces";
 
-import { DuplicateAssignmentError, NotFoundError } from "~/errors";
+import { DuplicateAssignmentError, ExperimentPausedError, NotFoundError } from "~/errors";
 
 export default class JoinCohort implements IUseCase<UserCohort> {
   constructor(
@@ -19,6 +19,8 @@ export default class JoinCohort implements IUseCase<UserCohort> {
     if (!experiment) {
       throw new NotFoundError(`Experiment with slug ${experimentSlug} not found`);
     }
+
+    if (!experiment.enabled) throw new ExperimentPausedError();
 
     const cohort = await this.cohortDAO.findBySlug(cohortSlug);
     if (!cohort) {

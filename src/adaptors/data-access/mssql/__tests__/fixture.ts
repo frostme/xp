@@ -3,18 +3,16 @@ import { randomUUID } from "node:crypto";
 
 import type { StorageFixture } from "~/__tests__/storage/contract";
 
-import { generatedSql } from "~/__tests__/storage/setup";
+import { generatedSql, generatedUpgrade } from "~/__tests__/storage/setup";
 import server from "~/server";
 
 import MssqlAdaptor from "..";
-
-const mssqlSchema = generatedSql("mssql");
 
 export interface MssqlFixture extends StorageFixture {
   pool: sql.ConnectionPool;
 }
 
-export async function setupMssql(): Promise<MssqlFixture> {
+export async function setupMssql(version: 1 | 2 = 2): Promise<MssqlFixture> {
   const database = `xp_${randomUUID().replaceAll("-", "")}`;
   const config: sql.config = {
     server: process.env["MSSQL_HOST"] ?? "127.0.0.1",
@@ -39,11 +37,15 @@ export async function setupMssql(): Promise<MssqlFixture> {
   try {
     await admin.request().query(`CREATE DATABASE [${database}]`);
     await pool.connect();
-    await pool.request().query(mssqlSchema);
+    await pool.request().query(generatedSql("mssql", version));
     return {
       pool,
       adaptor: new MssqlAdaptor(pool),
       server: server(pool),
+      reopen: () => server(pool),
+      async applyUpgrade() {
+        for (const sql of generatedUpgrade("mssql")) await pool.request().query(sql);
+      },
       async seedUser(id) {
         await pool
           .request()

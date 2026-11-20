@@ -1,0 +1,50 @@
+// xp storage schema v1. Migrations preserve the database contract.
+import { pgTable, serial, integer, doublePrecision, jsonb, text, unique, index, check, foreignKey, primaryKey, customType } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+
+const xpUserKey = customType({ dataType() { return "text"; } });
+export const xpUsers = pgTable("users", { id: xpUserKey("id").notNull() }, (table) => [primaryKey({columns: [table.id], name: "users_pkey"})]);
+
+export const xpExperiments = pgTable("experiments", {
+  id: serial("id").notNull(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique("experiments_slug_key"),
+  type: text("type").notNull(),
+  description: text("description").notNull(),
+  winner: text("winner"),
+}, (table) => [
+  primaryKey({columns: [table.id], name: "experiments_pkey"}),
+  check("experiments_type_check", sql`${table.type} in ('flag', 'simple', 'multivariate', 'dynamic')`),
+]);
+
+export const xpCohorts = pgTable("cohorts", {
+  id: serial("id").notNull(),
+  experimentId: integer("experiment_id").notNull(),
+  slug: text("slug").notNull().unique("cohorts_slug_key"),
+  type: text("type").notNull(),
+  description: text("description").notNull(),
+  percentage: doublePrecision("percentage").notNull(),
+  value: jsonb("value").notNull().default(sql`'null'::jsonb`),
+}, (table) => [
+  primaryKey({columns: [table.id], name: "cohorts_pkey"}),
+  foreignKey({name: "cohorts_experiment_id_fkey", columns: [table.experimentId], foreignColumns: [xpExperiments.id]}).onDelete("no action").onUpdate("no action"),
+  unique("cohorts_id_experiment_id_key").on(table.id, table.experimentId),
+  index("cohorts_experiment_id_idx").on(table.experimentId),
+  check("cohorts_type_check", sql`${table.type} in ('control', 'treatment')`),
+  check("cohorts_percentage_check", sql`${table.percentage} >= 0 and ${table.percentage} <= 100`),
+]);
+
+export const xpUserCohorts = pgTable("user_cohorts", {
+  id: serial("id").notNull(),
+  userId: xpUserKey("user_id").notNull(),
+  experimentId: integer("experiment_id").notNull(),
+  cohortId: integer("cohort_id").notNull(),
+}, (table) => [
+  primaryKey({columns: [table.id], name: "user_cohorts_pkey"}),
+  foreignKey({name: "user_cohorts_user_id_fkey", columns: [table.userId], foreignColumns: [xpUsers.id]}).onDelete("no action").onUpdate("no action"),
+  foreignKey({name: "user_cohorts_experiment_id_fkey", columns: [table.experimentId], foreignColumns: [xpExperiments.id]}).onDelete("no action").onUpdate("no action"),
+  unique("user_cohorts_user_id_experiment_id_key").on(table.userId, table.experimentId),
+  foreignKey({name: "user_cohorts_cohort_id_experiment_id_fkey", columns: [table.cohortId, table.experimentId], foreignColumns: [xpCohorts.id, xpCohorts.experimentId]}).onDelete("no action").onUpdate("no action"),
+  index("user_cohorts_experiment_id_idx").on(table.experimentId),
+  index("user_cohorts_cohort_id_idx").on(table.cohortId),
+]);
