@@ -131,3 +131,7 @@ const result = await setup.applySetup(plan);
 ```
 
 The exported types include `SetupOptions`, `ProjectDetection`, `SetupPlan`, and `SetupResult`. A custom `IProjectManager` can be passed to `cli(manager)`. Framework/use-case code depends on interfaces; terminal, filesystem, discovery, and generator integrations live in outer adaptors.
+
+## Upgrading existing storage
+
+Run `xp setup --dry-run` in the application that holds the v1 `.xp/setup.json`. Setup verifies the recorded files and previews the v2 migration and model changes. Run `xp setup` again to generate them. Apply the migration with your application's normal runner before deploying the updated xp server. Previously applied migrations retain their original contents and fingerprints.

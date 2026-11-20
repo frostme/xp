@@ -15,6 +15,7 @@ import type {
 
 import { detectProject, storedOptions } from "./discovery";
 import { checkOutputPath, fingerprint, readText, relativePath, resolveOutput } from "./filesystem";
+import { generateUpgrade } from "./generators/upgrade";
 import { validateProfile } from "./registry";
 import { STORAGE_VERSION } from "./storage";
 const MANIFEST = ".xp/setup.json";
@@ -169,9 +170,10 @@ export default class ProjectManager implements IProjectManager {
     const settings = resolved(project);
     const profilePrerequisites = validateProfile(settings, project.versions);
     const state = await readText(path.join(project.cwd, MANIFEST));
-    if (state) {
-      const previous = JSON.parse(state) as SetupManifest;
-      if (previous.schemaVersion !== STORAGE_VERSION || !Array.isArray(previous.files))
+    const previous: SetupManifest | null = state ? JSON.parse(state) : null;
+    const existingFiles: FileChange[] = [];
+    if (state && previous) {
+      if (![1, STORAGE_VERSION].includes(previous.schemaVersion) || !Array.isArray(previous.files))
         throw new Error(
           "The existing setup manifest belongs to an unsupported schema version. Upgrade through an explicit migration.",
         );
@@ -179,7 +181,7 @@ export default class ProjectManager implements IProjectManager {
         throw new Error(
           "This project already has an xp setup with different options. Existing migrations will not be rewritten; make an explicit follow-up migration or use a fresh project.",
         );
-      const files: FileChange[] = [];
+      const files = existingFiles;
       const seen = new Set<string>();
       for (const entry of previous.files) {
         const target = await checkOutputPath(project.cwd, entry.path);
@@ -202,29 +204,33 @@ export default class ProjectManager implements IProjectManager {
         });
         project.inputs[file] = entry.hash;
       }
-      files.push({
-        path: MANIFEST,
-        content: state,
-        purpose: "Approved xp setup settings and generated-file fingerprints",
-        action: "unchanged",
-        before: state,
-        beforeHash: fingerprint(state),
-      });
-      const prerequisites = [
-        ...new Set([...pendingPrerequisites(previous, project), ...profilePrerequisites]),
-      ];
-      return {
-        schemaVersion: STORAGE_VERSION,
-        options: settings,
-        files,
-        inputs: project.inputs,
-        prerequisites,
-        warnings: [...new Set([...strings(previous.warnings), ...project.warnings])],
-        nextSteps: strings(previous.nextSteps),
-        status: prerequisites.length ? "manual-steps-required" : "ready",
-      };
+      if (previous.schemaVersion === STORAGE_VERSION) {
+        files.push({
+          path: MANIFEST,
+          content: state,
+          purpose: "Approved xp setup settings and generated-file fingerprints",
+          action: "unchanged",
+          before: state,
+          beforeHash: fingerprint(state),
+        });
+        const prerequisites = [
+          ...new Set([...pendingPrerequisites(previous, project), ...profilePrerequisites]),
+        ];
+        return {
+          schemaVersion: STORAGE_VERSION,
+          options: settings,
+          files,
+          inputs: project.inputs,
+          prerequisites,
+          warnings: [...new Set([...strings(previous.warnings), ...project.warnings])],
+          nextSteps: strings(previous.nextSteps),
+          status: prerequisites.length ? "manual-steps-required" : "ready",
+        };
+      }
     }
-    const generated = await this.generator.generate(settings, project);
+    const generated = previous
+      ? await generateUpgrade(settings, project, existingFiles)
+      : await this.generator.generate(settings, project);
     const files: FileChange[] = [];
     const seen = new Set<string>();
     for (const entry of generated.files) {
@@ -253,8 +259,17 @@ export default class ProjectManager implements IProjectManager {
         beforeHash,
       });
     }
-    const prerequisites = [...new Set([...profilePrerequisites, ...generated.prerequisites])];
-    const warnings = [...new Set([...project.warnings, ...generated.warnings])];
+    files.unshift(...existingFiles.filter((file) => !seen.has(file.path)));
+    const prerequisites = [
+      ...new Set([
+        ...(previous ? pendingPrerequisites(previous, project) : []),
+        ...profilePrerequisites,
+        ...generated.prerequisites,
+      ]),
+    ];
+    const warnings = [
+      ...new Set([...(previous?.warnings ?? []), ...project.warnings, ...generated.warnings]),
+    ];
     const manifest: SetupManifest = {
       schemaVersion: STORAGE_VERSION,
       options: storedOptions(settings),
@@ -272,11 +287,11 @@ export default class ProjectManager implements IProjectManager {
       path: MANIFEST,
       content: stringify(manifest),
       purpose: "Approved xp setup settings and generated-file fingerprints",
-      action: "create",
-      before: null,
-      beforeHash: null,
+      action: previous ? "update" : "create",
+      before: state,
+      beforeHash: state === null ? null : fingerprint(state),
     });
-    project.inputs[MANIFEST] = null;
+    project.inputs[MANIFEST] = state === null ? null : fingerprint(state);
     return {
       schemaVersion: STORAGE_VERSION,
       options: settings,

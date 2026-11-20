@@ -14,6 +14,7 @@ type Kind =
   | "userId"
   | "percentage"
   | "json"
+  | "enabled"
   | "version";
 const tables: { name: string; model: string; fields: Record<string, Kind> }[] = [
   {
@@ -26,6 +27,7 @@ const tables: { name: string; model: string; fields: Record<string, Kind> }[] = 
       type: "experimentType",
       description: "text",
       winner: "winner",
+      enabled: "enabled",
     },
   },
   {
@@ -81,6 +83,7 @@ function moduleSource(
 function sequelizeType(kind: Kind, options: ResolvedSetup): string {
   const mssql = options.database === "mssql";
   if (kind === "id" || kind === "foreignId" || kind === "version") return "DataTypes.INTEGER";
+  if (kind === "enabled") return "DataTypes.BOOLEAN";
   if (kind === "percentage") return mssql ? "DataTypes.DOUBLE" : "DataTypes.DOUBLE";
   if (kind === "json")
     return options.database === "postgres"
@@ -118,6 +121,7 @@ function sequelizeModels(options: ResolvedSetup): string {
         `field: ${JSON.stringify(name)}`,
         `allowNull: ${kind === "winner"}`,
       ];
+      if (kind === "enabled") config.push("defaultValue: true");
       if (kind === "id") config.push("primaryKey: true", "autoIncrement: true");
       if (kind === "slug") config.push("unique: true");
       if (kind === "percentage") config.push("validate: { min: 0, max: 100 }");
@@ -140,6 +144,9 @@ function sqlColumn(kind: Kind, options: ResolvedSetup): Record<string, unknown> 
   switch (kind) {
     case "id":
       column = { type: "int", primary: true, generated: "increment" };
+      break;
+    case "enabled":
+      column = { type: mssql ? "bit" : "boolean", default: true };
       break;
     case "foreignId":
     case "version":
@@ -216,15 +223,19 @@ function typeormModels(options: ResolvedSetup): string {
       else
         columns[name] = {
           name,
-          type: ["percentage", "version"].includes(kind)
-            ? "double"
-            : kind === "json"
-              ? "json"
-              : kind === "userId"
-                ? userPrimitive(options) === "number"
-                  ? "double"
-                  : "string"
-                : "string",
+          ...(kind === "enabled" ? { default: true } : {}),
+          type:
+            kind === "enabled"
+              ? "boolean"
+              : ["percentage", "version"].includes(kind)
+                ? "double"
+                : kind === "json"
+                  ? "json"
+                  : kind === "userId"
+                    ? userPrimitive(options) === "number"
+                      ? "double"
+                      : "string"
+                    : "string",
           nullable: kind === "winner",
           ...(["id", "slug"].includes(kind) ? { unique: true } : {}),
         };
@@ -260,16 +271,19 @@ function mikroModels(options: ResolvedSetup): string {
       : {};
     for (const [name, kind] of Object.entries(fields)) {
       const type =
-        kind === "json"
-          ? "json"
-          : ["percentage", "version", ...(!mongo ? ["id", "foreignId"] : [])].includes(kind)
-            ? "number"
-            : kind === "userId"
-              ? userPrimitive(options)
-              : "string";
+        kind === "enabled"
+          ? "boolean"
+          : kind === "json"
+            ? "json"
+            : ["percentage", "version", ...(!mongo ? ["id", "foreignId"] : [])].includes(kind)
+              ? "number"
+              : kind === "userId"
+                ? userPrimitive(options)
+                : "string";
       properties[name] = {
         type,
         fieldName: name,
+        ...(kind === "enabled" ? { default: true } : {}),
         nullable: kind === "winner",
         ...(kind === "id" && !mongo ? { primary: true, autoincrement: true } : {}),
         ...(["slug", ...(mongo ? ["id"] : [])].includes(kind) ? { unique: true } : {}),
@@ -299,13 +313,15 @@ function mikroModels(options: ResolvedSetup): string {
     };
     const row = Object.entries(fields).map(([name, kind]) => {
       const type =
-        kind === "json"
-          ? "unknown"
-          : ["percentage", "version", ...(!mongo ? ["id", "foreignId"] : [])].includes(kind)
-            ? "number"
-            : kind === "userId"
-              ? userPrimitive(options)
-              : "string";
+        kind === "enabled"
+          ? "boolean"
+          : kind === "json"
+            ? "unknown"
+            : ["percentage", "version", ...(!mongo ? ["id", "foreignId"] : [])].includes(kind)
+              ? "number"
+              : kind === "userId"
+                ? userPrimitive(options)
+                : "string";
       return `${name}: ${type}${kind === "winner" ? " | null" : ""}`;
     });
     if (mongo) row.unshift('_id: import("mongodb").ObjectId');
@@ -331,17 +347,21 @@ function mongooseModels(options: ResolvedSetup): string {
     };
     body += `const ${table.model}Schema = new Schema({\n`;
     for (const [name, kind] of Object.entries(fields)) {
-      const type = ["percentage", "version"].includes(kind)
-        ? "Number"
-        : kind === "json"
-          ? "Schema.Types.Mixed"
-          : kind === "userId"
-            ? userPrimitive(options) === "number"
-              ? "Number"
-              : "String"
-            : "String";
+      const type =
+        kind === "enabled"
+          ? "Boolean"
+          : ["percentage", "version"].includes(kind)
+            ? "Number"
+            : kind === "json"
+              ? "Schema.Types.Mixed"
+              : kind === "userId"
+                ? userPrimitive(options) === "number"
+                  ? "Number"
+                  : "String"
+                : "String";
       const attributes = [`type: ${type}`, `required: ${kind !== "winner" && kind !== "json"}`];
       if (kind === "winner" || kind === "json") attributes.push("default: null");
+      if (kind === "enabled") attributes.push("default: true");
       if (kind === "version") attributes.push("default: 0");
       if (kind === "percentage") attributes.push("min: 0", "max: 100");
       if (["slug", "id"].includes(kind)) attributes.push("unique: true");
@@ -372,7 +392,7 @@ function tableTypes(options: ResolvedSetup): string {
       : options.orm === "knex"
         ? 'import type { Knex } from "knex";\n'
         : "") +
-    `\nexport type XpJsonValue = null | string | number | boolean | XpJsonValue[] | { [key: string]: XpJsonValue };\nexport interface XpExperimentRow {\n  id: ${kysely ? "Generated<number>" : "number"};\n  name: string;\n  slug: string;\n  type: "flag" | "simple" | "multivariate" | "dynamic";\n  description: string;\n  winner: string | null;\n}\nexport interface XpCohortRow {\n  id: ${kysely ? "Generated<number>" : "number"};\n  experiment_id: number;\n  slug: string;\n  type: "control" | "treatment";\n  description: string;\n  percentage: number;\n  value: ${json};\n}\nexport interface XpUserCohortRow {\n  id: ${kysely ? "Generated<number>" : "number"};\n  user_id: ${userPrimitive(options)};\n  experiment_id: number;\n  cohort_id: number;\n}\nexport interface XpTables {\n  experiments: XpExperimentRow;\n  cohorts: XpCohortRow;\n  user_cohorts: XpUserCohortRow;\n}\n` +
+    `\nexport type XpJsonValue = null | string | number | boolean | XpJsonValue[] | { [key: string]: XpJsonValue };\nexport interface XpExperimentRow {\n  id: ${kysely ? "Generated<number>" : "number"};\n  name: string;\n  slug: string;\n  type: "flag" | "simple" | "multivariate" | "dynamic";\n  description: string;\n  winner: string | null;\n  enabled: ${kysely ? `Generated<${options.database === "mysql" ? "0 | 1" : "boolean"}>` : options.database === "mysql" ? "0 | 1" : "boolean"};\n}\nexport interface XpCohortRow {\n  id: ${kysely ? "Generated<number>" : "number"};\n  experiment_id: number;\n  slug: string;\n  type: "control" | "treatment";\n  description: string;\n  percentage: number;\n  value: ${json};\n}\nexport interface XpUserCohortRow {\n  id: ${kysely ? "Generated<number>" : "number"};\n  user_id: ${userPrimitive(options)};\n  experiment_id: number;\n  cohort_id: number;\n}\nexport interface XpTables {\n  experiments: XpExperimentRow;\n  cohorts: XpCohortRow;\n  user_cohorts: XpUserCohortRow;\n}\n` +
     (options.orm === "knex"
       ? '\ndeclare module "knex/types/tables.js" {\n  interface Tables {\n    experiments: Knex.CompositeTableType<XpExperimentRow>;\n    cohorts: Knex.CompositeTableType<XpCohortRow>;\n    user_cohorts: Knex.CompositeTableType<XpUserCohortRow>;\n  }\n}\n'
       : "")

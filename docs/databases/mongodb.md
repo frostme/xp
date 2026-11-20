@@ -73,3 +73,7 @@ XP_DATABASE=mongodb bun run test:integration
 ```
 
 The default URI is `mongodb://127.0.0.1:27018/?directConnection=true&replicaSet=rs0`. Override `XP_MONGODB_URL` for another test replica set. Tests create and drop a uniquely named database and therefore require database/index creation privileges; use a dedicated test deployment.
+
+## Upgrading storage from v1
+
+Run `xp setup` with the saved manifest to update generated models. Existing documents with a missing `enabled` field are active. The generated v1 collections and indexes already support this upgrade. If your application installed a custom validator, allow an optional boolean `enabled` field before deploying the server.

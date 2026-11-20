@@ -32,6 +32,7 @@ CREATE TABLE experiments (
   slug TEXT NOT NULL UNIQUE,
   type TEXT NOT NULL CHECK (type IN ('flag', 'simple', 'multivariate', 'dynamic')),
   description TEXT NOT NULL,
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
   winner TEXT
 );
 
@@ -92,3 +93,13 @@ XP_DATABASE=postgres bun run test:integration
 ```
 
 Tests default to `127.0.0.1:5433`, database `test_db`, user `test_user`, password `test_password`. Override these with `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, and `PGPASSWORD`, or supply `POSTGRES_URL`. Each test creates and drops an isolated schema, so its database user needs schema creation permission. These fixtures are test-only provisioning, not a production setup API.
+
+## Upgrading storage from v1
+
+With the original `.xp/setup.json` in place, run `xp setup`, review the additive migration, and apply it before starting the new server. Existing rows pick up the enabled default. For a manually managed schema, apply the same change through your migration runner.
+
+```sql
+ALTER TABLE experiments ADD enabled BOOLEAN NOT NULL DEFAULT TRUE;
+```
+
+Pause and resume preserve the experiment's winner and stored assignments.

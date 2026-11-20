@@ -37,6 +37,7 @@ CREATE TABLE experiments (
   slug NVARCHAR(255) COLLATE Latin1_General_100_BIN2 NOT NULL UNIQUE,
   type NVARCHAR(20) NOT NULL CHECK (type IN ('flag', 'simple', 'multivariate', 'dynamic')),
   description NVARCHAR(MAX) NOT NULL,
+  enabled BIT NOT NULL CONSTRAINT experiments_enabled_df DEFAULT 1,
   winner NVARCHAR(255) COLLATE Latin1_General_100_BIN2 NULL
 );
 
@@ -91,3 +92,13 @@ XP_DATABASE=mssql bun run test:integration
 The default connection is `127.0.0.1:1434`, user `sa`, password `Xp_test_Password123!`. Configure `MSSQL_HOST`, `MSSQL_PORT`, `MSSQL_USER`, and `MSSQL_SA_PASSWORD` to use another local test server. Fixtures create a unique database for each test and drop it afterward. Test connections trust the local certificate and disable transport encryption; the production example above uses certificate validation and encryption.
 
 Linux amd64 CI is authoritative for container integration. Running the amd64 SQL Server image under Apple Silicon emulation may be slow or unsupported. Unit tests separately verify transaction-bound requests, typed parameter binding, commit/rollback behavior, automatic rollback handling, and connection ownership.
+
+## Upgrading storage from v1
+
+With the original `.xp/setup.json` in place, run `xp setup`, review the additive migration, and apply it before starting the new server. Existing rows pick up the enabled default. For a manually managed schema, apply the same change through your migration runner.
+
+```sql
+ALTER TABLE experiments ADD enabled BIT NOT NULL CONSTRAINT experiments_enabled_df DEFAULT 1;
+```
+
+Pause and resume preserve the experiment's winner and stored assignments.

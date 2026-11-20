@@ -89,3 +89,7 @@ XP_DATABASE=dynamodb DYNAMODB_ENDPOINT=http://127.0.0.1:8000 bun run test:integr
 ```
 
 Tests create isolated tables with dummy local credentials and delete them afterward. They cover the shared storage contract, transaction/item limits, pagination, interrupted cleanup, overlapping cascades, leave/rejoin races, and slug reuse. The CLI can generate the table input; production provisioning remains application-owned.
+
+## Upgrading storage from v1
+
+Existing experiment items with a missing `enabled` attribute are active. Pause and resume update this boolean independently of the deletion state. Deploy against the existing table and keys. Run `xp setup` with the saved manifest to record storage v2.

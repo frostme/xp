@@ -640,3 +640,31 @@ describe("setup review regressions", () => {
     expect(detected.versions["@mikro-orm/migrations-mongodb"]).toBe("7.2.9");
   });
 });
+
+describe("storage v1 upgrade", () => {
+  it("preserves applied migration fingerprints, adds the upgrade, and reruns cleanly", async () => {
+    const cwd = await fixture({ "package.json": pkg() });
+    const manager = new ProjectManager(generator());
+    await manager.applySetup(await manager.planSetup({ cwd, ...native }));
+    const manifestPath = path.join(cwd, ".xp/setup.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    manifest.schemaVersion = 1;
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    const plan = await manager.planSetup({ cwd });
+    const original = manifest.files[0];
+    expect(plan.files.find((file) => file.path === original.path)).toMatchObject({
+      action: "unchanged",
+      beforeHash: original.hash,
+    });
+    expect(
+      plan.files.find((file) => file.path.endsWith("_xp_storage_v2.up.sql"))?.content,
+    ).toContain("ALTER TABLE experiments ADD enabled BOOLEAN NOT NULL DEFAULT TRUE");
+    await manager.applySetup(plan);
+    const saved = JSON.parse(await readFile(manifestPath, "utf8"));
+    expect(saved.schemaVersion).toBe(2);
+    expect(saved.files).toContainEqual(original);
+    expect(
+      (await manager.planSetup({ cwd })).files.every((file) => file.action === "unchanged"),
+    ).toBe(true);
+  });
+});
