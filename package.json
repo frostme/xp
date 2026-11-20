@@ -24,7 +24,8 @@
     ".": "./dist/index.js",
     "./cli": "./dist/cli/index.js",
     "./server": "./dist/server/index.js",
-    "./client": "./dist/client/index.js"
+    "./client": "./dist/client/index.js",
+    "./server/express": "./dist/server/express/index.js"
   },
   "scripts": {
     "build": "wireit",
@@ -44,7 +45,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit --tsBuildInfoFile node_modules/.tmp/typecheck.tsbuildinfo",
     "test:package": "wireit",
     "test:generators": "wireit",
-    "test:schemas": "wireit"
+    "test:schemas": "wireit",
+    "test:transports": "vitest run --config vitest.transport.config.ts"
   },
   "wireit": {
     "build": {
@@ -171,7 +173,9 @@
     "tsc-alias": "^1.9.10",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5",
-    "wireit": "^0.14.13"
+    "wireit": "^0.14.13",
+    "@types/express": "^5",
+    "express": "^5.3.0"
   },
   "peerDependencies": {
     "@aws-sdk/client-dynamodb": "^3.1164.0",
@@ -180,7 +184,8 @@
     "mssql": "^12.7.14",
     "mysql2": "^3.24.6",
     "pg": "^8.23.1",
-    "sequelize": "^6.37.8"
+    "sequelize": "^6.37.8",
+    "express": "^5.3.0"
   },
   "peerDependenciesMeta": {
     "pg": {
@@ -202,6 +207,9 @@
       "optional": true
     },
     "sequelize": {
+      "optional": true
+    },
+    "express": {
       "optional": true
     }
   },
