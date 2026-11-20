@@ -191,8 +191,8 @@
     "tsc-alias": "^1.9.10",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5",
-    "wireit": "^0.14.13",
-    "vue": "3.5.46"
+    "vue": "3.5.46",
+    "wireit": "^0.14.13"
   },
   "peerDependencies": {
     "@apollo/server": "^5.5.2",
