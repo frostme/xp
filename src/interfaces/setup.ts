@@ -10,7 +10,16 @@ export const ORMS = [
   "none",
 ] as const;
 export const DATABASES = ["postgres", "mysql", "mssql", "mongodb", "dynamodb"] as const;
-export const FRONTENDS = ["react", "vue", "nuxt", "angular", "svelte", "sveltekit"] as const;
+export const FRONTENDS = [
+  "react",
+  "vue",
+  "nuxt",
+  "angular",
+  "svelte",
+  "sveltekit",
+  "solid",
+  "solidstart",
+] as const;
 export type SetupFrontend = (typeof FRONTENDS)[number];
 export type SetupScope = "storage" | "frontend" | "both";
 export type SetupOrm = (typeof ORMS)[number];

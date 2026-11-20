@@ -181,3 +181,17 @@ Set a reactive public session revision and supply personalized decisions through
 ### Angular setup
 
 Run `xp setup --scope frontend --frontend angular --dry-run` from the Angular package to preview its provider registration. The generated helper supports a host-supplied session revision and Angular request preloads. [Standalone bootstrap and server setup](angular.md)
+
+### Solid and SolidStart
+
+```sh
+xp setup --cwd apps/shop --scope frontend --frontend solid --transport rest --endpoint /api/xp --dry-run
+xp setup --cwd apps/shop --scope frontend --frontend solid --transport rest --endpoint /api/xp --non-interactive --yes
+xp setup --cwd apps/storefront --scope frontend --frontend solidstart --transport graphql --endpoint /graphql --dry-run
+```
+
+Declare and install `solid-js` in the selected application package. For Solid 2 (`>=2.0.3 <3`), install the matching `@solidjs/web` and compile with `@solidjs/vite-plugin`. For Solid 1 (`>=1.9.20 <1.10`), compile with `vite-plugin-solid`. Setup chooses the public binding from the installed major and generates `src/xp/provider` and `src/xp/CheckoutBanner` with the app's TSX or JSX extension.
+
+For a conventional client-only mount, setup wraps the existing render callback in the generated `AppXp`. For custom layouts or separate hydration entries, import `{ AppXp }` from `./xp/provider` in both the server and client render trees. Pass the identical request-local preload to both along with an opaque `sessionKey`. Seed `checkout-banner` and render the generated `CheckoutBanner` below the provider to exercise the endpoint.
+
+SolidStart 2.2.3 with Solid 1.9.20 and `@solidjs/router` 1.0.3 uses the v1 adapter. Setup wraps the routed children inside a recognized router root. Its generated boundary waits on a server query under the existing suspense boundary. With no configured identity the query returns a neutral preload and the browser requests its first decisions. To add personalized SSR, export a named `xpBootstrap` router query from an app-owned `src/xp-bootstrap.ts` (or `.js`) before running setup. Inside its server function, authenticate the incoming request, instantiate `createXpRequest`, and return `{ ...await request.preload(slugs), sessionKey: publicRevision }`. Revalidate the query when the account changes. Keep private cache headers and session credentials in the host.

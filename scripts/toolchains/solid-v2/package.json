@@ -1,0 +1,14 @@
+{
+  "name": "xp-build-solid-v2",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@babel/core": "7.29.13",
+    "@solidjs/babel-plugin": "2.0.2",
+    "@solidjs/vite-plugin": "3.0.1",
+    "@solidjs/web": "2.0.3",
+    "solid-js": "2.0.3",
+    "typescript": "6.0.3",
+    "vite": "8.3.8"
+  }
+}

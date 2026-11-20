@@ -40,11 +40,21 @@
       "types": "./dist/client/svelte/index.d.ts",
       "svelte": "./dist/client/svelte/index.js",
       "default": "./dist/client/svelte/index.js"
+    },
+    "./solid/v1": {
+      "types": "./dist/client/solid/v1.d.ts",
+      "browser": "./dist/client/solid/v1.browser.js",
+      "default": "./dist/client/solid/v1.server.js"
+    },
+    "./solid": {
+      "types": "./dist/client/solid/v2.d.ts",
+      "browser": "./dist/client/solid/v2.browser.js",
+      "default": "./dist/client/solid/v2.server.js"
     }
   },
   "scripts": {
     "build": "wireit",
-    "build:swc": "swc src -d dist --config-file .swcrc --strip-leading-paths --ignore \"**/__tests__/**,**/client/angular/**,**/client/svelte/**\"",
+    "build:swc": "swc src -d dist --config-file .swcrc --strip-leading-paths --ignore \"**/__tests__/**,**/client/angular/**,**/client/svelte/**,**/client/solid/**\"",
     "build:tsc": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json --resolve-full-paths --resolve-full-extension .js",
     "ci": "wireit",
     "circular:check": "wireit",
@@ -67,11 +77,12 @@
     "test:frontend": "node scripts/test-frontend.mjs",
     "test:frontend:journey": "node scripts/test-frontend-journey.mjs",
     "build:angular": "node scripts/angular/build.mjs",
-    "build:svelte": "node tools/svelte/build.mjs"
+    "build:svelte": "node tools/svelte/build.mjs",
+    "build:solid": "node scripts/build-solid.mjs"
   },
   "wireit": {
     "build": {
-      "command": "concurrently \"bun build:swc\" \"bun build:tsc\" && bun run build:angular && bun run build:svelte",
+      "command": "concurrently \"bun build:swc\" \"bun build:tsc\" && bun run build:angular && bun run build:svelte && bun run build:solid",
       "files": [
         "src/**/*.{ts,tsx}",
         ".swcrc",
@@ -79,7 +90,10 @@
         "package.json",
         "scripts/angular/{package.json,bun.lock,tsconfig.json,build.mjs}",
         "src/client/svelte/**/*.svelte",
-        "tools/svelte/*.{json,js,mjs,lock}"
+        "tools/svelte/*.{json,js,mjs,lock}",
+        "scripts/build-solid.mjs",
+        "scripts/toolchains/solid-config.mjs",
+        "scripts/toolchains/solid-v*/{bun.lock,package.json,tsconfig.json,vite.config.mjs}"
       ],
       "output": [
         "dist/**/*.js",
@@ -218,6 +232,7 @@
     "@apollo/server": "^5.5.2",
     "@aws-sdk/client-dynamodb": "^3.1164.0",
     "@aws-sdk/lib-dynamodb": "^3.1164.0",
+    "@solidjs/web": ">=2.0.3 <3",
     "express": "^5.3.0",
     "graphql": "^16.15.0",
     "graphql-yoga": "^6.1.0",
@@ -227,6 +242,7 @@
     "pg": "^8.23.1",
     "react": "^19.3.0",
     "sequelize": "^6.37.8",
+    "solid-js": ">=1.9.20 <1.10 || >=2.0.3 <3",
     "svelte": "^5.59.0",
     "vue": ">=3.5.46 <4"
   },
@@ -271,6 +287,12 @@
       "optional": true
     },
     "svelte": {
+      "optional": true
+    },
+    "solid-js": {
+      "optional": true
+    },
+    "@solidjs/web": {
       "optional": true
     }
   },
