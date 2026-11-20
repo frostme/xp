@@ -152,6 +152,7 @@
     "@swc/cli": "^0.8.1",
     "@swc/core": "^1.16.18",
     "@types/bun": "^1.4.3",
+    "@types/express": "^5",
     "@types/mssql": "^12.3.0",
     "@types/node": "^26.6.5",
     "@types/pg": "^8.23.1",
@@ -159,6 +160,7 @@
     "concurrently": "^10.0.6",
     "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-import-x": "^4.17.1",
+    "express": "^5.3.0",
     "husky": "^9.1.7",
     "knip": "^6.41.0",
     "lint-staged": "^17.6.0",
@@ -173,19 +175,17 @@
     "tsc-alias": "^1.9.10",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5",
-    "wireit": "^0.14.13",
-    "@types/express": "^5",
-    "express": "^5.3.0"
+    "wireit": "^0.14.13"
   },
   "peerDependencies": {
     "@aws-sdk/client-dynamodb": "^3.1164.0",
     "@aws-sdk/lib-dynamodb": "^3.1164.0",
+    "express": "^5.3.0",
     "mongodb": "^7.8.0",
     "mssql": "^12.7.14",
     "mysql2": "^3.24.6",
     "pg": "^8.23.1",
-    "sequelize": "^6.37.8",
-    "express": "^5.3.0"
+    "sequelize": "^6.37.8"
   },
   "peerDependenciesMeta": {
     "pg": {
