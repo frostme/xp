@@ -26,7 +26,8 @@
     "./server": "./dist/server/index.js",
     "./client": "./dist/client/index.js",
     "./server/express": "./dist/server/express/index.js",
-    "./server/graphql": "./dist/server/graphql/index.js"
+    "./server/graphql": "./dist/server/graphql/index.js",
+    "./react": "./dist/client/react/index.js"
   },
   "scripts": {
     "build": "wireit",
@@ -141,7 +142,6 @@
     "ink": "^8.0.0",
     "meow": "^14.1.0",
     "pino": "^10.4.0",
-    "react": "^19.3.0",
     "string-width": "^9.0.0",
     "type-fest": "^5.10.0",
     "zod": "^4.6.7"
@@ -159,6 +159,7 @@
     "@types/node": "^26.6.5",
     "@types/pg": "^8.23.1",
     "@types/react": "^19.3.0",
+    "@types/react-dom": "^19",
     "concurrently": "^10.0.6",
     "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-import-x": "^4.17.1",
@@ -166,6 +167,7 @@
     "graphql": "^16.15.0",
     "graphql-yoga": "^6.1.0",
     "husky": "^9.1.7",
+    "jsdom": "^31.0.1",
     "knip": "^6.41.0",
     "lint-staged": "^17.6.0",
     "mongodb": "^7.8.0",
@@ -174,6 +176,8 @@
     "oxfmt": "^0.73.0",
     "oxlint": "^1.88.0",
     "pg": "^8.23.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.1",
     "sequelize": "^6.37.8",
     "tedious": "^20.3.9",
     "tsc-alias": "^1.9.10",
@@ -192,6 +196,7 @@
     "mssql": "^12.7.14",
     "mysql2": "^3.24.6",
     "pg": "^8.23.1",
+    "react": "^19.3.0",
     "sequelize": "^6.37.8"
   },
   "peerDependenciesMeta": {
