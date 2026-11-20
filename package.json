@@ -25,7 +25,8 @@
     "./cli": "./dist/cli/index.js",
     "./server": "./dist/server/index.js",
     "./client": "./dist/client/index.js",
-    "./server/express": "./dist/server/express/index.js"
+    "./server/express": "./dist/server/express/index.js",
+    "./server/graphql": "./dist/server/graphql/index.js"
   },
   "scripts": {
     "build": "wireit",
@@ -146,6 +147,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@apollo/server": "^5.5.2",
     "@aws-sdk/client-dynamodb": "^3.1164.0",
     "@aws-sdk/lib-dynamodb": "^3.1164.0",
     "@swc-node/register": "^1.12.1",
@@ -161,6 +163,8 @@
     "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-import-x": "^4.17.1",
     "express": "^5.3.0",
+    "graphql": "^16.15.0",
+    "graphql-yoga": "^6.1.0",
     "husky": "^9.1.7",
     "knip": "^6.41.0",
     "lint-staged": "^17.6.0",
@@ -178,9 +182,12 @@
     "wireit": "^0.14.13"
   },
   "peerDependencies": {
+    "@apollo/server": "^5.5.2",
     "@aws-sdk/client-dynamodb": "^3.1164.0",
     "@aws-sdk/lib-dynamodb": "^3.1164.0",
     "express": "^5.3.0",
+    "graphql": "^16.15.0",
+    "graphql-yoga": "^6.1.0",
     "mongodb": "^7.8.0",
     "mssql": "^12.7.14",
     "mysql2": "^3.24.6",
@@ -210,6 +217,15 @@
       "optional": true
     },
     "express": {
+      "optional": true
+    },
+    "graphql": {
+      "optional": true
+    },
+    "graphql-yoga": {
+      "optional": true
+    },
+    "@apollo/server": {
       "optional": true
     }
   },
