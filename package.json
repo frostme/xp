@@ -20,6 +20,9 @@
   ],
   "type": "module",
   "main": "dist/index.js",
+  "imports": {
+    "#xp-gates": "./dist/client/gates.js"
+  },
   "exports": {
     ".": "./dist/index.js",
     "./cli": "./dist/cli/index.js",
@@ -28,11 +31,15 @@
     "./server/express": "./dist/server/express/index.js",
     "./server/graphql": "./dist/server/graphql/index.js",
     "./react": "./dist/client/react/index.js",
-    "./vue": "./dist/client/vue/index.js"
+    "./vue": "./dist/client/vue/index.js",
+    "./angular": {
+      "types": "./dist/client/angular/index.d.ts",
+      "default": "./dist/client/angular/fesm2022/xp-angular.mjs"
+    }
   },
   "scripts": {
     "build": "wireit",
-    "build:swc": "swc src -d dist --config-file .swcrc --strip-leading-paths --ignore \"**/__tests__/**\"",
+    "build:swc": "swc src -d dist --config-file .swcrc --strip-leading-paths --ignore \"**/__tests__/**,**/client/angular/**\"",
     "build:tsc": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json --resolve-full-paths --resolve-full-extension .js",
     "ci": "wireit",
     "circular:check": "wireit",
@@ -53,23 +60,26 @@
     "test:hosts": "node scripts/host-package-smoke.mjs",
     "test:journey": "node scripts/test-installed-journey.mjs",
     "test:frontend": "node scripts/test-frontend.mjs",
-    "test:frontend:journey": "node scripts/test-frontend-journey.mjs"
+    "test:frontend:journey": "node scripts/test-frontend-journey.mjs",
+    "build:angular": "node scripts/angular/build.mjs"
   },
   "wireit": {
     "build": {
-      "command": "concurrently \"bun build:swc\" \"bun build:tsc\"",
+      "command": "concurrently \"bun build:swc\" \"bun build:tsc\" && bun run build:angular",
       "files": [
         "src/**/*.{ts,tsx}",
         ".swcrc",
         "tsconfig.json",
-        "package.json"
+        "package.json",
+        "scripts/angular/{package.json,bun.lock,tsconfig.json,build.mjs}"
       ],
       "output": [
         "dist/**/*.js",
         "dist/**/*.js.map",
         "dist/**/*.d.ts",
         "dist/**/*.d.ts.map",
-        "node_modules/.tmp/tsconfig.tsbuildinfo"
+        "node_modules/.tmp/tsconfig.tsbuildinfo",
+        "dist/client/angular/fesm2022/*.mjs"
       ],
       "allowUsuallyExcludedPaths": true
     },
@@ -195,6 +205,7 @@
     "wireit": "^0.14.13"
   },
   "peerDependencies": {
+    "@angular/core": ">=22.3.0 <23",
     "@apollo/server": "^5.5.2",
     "@aws-sdk/client-dynamodb": "^3.1164.0",
     "@aws-sdk/lib-dynamodb": "^3.1164.0",
@@ -244,6 +255,9 @@
       "optional": true
     },
     "vue": {
+      "optional": true
+    },
+    "@angular/core": {
       "optional": true
     }
   },

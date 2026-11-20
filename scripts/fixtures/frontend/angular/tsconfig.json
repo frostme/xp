@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "ES2022",
+    "module": "preserve",
+    "experimentalDecorators": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "angularCompilerOptions": { "strictTemplates": true, "strictInjectionParameters": true },
+  "include": ["src/**/*.ts"]
+}

@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "experimentalDecorators": true,
+    "declaration": true,
+    "skipLibCheck": true,
+    "lib": ["ES2022", "dom"],
+    "types": [],
+    "paths": {
+      "@angular/core": ["./node_modules/@angular/core"],
+      "@frostme/xp/client": ["../../dist/client/index.d.ts"],
+      "#xp-gates": ["../../dist/client/gates.d.ts"]
+    },
+    "rootDir": "../../src/client/angular",
+    "outDir": "../../dist/client/angular"
+  },
+  "angularCompilerOptions": {
+    "compilationMode": "partial",
+    "strictTemplates": true,
+    "strictInjectionParameters": true
+  },
+  "files": ["../../src/client/angular/index.ts"]
+}
