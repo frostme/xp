@@ -191,3 +191,35 @@ const tree = (
 ```
 
 Explicit null entries render the default immediately. Without a snapshot, server and initial browser renders use the pending state. The loader starts after mount. A session change discards the original preload.
+
+## Request-local decisions and custom frontends
+
+Create one request helper after authenticating each incoming request. Its loader closes over that request's verified identity. Repeated lookups share the decision, including failures. Pass the resulting plain data through the host framework's serializer.
+
+```ts
+import { createXpRequest } from "@frostme/xp/client";
+
+const decisions = createXpRequest(async (slug) => (await xp.resolveCohort(userId, slug)).slug, {
+  signal: request.signal,
+});
+const preload = await decisions.preload(["checkout-banner", "delivery-copy"]);
+response.headers.set("Cache-Control", "private, no-store");
+```
+
+Spread `preload` on the React provider. A qualified slug renders its matching gate, explicit null renders the default with ready status, and an entry in `initialErrors` renders the default with a generic “Failed to resolve cohort” error. These three cases make zero browser requests until refresh. An absent experiment starts pending and loads on subscription. Log the original failure on the server. Keep prerendered pages neutral until a visitor-specific request or browser mount.
+
+A custom browser frontend can subscribe after mount. Reading a snapshot is synchronous. Subscribers to one experiment share its request and retain the settled result for that session.
+
+```ts
+import { createXpSession } from "@frostme/xp/client";
+
+const session = createXpSession({ ...preload, endpoint: "/api/xp" });
+const update = () => renderBanner(session.getSnapshot("checkout-banner"));
+const unsubscribe = session.subscribe("checkout-banner", update);
+update();
+await session.refresh("checkout-banner"); // for example, from a retry button
+unsubscribe();
+session.dispose(); // on teardown or before installing a new account's session
+```
+
+Use a fresh session when the account, endpoint or loader changes. React handles replacement when the opaque public `sessionKey` or transport configuration changes. Keep credentials, loaders, raw exceptions and database connections on the server.

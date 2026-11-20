@@ -1,56 +1,55 @@
-import { createContext, useContext, useState, useSyncExternalStore, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 
 import { isSlugPart } from "~/entities/slug";
 
-import { createGraphQLLoader } from "../loaders/graphql";
-import { createRestLoader } from "../loaders/rest";
-import {
-  Assignments,
-  type AssignmentLoader,
-  type CohortResult,
-  type InitialAssignments,
-} from "./assignments";
+import type { XpPreload } from "../preload";
 
-const SessionContext = createContext<Assignments | null>(null);
+import { parseGate, matchesGate } from "../gates";
+import {
+  createXpSession,
+  type XpSession,
+  type XpSessionOptions,
+  type CohortResult,
+} from "../session";
+
+const SessionContext = createContext<XpSession | null>(null);
 const ExperimentContext = createContext<string | undefined>(undefined);
 
-export interface XPProviderProps {
+export interface XPProviderProps extends XpSessionOptions {
   children?: ReactNode;
-  loader?: "rest" | "graphql" | AssignmentLoader;
-  experimentHost?: string;
-  endpoint?: string;
   sessionKey?: string | number;
-  initialAssignments?: InitialAssignments;
 }
 
 export function XPProvider({
   children,
-  loader = "rest",
-  endpoint,
-  experimentHost,
   sessionKey,
   initialAssignments,
+  initialErrors,
+  ...options
 }: XPProviderProps) {
-  function startSession(preload?: InitialAssignments) {
-    const options = {
-      ...(endpoint === undefined ? {} : { endpoint }),
-      ...(experimentHost === undefined ? {} : { experimentHost }),
-    };
-    const resolve =
-      typeof loader === "function"
-        ? loader
-        : loader === "graphql"
-          ? createGraphQLLoader(options)
-          : createRestLoader(options);
+  const { loader = "rest", endpoint, experimentHost } = options;
+  function startSession(preload?: Partial<XpPreload>) {
     return {
       loader,
       endpoint,
       experimentHost,
       sessionKey,
-      assignments: new Assignments(resolve, preload),
+      assignments: createXpSession({ ...options, ...preload }),
     };
   }
-  const [session, setSession] = useState(() => startSession(initialAssignments));
+  const [session, setSession] = useState(() =>
+    startSession({
+      ...(initialAssignments === undefined ? {} : { initialAssignments }),
+      ...(initialErrors === undefined ? {} : { initialErrors }),
+    }),
+  );
   let active = session;
   if (
     session.sessionKey !== sessionKey ||
@@ -78,8 +77,16 @@ export function useCohort(slug?: string): CohortResult {
   const experiment = slug ?? enclosingSlug;
   if (!isSlugPart(experiment))
     throw new Error("Provide a kebab-case experiment slug or an enclosing Experiment");
-  const entry = assignments.entry(experiment);
-  const result = useSyncExternalStore(entry.subscribe, entry.getSnapshot, entry.getServerSnapshot);
+  const entry = useMemo(
+    () => ({
+      subscribe: (notify: () => void) => assignments.subscribe(experiment, notify),
+      snapshot: () => assignments.getSnapshot(experiment),
+      serverSnapshot: () => assignments.getServerSnapshot(experiment),
+      refresh: () => assignments.refresh(experiment),
+    }),
+    [assignments, experiment],
+  );
+  const result = useSyncExternalStore(entry.subscribe, entry.snapshot, entry.serverSnapshot);
   return { ...result, refresh: entry.refresh };
 }
 
@@ -106,30 +113,7 @@ export type CohortProps = { children?: ReactNode } & (
 
 export function Cohort(props: CohortProps) {
   const enclosingSlug = useContext(ExperimentContext);
-  let experiment = enclosingSlug;
-  let qualified: string | undefined;
-  if (props.default) {
-    if (!enclosingSlug || props.slug !== undefined)
-      throw new Error("A default Cohort requires an enclosing Experiment and no slug");
-  } else {
-    const parts = props.slug.split("_");
-    if (parts.length === 2) {
-      const [prefix, local] = parts;
-      if (!isSlugPart(prefix) || !isSlugPart(local))
-        throw new Error("Invalid qualified cohort slug");
-      if (enclosingSlug && enclosingSlug !== prefix)
-        throw new Error("Cohort slug conflicts with its enclosing Experiment");
-      experiment = prefix;
-      qualified = props.slug;
-    } else {
-      if (!enclosingSlug || !isSlugPart(props.slug))
-        throw new Error("A local cohort slug requires an enclosing Experiment");
-      qualified = `${enclosingSlug}_${props.slug}`;
-    }
-  }
-  const result = useCohort(experiment);
-  const matches = props.default
-    ? result.status === "error" || (result.status === "ready" && result.slug === null)
-    : result.status === "ready" && result.slug === qualified;
-  return matches ? props.children : null;
+  const gate = parseGate(enclosingSlug, props.slug, props.default);
+  const result = useCohort(gate.experiment);
+  return matchesGate(gate, result) ? props.children : null;
 }

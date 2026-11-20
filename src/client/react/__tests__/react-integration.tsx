@@ -334,3 +334,48 @@ describe("React SSR and hydration", () => {
     },
   );
 });
+
+it("hydrates mixed success, explicit null, sanitized failure and an absent experiment independently", async () => {
+  const { loader, requests } = deferredLoader();
+  function Status({ slug }: { slug: string }) {
+    const result = useCohort(slug);
+    return (
+      <button onClick={() => void result.refresh()}>
+        {slug}/{result.status}/{result.error?.message}
+      </button>
+    );
+  }
+  const tree = (
+    <XPProvider
+      loader={loader}
+      initialAssignments={{ paid: "paid_on", guest: null }}
+      initialErrors={["broken"]}
+    >
+      {["paid", "guest", "broken", "absent"].map((slug) => (
+        <Experiment key={slug} slug={slug} loading="Pending">
+          <Cohort slug="on">Treatment</Cohort>
+          <Cohort default>Default</Cohort>
+          <Status slug={slug} />
+        </Experiment>
+      ))}
+    </XPProvider>
+  );
+  host.innerHTML = renderToString(tree);
+  const html = host.textContent;
+  expect(html).toBe(
+    "Treatmentpaid/ready/Defaultguest/ready/Defaultbroken/error/Failed to resolve cohortPendingabsent/loading/",
+  );
+  expect(requests).toHaveLength(0);
+  const onRecoverableError = vi.fn();
+  await act(() => {
+    root = hydrateRoot(host, tree, { onRecoverableError });
+  });
+  expect(onRecoverableError).not.toHaveBeenCalled();
+  expect(host.textContent).toBe(html);
+  expect(requests.map((r) => r.slug)).toEqual(["absent"]);
+  await act(() => host.querySelectorAll("button")[2]!.click());
+  expect(host.textContent).toContain("Pendingbroken/loading/");
+  await act(() => requests[1]!.resolve("broken_on"));
+  expect(host.textContent).toContain("Treatmentbroken/ready/");
+  expect(host.textContent).toContain("Treatmentpaid/ready/");
+});

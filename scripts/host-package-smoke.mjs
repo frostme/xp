@@ -16,6 +16,12 @@ function run(command, args, cwd) {
 }
 
 const hosts = [
+  {
+    name: "headless",
+    peers: ["@types/react"],
+    sources: ["headless.ts"],
+    execute: "compiled/headless.js",
+  },
   { name: "root", peers: [], sources: ["root.ts"], execute: "compiled/root.js" },
   {
     name: "express",
