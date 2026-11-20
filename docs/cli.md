@@ -204,3 +204,14 @@ xp setup --cwd apps/site --scope frontend --frontend astro --transport graphql -
 ```
 
 The Astro 7 profile generates `src/xp/request.ts` (or `.js`), request-local types and `src/xp/CheckoutBanner.astro`. Import the banner in the page or layout that needs it. Setup creates conventional request middleware or composes an existing exported `onRequest` built with `defineMiddleware` or `sequence`. For a custom chain, import `xpMiddleware` from `./xp/request` in `src/middleware.ts` and append it after your auth handler with `sequence(auth, xpMiddleware)`. Connect the host's request-bound loader and public session revision in `context.locals.xpHost`. Personalized HTML needs an on-demand route and a configured Astro server adapter. The default prerendered output works without a renderer or client JavaScript.
+
+Use `--island none|react|vue|svelte|solid` with the Astro profile. The wizard offers installed compatible renderer pairs and lets you choose server-only pages. For example, run `xp setup --frontend astro --island vue --transport rest --endpoint /api/xp --dry-run`. Add the matching official integration to `astro.config`, then import the generated `CheckoutIsland.astro` in the desired page. The following renderer floors apply within the listed major versions.
+
+| Official renderer         | UI runtime                                |
+| ------------------------- | ----------------------------------------- |
+| `@astrojs/react` 7.1.9    | React and React DOM 19.3.1                |
+| `@astrojs/vue` 7.1.6      | Vue 3.5.46                                |
+| `@astrojs/svelte` 9.1.6   | Svelte 5.59.0                             |
+| `@astrojs/solid-js` 7.1.6 | Solid 1.9.20 using `@frostme/xp/solid/v1` |
+
+Plain Astro works without an island integration. With several compatible renderers installed, select one explicitly in automation. Switching renderer families in an existing app requires reviewing and removing previous generated wrapper imports before generating a replacement.

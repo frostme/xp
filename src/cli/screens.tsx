@@ -39,7 +39,7 @@ export function PlanSummary({ plan, width }: { plan: ScopedSetupPlan; width: num
         </>
       )}
       {o.frontend && (
-        <StatusMessage>{`Scope: ${o.scope} · ${o.frontend} · ${o.transport} ${o.endpoint}`}</StatusMessage>
+        <StatusMessage>{`Scope: ${o.scope} · ${o.frontend} · ${o.transport} ${o.endpoint}${o.frontend === "astro" ? ` · island: ${o.island}` : ""}`}</StatusMessage>
       )}
       <Table
         isActive={false}

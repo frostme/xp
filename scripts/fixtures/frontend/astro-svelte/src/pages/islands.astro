@@ -1,0 +1,12 @@
+---
+import XpIsland from "../xp/XpIsland.svelte";
+const shared = ["checkout-banner", "empty", "failed"];
+const a = await Astro.locals.xp.preload([...shared, "side-a"]);
+const b = await Astro.locals.xp.preload([...shared, "side-b"]);
+if (Astro.locals.calls.get("checkout-banner") !== 1) throw new Error("Expected one SSR decision for both islands");
+const sessionKey = Astro.locals.xpHost?.sessionKey ?? 0;
+---
+<html lang="en"><head><title>Checkout islands</title></head><body>
+<XpIsland client:load preload={a} {sessionKey} experiments={[...shared, "missing", "side-a"]} />
+<XpIsland client:load preload={b} {sessionKey} experiments={[...shared, "missing", "side-b"]} />
+</body></html>

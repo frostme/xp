@@ -1,6 +1,10 @@
 import { parse } from "@babel/parser";
 
+import type { ScopedSetupOptions } from "~/interfaces/setup";
+
 import type { FrontendProfile } from "./types";
+
+import { islandFiles, islandPackages } from "./astro-islands";
 
 const middlewarePaths = [
   "src/middleware.ts",
@@ -96,6 +100,7 @@ import { Experiment, Cohort } from "@frostme/xp/astro";
 export const astro: FrontendProfile = {
   id: "astro",
   packages: { astro: ">=7.4.13 <8" },
+  optionalPackages: islandPackages,
   supersedes: ["react", "vue", "svelte", "solid"],
   async generate(ctx) {
     const ext = ctx.language === "javascript" ? "js" : "ts";
@@ -139,6 +144,13 @@ export const xpMiddleware = defineMiddleware(async (context, next) => {
         purpose: "Server-rendered experiment example",
       },
     ];
+    if (ctx.island && ctx.island !== "none")
+      owned.push(
+        ...islandFiles(
+          ctx,
+          ctx.island as Exclude<ScopedSetupOptions["island"], undefined | "none">,
+        ),
+      );
     const manual = [];
     let content =
       middleware.length === 0 ? `export { xpMiddleware as onRequest } from "${helper}";\n` : null;
@@ -155,6 +167,11 @@ export const xpMiddleware = defineMiddleware(async (context, next) => {
       registrations: content ? [{ path, kind: "astro-middleware", content }] : [],
       manual,
       nextSteps: [
+        ...(ctx.island && ctx.island !== "none"
+          ? [
+              'Register the selected official renderer in astro.config and import CheckoutIsland from "../xp/CheckoutIsland.astro" in your page.',
+            ]
+          : []),
         "After authentication, set context.locals.xpHost = { load, sessionKey } using a request-bound loader. Without a loader plain pages render the public default.",
         'Import CheckoutBanner from "../xp/CheckoutBanner.astro" into src/pages/index.astro and render <CheckoutBanner />. Use an on-demand route for personalized HTML.',
       ],

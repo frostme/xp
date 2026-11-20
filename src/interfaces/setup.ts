@@ -63,6 +63,7 @@ export interface ScopedDetection extends Omit<ProjectDetection, "options" | "mis
   options: ScopedSetupOptions;
   missing: (keyof ScopedSetupOptions)[];
   frontendCandidates?: string[];
+  islandCandidates?: Exclude<ScopedSetupOptions["island"], undefined>[];
 }
 
 export interface ResolvedSetup extends SetupOptions {
