@@ -1,0 +1,6 @@
+{
+  "experiments": [
+    { "slug": "checkout-banner", "cohorts": ["off", "on"] },
+    { "slug": "delivery-copy", "cohorts": ["control", "short", "detailed"] }
+  ]
+}
