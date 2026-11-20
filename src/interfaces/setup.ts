@@ -10,7 +10,7 @@ export const ORMS = [
   "none",
 ] as const;
 export const DATABASES = ["postgres", "mysql", "mssql", "mongodb", "dynamodb"] as const;
-export const FRONTENDS = ["react"] as const;
+export const FRONTENDS = ["react", "vue", "nuxt"] as const;
 export type SetupFrontend = (typeof FRONTENDS)[number];
 export type SetupScope = "storage" | "frontend" | "both";
 export type SetupOrm = (typeof ORMS)[number];

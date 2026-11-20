@@ -7,6 +7,7 @@ export default defineConfig({
     "./src/cli/bin.ts",
     "./src/client/index.ts",
     "./src/client/react/index.ts",
+    "./src/client/vue/index.ts",
     "./src/server/index.ts",
     "./src/server/express/index.ts",
     "./src/server/graphql/index.ts",

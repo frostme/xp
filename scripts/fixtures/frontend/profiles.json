@@ -13,5 +13,39 @@
       "@types/node": "26.6.5"
     },
     "cases": ["patched-csr", "ssr-hydration", "request-isolation", "retry"]
+  },
+  {
+    "id": "vue",
+    "frontend": "vue",
+    "compiler": "Vue SFC and Vite",
+    "journey": "express",
+    "dependencies": {
+      "vue": "3.5.46",
+      "@vue/server-renderer": "3.5.46",
+      "@vitejs/plugin-vue": "6.0.11",
+      "vite": "8.3.4",
+      "typescript": "6.0.3",
+      "vue-tsc": "3.3.14"
+    },
+    "entry": "test.mjs",
+    "cases": [
+      "production-ssr",
+      "hydration-and-retry",
+      "reactive-experiment",
+      "concurrent-identities"
+    ]
+  },
+  {
+    "id": "nuxt",
+    "frontend": "nuxt",
+    "compiler": "Nuxt Nitro and Vue SFC",
+    "dependencies": {
+      "nuxt": "4.6.4",
+      "vue": "3.5.46",
+      "vue-tsc": "3.3.14",
+      "typescript": "6.0.3"
+    },
+    "entry": "test.mjs",
+    "cases": ["nitro-ssr", "hydration-and-retry", "client-navigation", "concurrent-identities"]
   }
 ]

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import process from "node:process";
 import pg from "pg";
 
-export async function setupDatabase() {
+export async function setupDatabase(cwd = ".") {
   const options = process.env.POSTGRES_URL
     ? { connectionString: process.env.POSTGRES_URL }
     : {
@@ -31,12 +31,12 @@ export async function setupDatabase() {
     await admin.query(`CREATE SCHEMA "${schema}"`);
     await pool.query("CREATE TABLE users (id TEXT PRIMARY KEY)");
     await pool.query("INSERT INTO users (id) VALUES ('shopper'), ('alice'), ('bob')");
-    const migrations = (await readdir("migrations"))
+    const migrations = (await readdir(join(cwd, "migrations")))
       .filter((file) => file.endsWith(".up.sql"))
       .sort();
     assert.ok(migrations.length, "xp setup generated migrations");
     for (const file of migrations)
-      await pool.query(await readFile(join("migrations", file), "utf8"));
+      await pool.query(await readFile(join(cwd, "migrations", file), "utf8"));
     return { pool, close };
   } catch (error) {
     await close();

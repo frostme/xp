@@ -27,7 +27,8 @@
     "./client": "./dist/client/index.js",
     "./server/express": "./dist/server/express/index.js",
     "./server/graphql": "./dist/server/graphql/index.js",
-    "./react": "./dist/client/react/index.js"
+    "./react": "./dist/client/react/index.js",
+    "./vue": "./dist/client/vue/index.js"
   },
   "scripts": {
     "build": "wireit",
@@ -51,7 +52,8 @@
     "test:transports": "vitest run --config vitest.transport.config.ts",
     "test:hosts": "node scripts/host-package-smoke.mjs",
     "test:journey": "node scripts/test-installed-journey.mjs",
-    "test:frontend": "node scripts/test-frontend.mjs"
+    "test:frontend": "node scripts/test-frontend.mjs",
+    "test:frontend:journey": "node scripts/test-frontend-journey.mjs"
   },
   "wireit": {
     "build": {
@@ -189,7 +191,8 @@
     "tsc-alias": "^1.9.10",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5",
-    "wireit": "^0.14.13"
+    "wireit": "^0.14.13",
+    "vue": "3.5.46"
   },
   "peerDependencies": {
     "@apollo/server": "^5.5.2",
@@ -203,7 +206,8 @@
     "mysql2": "^3.24.6",
     "pg": "^8.23.1",
     "react": "^19.3.0",
-    "sequelize": "^6.37.8"
+    "sequelize": "^6.37.8",
+    "vue": ">=3.5.46 <4"
   },
   "peerDependenciesMeta": {
     "pg": {
@@ -237,6 +241,9 @@
       "optional": true
     },
     "@apollo/server": {
+      "optional": true
+    },
+    "vue": {
       "optional": true
     }
   },
