@@ -8,6 +8,8 @@ import type {
   ISetupGenerator,
   ProjectDetection,
   ResolvedSetup,
+  ScopedSetupOptions,
+  ScopedSetupPlan,
   SetupOptions,
   SetupPlan,
   SetupResult,
@@ -15,6 +17,7 @@ import type {
 
 import { detectProject, storedOptions } from "./discovery";
 import { checkOutputPath, fingerprint, readText, relativePath, resolveOutput } from "./filesystem";
+import { detectScoped, frontendPlan, requestedScope } from "./frontend/plan";
 import { generateUpgrade } from "./generators/upgrade";
 import { validateProfile } from "./registry";
 import { STORAGE_VERSION } from "./storage";
@@ -201,8 +204,9 @@ function resolved(project: ProjectDetection): ResolvedSetup {
   return options;
 }
 
-function result(plan: SetupPlan, files: string[]): SetupResult {
+function result(plan: ScopedSetupPlan, files: string[]): SetupResult {
   return {
+    ...(plan.options.scope ? { scope: plan.options.scope } : {}),
     status: !files.length
       ? "unchanged"
       : plan.prerequisites.length
@@ -370,7 +374,52 @@ export default class ProjectManager implements IProjectManager {
     };
   }
 
-  async applySetup(plan: SetupPlan): Promise<SetupResult> {
+  detectScoped(options: ScopedSetupOptions, interactive = false) {
+    return detectScoped(options, interactive);
+  }
+
+  async planScoped(options: ScopedSetupOptions): Promise<ScopedSetupPlan> {
+    const scope = requestedScope(options);
+    if (scope !== "both" && scope !== "frontend") {
+      const storage = await this.planSetup(options);
+      return options.scope
+        ? { ...storage, options: { ...storage.options, scope: options.scope } }
+        : storage;
+    }
+    const project = await this.detectScoped(options);
+    const frontend = await frontendPlan(project);
+    if (scope !== "both") return frontend;
+    const storage = await this.planSetup({
+      ...storedOptions(options),
+      cwd: project.cwd,
+      ...(options.signal ? { signal: options.signal } : {}),
+    });
+    const paths = new Set(storage.files.map((file) => file.path));
+    for (const file of frontend.files)
+      if (paths.has(file.path))
+        throw new Error(`Conflicting frontend and storage outputs: ${file.path}`);
+    const prerequisites = [...storage.prerequisites, ...frontend.prerequisites];
+    for (const [path, hash] of Object.entries(frontend.inputs)) {
+      if (Object.hasOwn(storage.inputs, path) && storage.inputs[path] !== hash)
+        throw new Error(`Project changed during generation: ${path}.`);
+    }
+    return {
+      ...frontend,
+      options: { ...storage.options, ...frontend.options },
+      files: [...storage.files, ...frontend.files],
+      inputs: { ...storage.inputs, ...frontend.inputs },
+      nextSteps: [...storage.nextSteps, ...frontend.nextSteps],
+      warnings: [...storage.warnings, ...frontend.warnings],
+      prerequisites,
+      status: prerequisites.length ? "manual-steps-required" : "ready",
+    };
+  }
+
+  applySetup(plan: SetupPlan): Promise<SetupResult> {
+    return this.applyScoped(plan);
+  }
+
+  async applyScoped(plan: ScopedSetupPlan): Promise<SetupResult> {
     const root = plan.options.cwd;
     const changed = plan.files.filter((file) => file.action !== "unchanged");
     const verify = async (): Promise<void> => {

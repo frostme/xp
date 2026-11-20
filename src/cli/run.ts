@@ -1,7 +1,7 @@
 import meow from "meow";
 import process from "node:process";
 
-import { DATABASES, ORMS, type SetupOptions } from "~/interfaces/setup";
+import { DATABASES, FRONTENDS, ORMS, type ScopedSetupOptions } from "~/interfaces/setup";
 
 import cli from "./index";
 import { describePlan, describeResult, previewFile } from "./presentation";
@@ -18,6 +18,10 @@ const help = `
 
   Options
     --cwd <path>               Project directory (defaults to current directory)
+    --scope <scope>            storage, frontend or both
+    --frontend <profile>       Installed frontend profile
+    --transport <transport>    rest (default) or graphql
+    --endpoint <path-or-url>   Public decision endpoint
     --orm <tool>               sequelize, typeorm, mikroorm, prisma, drizzle,
                                kysely, knex, mongoose, none
     --orm-version <version>    Output compatibility profile when not installed
@@ -51,6 +55,10 @@ export function parseArguments(argv: string[]) {
     allowUnknownFlags: false,
     flags: {
       cwd: { type: "string" },
+      scope: { type: "string" },
+      frontend: { type: "string" },
+      transport: { type: "string" },
+      endpoint: { type: "string" },
       orm: { type: "string" },
       database: { type: "string" },
       ormVersion: { type: "string" },
@@ -76,6 +84,9 @@ export function parseArguments(argv: string[]) {
     throw new Error("Unknown command. Use xp setup, or xp --help.");
   const { yes, nonInteractive, dryRun, ...values } = parsed.flags;
   const checks = {
+    scope: ["storage", "frontend", "both"],
+    frontend: FRONTENDS,
+    transport: ["rest", "graphql"],
     orm: ORMS,
     database: DATABASES,
     language: ["typescript", "javascript"],
@@ -89,7 +100,7 @@ export function parseArguments(argv: string[]) {
   }
   const options = Object.fromEntries(
     Object.entries(values).filter(([, value]) => value !== undefined),
-  ) as SetupOptions;
+  ) as ScopedSetupOptions;
   return {
     options,
     yes: Boolean(yes),
@@ -127,16 +138,18 @@ export async function run(argv: string[] = process.argv.slice(2)): Promise<numbe
         app.unmount();
       }
     }
-    const project = await framework.detectProject(args.options);
+    const project = await framework.detectScoped(args.options);
     if (project.missing.length > 0)
       throw new Error(
         `Missing setup choices: ${project.missing.join(", ")}. Supply the corresponding flags or run xp setup in an interactive terminal.`,
       );
-    const plan = await framework.planSetup(args.options);
+    const plan = await framework.planScoped(args.options);
     process.stdout.write(`${describePlan(plan)}\n`);
-    if (args.dryRun) {
+    if (args.dryRun || plan.options.scope === "frontend" || plan.options.scope === "both") {
       for (let i = 0; i < plan.files.length; i++)
         process.stdout.write(`\n--- ${plan.files[i]!.path}\n${previewFile(plan, i).join("\n")}\n`);
+    }
+    if (args.dryRun) {
       process.stdout.write("\nDry run: no project files changed.\n");
       return 0;
     }
@@ -144,7 +157,7 @@ export async function run(argv: string[] = process.argv.slice(2)): Promise<numbe
       throw new Error(
         "A noninteractive write requires --yes. Use --dry-run to preview the files first.",
       );
-    const result = await framework.applySetup(plan);
+    const result = await framework.applyScoped(plan);
     process.stdout.write(`\n${describeResult(result)}\n`);
     return 0;
   } catch (reason) {

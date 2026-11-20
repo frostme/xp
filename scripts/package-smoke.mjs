@@ -95,17 +95,18 @@ try {
         import { PassThrough } from 'node:stream';
         import { createElement } from 'react';
         import { render } from 'ink';
+        import cli from '@frostme/xp/cli';
         import Wizard from './node_modules/@frostme/xp/dist/cli/wizard.js';
         const stdout = Object.assign(new PassThrough(), { columns: 80, rows: 30, isTTY: true });
         const stdin = Object.assign(new PassThrough(), { isTTY: true, setRawMode() {}, ref() {}, unref() {} });
         let output = ''; stdout.on('data', chunk => { output += chunk; });
         const options = { cwd: '/project', orm: 'none', database: 'postgres', migrationsDir: 'migrations', models: false,
           modelsDir: 'models', language: 'typescript', moduleFormat: 'esm', userStorage: 'create', userIdType: 'uuid', tableName: 'xp' };
-        const framework = {
+        const framework = cli({
           async detectProject() { return { cwd: '/project', options, missing: [], warnings: [] }; },
           async planSetup() { return { options, files: [], warnings: [], prerequisites: [] }; },
           async applySetup() { throw new Error('must not write'); }
-        };
+        });
         const app = render(createElement(Wizard, { framework, options: {}, onFinish() {} }),
           { stdout, stdin, stderr: stdout, debug: true, exitOnCtrlC: false, patchConsole: false });
         try {

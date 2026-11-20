@@ -234,6 +234,47 @@ function directoryValue(value: string): string {
   return /\.[cm]?[jt]s$/.test(prefix) ? path.dirname(prefix) : prefix.replace(/[/]$/, "") || ".";
 }
 
+export async function installedVersions(
+  cwd: string,
+  dependencies: Record<string, string>,
+  packages: readonly string[],
+  read: (file: string) => Promise<string | null>,
+): Promise<Record<string, string>> {
+  const versions: Record<string, string> = {};
+  const require = createRequire(path.join(cwd, "package.json"));
+  for (const name of packages) {
+    if (!dependencies[name]) continue;
+    let packageFile: string | undefined;
+    try {
+      packageFile = require.resolve(`${name}/package.json`);
+    } catch {
+      // Package exports may hide metadata. Locate it beside a resolved entry without loading code.
+      try {
+        let directory = path.dirname(require.resolve(name));
+        while (true) {
+          const candidate = path.join(directory, "package.json");
+          const content = await readText(candidate);
+          if (content && JSON.parse(content).name === name) {
+            packageFile = candidate;
+            break;
+          }
+          const parent = path.dirname(directory);
+          if (parent === directory) break;
+          directory = parent;
+        }
+      } catch {
+        /* An uninstalled dependency is a prerequisite, not executable configuration. */
+      }
+    }
+    if (packageFile) {
+      const content = await read(packageFile);
+      const version = content ? JSON.parse(content).version : undefined;
+      if (typeof version === "string") versions[name] = version;
+    }
+  }
+  return versions;
+}
+
 export async function detectProject(explicit: SetupOptions = {}): Promise<ProjectDetection> {
   explicit.signal?.throwIfAborted();
   const cwd = await projectRoot(explicit.cwd ?? process.cwd(), explicit.cwd !== undefined);
@@ -273,7 +314,6 @@ export async function detectProject(explicit: SetupOptions = {}): Promise<Projec
     ...manifest["devDependencies"],
     ...manifest["peerDependencies"],
   } as Record<string, string>;
-  const versions: Record<string, string> = {};
   const packages = [
     ...Object.values(ORM_PACKAGES),
     "@prisma/client",
@@ -291,37 +331,7 @@ export async function detectProject(explicit: SetupOptions = {}): Promise<Projec
     "@mikro-orm/migrations",
     "@mikro-orm/migrations-mongodb",
   ];
-  const require = createRequire(path.join(cwd, "package.json"));
-  for (const name of packages) {
-    if (!dependencies[name]) continue;
-    let packageFile: string | undefined;
-    try {
-      packageFile = require.resolve(`${name}/package.json`);
-    } catch {
-      // Package exports may hide metadata. Locate it beside a resolved entry without loading code.
-      try {
-        let directory = path.dirname(require.resolve(name));
-        while (true) {
-          const candidate = path.join(directory, "package.json");
-          const content = await readText(candidate);
-          if (content && JSON.parse(content).name === name) {
-            packageFile = candidate;
-            break;
-          }
-          const parent = path.dirname(directory);
-          if (parent === directory) break;
-          directory = parent;
-        }
-      } catch {
-        /* An uninstalled dependency is a prerequisite, not executable configuration. */
-      }
-    }
-    if (packageFile) {
-      const content = await read(packageFile);
-      const version = content ? JSON.parse(content).version : undefined;
-      if (typeof version === "string") versions[name] = version;
-    }
-  }
+  const versions = await installedVersions(cwd, dependencies, packages, read);
   const ormCandidates = Object.entries(ORM_PACKAGES)
     .filter(
       ([orm, name]) => dependencies[name] || (orm === "prisma" && dependencies["@prisma/client"]),

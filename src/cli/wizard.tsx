@@ -5,10 +5,11 @@ import type CliFramework from "~/frameworks/cli";
 
 import {
   DATABASES,
+  FRONTENDS,
   ORMS,
-  type ProjectDetection,
-  type SetupOptions,
-  type SetupPlan,
+  type ScopedDetection,
+  type ScopedSetupOptions,
+  type ScopedSetupPlan,
   type SetupResult,
 } from "~/interfaces/setup";
 
@@ -39,6 +40,10 @@ type Phase =
   | "done"
   | "error";
 const labels = {
+  scope: "Setup scope",
+  frontend: "Frontend profile",
+  transport: "Decision transport",
+  endpoint: "Public endpoint",
   orm: "ORM / query tool",
   database: "Database",
   ormVersion: "ORM version",
@@ -56,7 +61,7 @@ const labels = {
   tableName: "DynamoDB table name",
 } as const;
 type Field = keyof typeof labels;
-const groups: { title: string; fields: Field[] }[] = [
+const storageGroups: { title: string; fields: Field[] }[] = [
   { title: "Storage", fields: ["orm", "database", "ormVersion", "config", "schema"] },
   { title: "Output", fields: ["migrationsDir", "models", "modelsDir", "language", "moduleFormat"] },
   {
@@ -64,8 +69,21 @@ const groups: { title: string; fields: Field[] }[] = [
     fields: ["userStorage", "userIdType", "userIdCharset", "userIdCollation", "tableName"],
   },
 ];
+function settingsGroups(scope?: ScopedSetupOptions["scope"]) {
+  const groups = scope === "frontend" ? [] : [...storageGroups];
+  if (scope === "frontend" || scope === "both")
+    groups.push({ title: "Frontend", fields: ["frontend", "transport", "endpoint"] });
+  if (scope) groups.push({ title: "Scope", fields: ["scope"] });
+  return groups;
+}
 function selections(field: Field): readonly string[] | undefined {
   switch (field) {
+    case "scope":
+      return ["storage", "frontend", "both"];
+    case "frontend":
+      return FRONTENDS;
+    case "transport":
+      return ["rest", "graphql"];
     case "orm":
       return ORMS;
     case "database":
@@ -82,11 +100,11 @@ function selections(field: Field): readonly string[] | undefined {
       return undefined;
   }
 }
-function fieldValue(options: SetupOptions, field: Field): string {
+function fieldValue(options: ScopedSetupOptions, field: Field): string {
   const value = options[field];
   return field === "models" ? (value ? "yes" : "no") : typeof value === "string" ? value : "";
 }
-function groupFor(field: Field) {
+function groupFor(field: Field, groups: typeof storageGroups) {
   return Math.max(
     0,
     groups.findIndex((group) => group.fields.includes(field)),
@@ -95,7 +113,7 @@ function groupFor(field: Field) {
 
 export interface WizardProps {
   framework: CliFramework;
-  options: SetupOptions;
+  options: ScopedSetupOptions;
   dryRun?: boolean;
   onFinish(code: number): void;
 }
@@ -115,8 +133,9 @@ function SetupWizard({
   onFinish,
 }: WizardProps) {
   const [choices, setChoices] = useState(initialOptions);
-  const [project, setProject] = useState<ProjectDetection>();
-  const [plan, setPlan] = useState<SetupPlan>();
+  const [project, setProject] = useState<ScopedDetection>();
+  const groups = settingsGroups(project?.options.scope ?? choices.scope);
+  const [plan, setPlan] = useState<ScopedSetupPlan>();
   const [phase, setPhase] = useState<Phase>("loading");
   const [group, setGroup] = useState(0);
   const [field, setField] = useState<Field>("orm");
@@ -142,7 +161,7 @@ function SetupWizard({
     cancellation.current?.abort();
     finish(130);
   }
-  async function resolve(next: SetupOptions, returnGroup?: number) {
+  async function resolve(next: ScopedSetupOptions, returnGroup?: number) {
     const operation = ++pending.current;
     cancellation.current?.abort();
     const controller = new AbortController();
@@ -153,7 +172,7 @@ function SetupWizard({
     setError("");
     const current = () => mounted.current && !finished.current && operation === pending.current;
     try {
-      const detection = await framework.detectProject(request);
+      const detection = await framework.detectScoped(request, true);
       if (!current()) return;
       setProject(detection);
       const missing = detection.missing[0];
@@ -162,18 +181,22 @@ function SetupWizard({
           missing === "userIdType" && next.userStorage === undefined ? "userStorage" : missing;
         if (!(required in labels)) throw new Error(`Missing setup choice: ${required}`);
         setField(required as Field);
-        setGroup(returnGroup ?? groupFor(required as Field));
+        setGroup(
+          returnGroup ?? groupFor(required as Field, settingsGroups(detection.options.scope)),
+        );
         setPhase(returnGroup === undefined ? "field" : "settings");
         return;
       }
-      const proposed = await framework.planSetup(request);
+      const proposed = await framework.planScoped(
+        detection.options.scope ? { ...request, scope: detection.options.scope } : request,
+      );
       if (!current()) return;
       setPlan(proposed);
       if (returnGroup !== undefined) {
         setGroup(returnGroup);
         setPhase("settings");
       } else {
-        setGroup(3);
+        setGroup(settingsGroups(detection.options.scope).length);
         setPhase("review");
       }
     } catch (reason) {
@@ -201,7 +224,7 @@ function SetupWizard({
     writing.current = true;
     setPhase("applying");
     try {
-      const applied = await framework.applySetup(plan);
+      const applied = await framework.applyScoped(plan);
       if (!mounted.current) return;
       setResult(applied);
       setPhase("done");
@@ -224,23 +247,35 @@ function SetupWizard({
     if (finished.current || writing.current) return;
     if (phase === "field") setPhase("settings");
     else if (phase === "preview" || phase === "confirm") {
-      setGroup(3);
+      setGroup(groups.length);
       setPhase("review");
     } else if (phase === "settings") setPhase("groups");
     else if (phase === "groups") {
-      if (plan) setGroup(3);
+      if (plan) setGroup(groups.length);
       setPhase(plan ? "review" : error ? "error" : "settings");
     } else cancel();
   }
   function submit(value: string) {
-    const next = { ...choices, [field]: field === "models" ? value === "yes" : value };
+    const next = {
+      ...(project?.options.scope ? { scope: project.options.scope } : {}),
+      ...choices,
+      [field]: field === "models" ? value === "yes" : value,
+    };
     if (!value && field !== "models") delete next[field];
     if (field === "orm") delete next.ormVersion;
+    if (field === "scope") {
+      if (value === "storage")
+        for (const key of ["frontend", "transport", "endpoint", "island"] as const)
+          delete next[key];
+      if (value === "frontend")
+        for (const group of storageGroups)
+          for (const key of group.fields) if (key !== "language") delete next[key];
+    }
     setChoices(next);
-    void resolve(next, groupFor(field));
+    void resolve(next, groupFor(field, settingsGroups(next.scope ?? project?.options.scope)));
   }
   function navigate(next: number) {
-    if (next === 3) {
+    if (next === groups.length) {
       void resolve(choices);
       return;
     }
@@ -313,7 +348,7 @@ function SetupWizard({
           label="Edit settings"
           options={[
             ...groups.map((entry, index) => ({ value: index, label: entry.title })),
-            { value: 3, label: "Return to review" },
+            { value: groups.length, label: "Return to review" },
           ]}
           onSubmit={navigate}
         />

@@ -1,0 +1,17 @@
+[
+  {
+    "id": "react",
+    "frontend": "react",
+    "compiler": "TypeScript 7 and Bun",
+    "entry": "test.mjs",
+    "dependencies": {
+      "react": "19.3.1",
+      "react-dom": "19.3.1",
+      "@types/react": "19.3.0",
+      "@types/react-dom": "19.3.0",
+      "typescript": "7.0.2",
+      "@types/node": "26.6.5"
+    },
+    "cases": ["patched-csr", "ssr-hydration", "request-isolation", "retry"]
+  }
+]

@@ -31,6 +31,58 @@ jobs:
       - run: bun run test:transports --reporter=verbose
       - run: bun run build
       - run: bun run test:hosts
+  frontend-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      profiles: ${{ steps.matrix.outputs.profiles }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - id: matrix
+        run: echo "profiles=$(node scripts/test-frontend.mjs --matrix)" >> "$GITHUB_OUTPUT"
+      - run: bun run build && mkdir -p /tmp/packed && bun pm pack --ignore-scripts --destination /tmp/packed
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-package
+          path: /tmp/packed/*.tgz
+
+  frontend:
+    needs: frontend-matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: ${{ fromJSON(needs.frontend-matrix.outputs.profiles) }}
+    env:
+      XP_PROFILE: ${{ matrix.profile }}
+      XP_TRACE_DIR: frontend-traces
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 26
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-package
+          path: packed
+      - run: XP_TARBALL="$(realpath packed/*.tgz)" bun run test:frontend
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: frontend-trace-${{ matrix.profile }}
+          path: frontend-traces/
+
   database:
     runs-on: ubuntu-latest
     strategy:

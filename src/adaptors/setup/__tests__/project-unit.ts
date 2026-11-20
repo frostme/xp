@@ -668,3 +668,25 @@ describe("storage v1 upgrade", () => {
     ).toBe(true);
   });
 });
+
+describe("combined setup rollback", () => {
+  it("restores storage and frontend outputs when registration replacement fails", async () => {
+    const entry = 'import {createRoot} from "react-dom/client"; createRoot(node).render(<App/>);';
+    const cwd = await fixture({
+      "package.json": pkg({ react: "19.3.1", "react-dom": "19.3.1" }),
+      "node_modules/react/package.json": pkg({}, { name: "react", version: "19.3.1" }),
+      "node_modules/react-dom/package.json": pkg({}, { name: "react-dom", version: "19.3.1" }),
+      "src/main.jsx": entry,
+    });
+    const manager = new ProjectManager(generator());
+    const plan = await manager.planScoped({ cwd, ...native, scope: "both", frontend: "react" });
+    vi.mocked(filesystem.rename).mockRejectedValueOnce(
+      new Error("registration replacement failed"),
+    );
+    await expect(manager.applyScoped(plan)).rejects.toThrow("registration replacement failed");
+    for (const file of plan.files.filter((f) => f.action === "create")) {
+      await expect(readFile(path.join(cwd, file.path))).rejects.toMatchObject({ code: "ENOENT" });
+    }
+    expect(await readFile(path.join(cwd, "src/main.jsx"), "utf8")).toBe(entry);
+  });
+});
