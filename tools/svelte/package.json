@@ -1,0 +1,22 @@
+{
+  "name": "xp-svelte-build",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./.stage/pkg/index.d.ts",
+      "svelte": "./.stage/pkg/index.js"
+    }
+  },
+  "devDependencies": {
+    "@sveltejs/package": "3.0.3",
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "svelte": "5.59.0",
+    "svelte-check": "4.7.8",
+    "typescript": "6.0.3",
+    "vite": "8.3.8"
+  },
+  "peerDependencies": {
+    "svelte": "^5.59.0"
+  }
+}

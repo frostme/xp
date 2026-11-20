@@ -4,6 +4,7 @@ const config: KnipConfig = {
   $schema: "https://unpkg.com/knip@6/schema.json",
   entry: [
     "scripts/fixtures/frontend/**/*.{ts,tsx,js,jsx,mjs,vue}",
+    "tools/svelte/svelte.config.js",
     "scripts/fixtures/xp-journey/journey.test.mjs",
     "scripts/fixtures/host-package-smoke/*.{ts,tsx,mjs}",
     "src/**/__tests__/*-integration.{ts,tsx}",
@@ -14,6 +15,9 @@ const config: KnipConfig = {
   ignoreIssues: {
     // The external fixture installer copies shared app sources and generates xp/options.
     "scripts/fixtures/frontend/{vue,nuxt}/**/*": ["unresolved", "unlisted"],
+    // Native tooling and packed Svelte fixtures install their own pinned dependencies.
+    "tools/svelte/svelte.config.js": ["unlisted"],
+    "scripts/fixtures/frontend/{svelte,sveltekit}/**": ["unlisted", "unresolved"],
     // Angular peers belong to the isolated compiler or packed application install.
     "scripts/fixtures/frontend/angular/src/**": ["unlisted", "unresolved"],
     "src/cli/termcn/**": ["exports", "types"],
@@ -21,7 +25,7 @@ const config: KnipConfig = {
     "scripts/fixtures/frontend/react/src/{App,main}.tsx": ["unresolved"],
   },
   tags: ["-lintignore"],
-  ignoreDependencies: ["lint-staged", "@swc-node/register", "pino", "@angular/core"],
+  ignoreDependencies: ["lint-staged", "@swc-node/register", "pino", "@angular/core", "svelte"],
   ignoreFiles: ["dpdm.config.ts"],
 };
 

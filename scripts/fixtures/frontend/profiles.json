@@ -71,5 +71,56 @@
       "typescript": "6.0.3"
     },
     "cases": ["strict-aot", "ssr-hydration", "request-isolation", "reactive-bindings"]
+  },
+  {
+    "id": "svelte",
+    "frontend": "svelte",
+    "compiler": "svelte/compiler",
+    "dependencies": {
+      "svelte": "5.59.0",
+      "@sveltejs/vite-plugin-svelte": "7.3.1",
+      "vite": "8.3.8",
+      "svelte-check": "4.7.8",
+      "typescript": "6.0.3",
+      "react": "19.3.1"
+    },
+    "entry": "test.mjs",
+    "cases": [
+      "hydration",
+      "retry",
+      "reactive slug and lazy snippets",
+      "concurrent requests",
+      "custom loader",
+      "source registration",
+      "GraphQL"
+    ],
+    "journey": "apollo"
+  },
+  {
+    "id": "sveltekit",
+    "frontend": "sveltekit",
+    "compiler": "@sveltejs/kit",
+    "dependencies": {
+      "svelte": "5.59.0",
+      "@sveltejs/vite-plugin-svelte": "7.3.1",
+      "vite": "8.3.8",
+      "svelte-check": "4.7.8",
+      "typescript": "6.0.3",
+      "react": "19.3.1",
+      "@sveltejs/kit": "3.4.0",
+      "@sveltejs/adapter-node": "6.0.5",
+      "@opentelemetry/api": "1.9.0"
+    },
+    "entry": "test.mjs",
+    "cases": [
+      "hydration",
+      "retry",
+      "reactive slug and lazy snippets",
+      "concurrent requests",
+      "custom loader",
+      "source registration",
+      "client navigation",
+      "account invalidation"
+    ]
   }
 ]

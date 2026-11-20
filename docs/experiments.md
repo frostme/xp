@@ -192,6 +192,31 @@ const tree = (
 
 Explicit null entries render the default immediately. Without a snapshot, server and initial browser renders use the pending state. The loader starts after mount. A session change discards the original preload.
 
+## Svelte 5 and SvelteKit 3
+
+Install Svelte 5.59.0 or later in major 5 alongside xp. The native Svelte entry exports three components and a readable store. This component receives public request data and a session revision from its host.
+
+```svelte
+<script lang="ts">
+  import { XPProvider, Experiment, Cohort } from "@frostme/xp/svelte";
+  import type { XpPreload } from "@frostme/xp/client";
+  let { preload, revision }: { preload: XpPreload; revision: string } = $props();
+</script>
+
+<XPProvider {...preload} sessionKey={revision}>
+  <Experiment slug="checkout-banner">
+    {#snippet loading()}<p>Loading offer…</p>{/snippet}
+    <Cohort slug="on"><p>New checkout offer</p></Cohort>
+    <Cohort default><p>Standard checkout</p></Cohort>
+  </Experiment>
+  <Cohort slug="delivery-copy_short"><p>Short delivery copy</p></Cohort>
+</XPProvider>
+```
+
+A child component can call `const decision = cohortStore(() => experiment)` during initialization and render `$decision.status`, `$decision.slug` or `$decision.error`. A button can call `$decision.refresh()`. Inside an experiment, `cohortStore()` reads the nearest experiment. Matching snippets instantiate lazily. An explicit null and a failed preload both render the default, with ready and error status respectively. Subscriptions start after mounting and share requests for the same slug.
+
+The generated SvelteKit 3.4+ layout server load calls `loadXp(event)`. The app’s authenticated server hook can supply `event.locals.xp = { load, slugs, sessionKey }`. Define the optional `App.Locals.xp` field using the generated `XpRequestLocals` type in TypeScript projects. Bind `load` to the verified identity for this request, choose the route's explicit experiment list, and set `Cache-Control: private, no-store` on personalized responses. The layout sends its serializable `data.xp` to the generated provider. Without the host binding, it renders pending until the browser subscribes. Invalidate the relevant layout load and rotate the public revision when the account changes. Keep credentials in the server hook.
+
 ## Request-local decisions and custom frontends
 
 Create one request helper after authenticating each incoming request. Its loader closes over that request's verified identity. Repeated lookups share the decision, including failures. Pass the resulting plain data through the host framework's serializer.

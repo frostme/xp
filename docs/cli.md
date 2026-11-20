@@ -89,6 +89,14 @@ The app owns its auth integration. Supply a public session revision through `ses
 
 For programmatic review use `detectScoped(options)`, `planScoped(options)` and `applyScoped(plan)` on the `cli()` instance. A frontend-only plan has no storage settings or migration prerequisites. Storage-only callers can keep using `detectProject`, `planSetup` and `applySetup`.
 
+### Svelte and SvelteKit
+
+Preview a Svelte 5 application registration from its package directory with `xp setup --scope frontend --frontend svelte --dry-run`. For SvelteKit 3.4+ use `--frontend sveltekit`. Add `--transport graphql --endpoint /api/graphql` for a GraphQL host. Re-run the reviewed command with `--non-interactive --yes` to apply it.
+
+Setup creates `src/xp/AppXp.svelte` and `src/xp/CheckoutBanner.svelte`. Use the example inside the registered root with a seeded `checkout-banner` experiment. For a conventional Svelte mount, setup follows the imported `App.svelte` and wraps its markup. A recognized shared hydration root can receive `xp` as an app prop on both server and client. For custom bootstraps, import the generated `AppXp` into the shared root and wrap the existing subtree in `<AppXp {...xp}>…</AppXp>`. Pass request-local preload fields, a public account revision as `sessionKey`, and any custom browser loader through those props.
+
+In SvelteKit, setup wraps the child snippet in `src/routes/+layout.svelte` and adds a namespaced `xp` field to a recognized layout server load. For a custom server load, import `loadXp` from `../xp/request.server`, pass its existing event, and return `xp: await loadXp(event)` alongside your current data. Keep early returns, redirects and dependency declarations in host code. The generated helper reads the host's optional authenticated `event.locals.xp`. [Svelte consumer and request examples](experiments.md#svelte-5-and-sveltekit-3)
+
 ## Supported generator profiles
 
 SQL below means PostgreSQL, MySQL, and SQL Server. SQLite and MariaDB are not xp runtime providers. Untested versions, prereleases, and incompatible tool/provider pairs produce an explanation; use `--orm none` for native output when appropriate.

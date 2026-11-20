@@ -120,6 +120,14 @@ export default defineConfig({
   rules: generalRules,
   overrides: [
     {
+      files: [
+        "src/client/svelte/**/*.svelte",
+        "scripts/fixtures/frontend/{svelte,sveltekit,shared/svelte}/**/*.{js,mjs,svelte}",
+      ],
+      env: { browser: true, node: true },
+      globals: { $props: "readonly", $state: "readonly", $derived: "readonly" },
+    },
+    {
       files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
       rules: {
         "constructor-super": "off",
