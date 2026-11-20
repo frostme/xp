@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "xp",
+      "name": "@frostme/xp",
       "dependencies": {
         "@babel/parser": "^8.1.2",
         "cli-spinners": "^3.4.0",

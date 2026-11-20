@@ -38,7 +38,9 @@ export function generateMongoBootstrap(
     ],
     prerequisites: project.versions["mongodb"]
       ? []
-      : ["Install the mongodb native driver before running the bootstrap or using xp/server."],
+      : [
+          "Install the mongodb native driver before running the bootstrap or using @frostme/xp/server.",
+        ],
     nextSteps: [
       `Set XP_MONGODB_URL and XP_MONGODB_DATABASE, then run node ${shellQuote(filename)} to provision the collections and indexes.`,
       nativeGuidance(options),

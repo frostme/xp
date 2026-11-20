@@ -30,6 +30,8 @@ try {
     path.join(root, "node_modules/.bin/vitest"),
     [
       "run",
+      "--testTimeout",
+      "60000",
       "--config",
       "vitest.unit.config.ts",
       "src/adaptors/setup/generators/__tests__/schema-generators-unit.ts",

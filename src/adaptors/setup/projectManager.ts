@@ -56,8 +56,9 @@ function pendingPrerequisites(manifest: SetupManifest, project: ProjectDetection
     )
       return [];
     if (
-      message ===
-        "Install the mongodb native driver before running the bootstrap or using xp/server." &&
+      /^Install the mongodb native driver before running the bootstrap or using (?:@frostme\/)?xp\/server\.$/.test(
+        message,
+      ) &&
       installed("mongodb")
     )
       return [];

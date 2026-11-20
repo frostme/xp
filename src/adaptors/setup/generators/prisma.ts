@@ -431,7 +431,7 @@ export async function generatePrisma(
       `Configure Prisma to load the schema directory ${options.schema}.`,
     );
   artifacts.nextSteps.push(
-    "Pass a supported native database client to xp/server; generated Prisma models do not enable server(prismaClient).",
+    "Pass a supported native database client to @frostme/xp/server; generated Prisma models do not enable server(prismaClient).",
   );
   return artifacts;
 }

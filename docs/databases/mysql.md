@@ -5,8 +5,8 @@ Use [`xp setup`](../cli.md) to generate the setup files for this provider and yo
 The MySQL adaptor supports `mysql2/promise` connections and pools. MySQL 8.0 is the integration-test baseline. Install `mysql2` in the application; it is an optional peer dependency of xp.
 
 ```ts
+import server from "@frostme/xp/server";
 import { createPool } from "mysql2/promise";
-import server from "xp/server";
 
 const pool = createPool({
   host: "localhost",

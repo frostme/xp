@@ -9,7 +9,7 @@ The adaptor uses AWS SDK v3's `DynamoDBDocumentClient` and one pre-existing tabl
 ```ts
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
-import server from "xp/server";
+import server from "@frostme/xp/server";
 
 const raw = new DynamoDBClient({ region: "us-east-1" });
 const client = DynamoDBDocumentClient.from(raw);

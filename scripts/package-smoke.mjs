@@ -15,13 +15,15 @@ try {
     cwd: root,
     stdio: "pipe",
   });
+  const [tarball] = (await readdir(temporary)).filter((file) => file.endsWith(".tgz"));
+  assert.ok(tarball, "bun pack produced a tarball");
   const drivers = process.env.XP_SMOKE_DRIVER
     ? [process.env.XP_SMOKE_DRIVER]
     : Object.keys(manifest.peerDependencies).filter((name) => name !== "@aws-sdk/client-dynamodb");
   for (const driver of [null, ...drivers]) {
     const directory = join(temporary, driver?.replaceAll("/", "-") ?? "no-driver");
     await mkdir(directory);
-    const dependencies = { xp: `file:${join(temporary, `xp-${manifest.version}.tgz`)}` };
+    const dependencies = { [manifest.name]: `file:${join(temporary, tarball)}` };
     if (driver) dependencies[driver] = manifest.devDependencies[driver];
     // AWS document client has its own SDK peer; it is part of the same provider.
     if (driver === "@aws-sdk/lib-dynamodb")
@@ -51,12 +53,12 @@ try {
     );
     await writeFile(
       join(directory, "smoke.mjs"),
-      `import assert from 'node:assert/strict'; import {createRequire} from 'node:module'; import server from 'xp/server'; import cli from 'xp/cli'; assert.equal(typeof cli, 'function'); const require=createRequire(import.meta.url); for(const name of ${JSON.stringify(absent)}) { assert.throws(()=>require.resolve(name),{code:'MODULE_NOT_FOUND'}); } ${driver ? (constructors[driver] ?? "") : "assert.throws(()=>server({}),TypeError);"}`,
+      `import assert from 'node:assert/strict'; import {createRequire} from 'node:module'; import server from '@frostme/xp/server'; import cli from '@frostme/xp/cli'; assert.equal(typeof cli, 'function'); const require=createRequire(import.meta.url); for(const name of ${JSON.stringify(absent)}) { assert.throws(()=>require.resolve(name),{code:'MODULE_NOT_FOUND'}); } ${driver ? (constructors[driver] ?? "") : "assert.throws(()=>server({}),TypeError);"}`,
     );
     execFileSync("node", ["smoke.mjs"], { cwd: directory, stdio: "pipe" });
     await writeFile(
       join(directory, "consumer.ts"),
-      `import server from 'xp/server'; const xp=server({}); const result: Promise<unknown> = xp.getGroup('user','experiment'); void result;`,
+      `import server from '@frostme/xp/server'; const xp=server({}); const result: Promise<unknown> = xp.getGroup('user','experiment'); void result;`,
     );
     execFileSync(
       join(root, "node_modules", ".bin", "tsc"),
@@ -74,9 +76,9 @@ try {
       { cwd: directory, stdio: "pipe" },
     );
     if (driver === null) {
-      const executable = join(directory, "node_modules", "xp", "dist", "cli", "bin.js");
+      const executable = join(directory, "node_modules", manifest.name, "dist", "cli", "bin.js");
       assert.match(
-        await readFile(join(directory, "node_modules/xp/docs/termcn.md"), "utf8"),
+        await readFile(join(directory, "node_modules/@frostme/xp/docs/termcn.md"), "utf8"),
         /MIT License/,
       );
       // Exercise the lazy interactive graph in an isolated production install.
@@ -87,7 +89,7 @@ try {
         import { PassThrough } from 'node:stream';
         import { createElement } from 'react';
         import { render } from 'ink';
-        import Wizard from './node_modules/xp/dist/cli/wizard.js';
+        import Wizard from './node_modules/@frostme/xp/dist/cli/wizard.js';
         const stdout = Object.assign(new PassThrough(), { columns: 80, rows: 30, isTTY: true });
         const stdin = Object.assign(new PassThrough(), { isTTY: true, setRawMode() {}, ref() {}, unref() {} });
         let output = ''; stdout.on('data', chunk => { output += chunk; });

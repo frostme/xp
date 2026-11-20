@@ -31,7 +31,7 @@ export function nativeGuidance(options: ResolvedSetup): string {
     mongodb: "MongoClient with an explicit databaseName",
     dynamodb: "DynamoDBDocumentClient with an explicit tableName",
   }[options.database];
-  return `Pass ${driver} to xp/server; ORM instances are not supported runtime clients. Create application user records before assigning experiments.`;
+  return `Pass ${driver} to @frostme/xp/server; ORM instances are not supported runtime clients. Create application user records before assigning experiments.`;
 }
 export function userPrimitive(options: ResolvedSetup): "string" | "number" {
   return /^(?:number|tinyint|smallint|mediumint|int|integer)\b/i.test(options.userIdType)

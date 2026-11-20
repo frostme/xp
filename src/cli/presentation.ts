@@ -30,7 +30,7 @@ export function describeResult(result: SetupResult): string {
     ...result.warnings.map((value) => `Note: ${value}`),
     "",
     ...result.nextSteps,
-    "xp/server continues to use a supported native database client. Apply the generated migration or provisioning files before using xp.",
+    "@frostme/xp/server continues to use a supported native database client. Apply the generated migration or provisioning files before using xp.",
   ].join("\n");
 }
 

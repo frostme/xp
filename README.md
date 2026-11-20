@@ -2,9 +2,13 @@
 
 A TypeScript experiment framework with caller-owned database connections.
 
+```sh
+npm install @frostme/xp
+```
+
 ```ts
+import server from "@frostme/xp/server";
 import pg from "pg";
-import server from "xp/server";
 
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const xp = server(pool);
