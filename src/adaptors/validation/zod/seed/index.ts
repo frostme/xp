@@ -2,10 +2,10 @@ import * as z from "zod";
 
 import type { CreationPayload, Experiment } from "~/entities";
 
-import { localSlugPattern } from "~/entities/slug";
+import { isSlugPart } from "~/entities/slug";
 import { ValidationError } from "~/errors";
 
-const slug = z.string().regex(localSlugPattern, "Expected a nonempty kebab-case name");
+const slug = z.string().refine(isSlugPart, "Expected a nonempty kebab-case name");
 const declarations = z.strictObject({
   experiments: z.array(z.strictObject({ slug, cohorts: z.array(slug).min(2) })),
 });
