@@ -5,8 +5,8 @@ Use [`xp setup`](../cli.md) to generate the setup files for this provider and yo
 The PostgreSQL adaptor supports `pg.Client` and `pg.Pool`. PostgreSQL 16 is the integration-test baseline. Install `pg` in the application; xp treats database drivers as optional peer dependencies.
 
 ```ts
+import server from "@frostme/xp/server";
 import { Pool } from "pg";
-import server from "xp/server";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const experiments = server(pool);

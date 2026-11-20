@@ -422,7 +422,7 @@ export function generateModels(options: ResolvedSetup): GeneratedArtifacts {
       `Include ${path} in your TypeScript project${options.orm === "kysely" ? " and extend your application's database interface with XpTables" : ""}.`,
     );
   result.warnings.push(
-    "Supporting models are for reading xp data. Apply migrations and mutate experiments through xp/server; schema sync/direct ORM writes can bypass xp integrity rules.",
+    "Supporting models are for reading xp data. Apply migrations and mutate experiments through @frostme/xp/server; schema sync/direct ORM writes can bypass xp integrity rules.",
   );
   return result;
 }

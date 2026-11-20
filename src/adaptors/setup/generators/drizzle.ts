@@ -627,7 +627,7 @@ export async function generateDrizzle(
     await rm(stage, { recursive: true, force: true });
   }
   artifacts.nextSteps.push(
-    "Use a native pg or mysql2 client with xp/server; generated Drizzle schemas do not enable server(drizzleClient).",
+    "Use a native pg or mysql2 client with @frostme/xp/server; generated Drizzle schemas do not enable server(drizzleClient).",
   );
   return artifacts;
 }

@@ -5,8 +5,8 @@ Use [`xp setup`](../cli.md) to generate the setup files for this provider and yo
 The MongoDB adaptor uses the official `mongodb` Node.js driver and a replica set or sharded cluster supporting transactions. A standalone MongoDB server is not supported. The integration tests use a single-node replica set; production deployments should use an appropriately replicated topology.
 
 ```ts
+import server from "@frostme/xp/server";
 import { MongoClient } from "mongodb";
-import server from "xp/server";
 
 const client = new MongoClient(process.env.MONGODB_URL!);
 await client.connect();

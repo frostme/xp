@@ -1,6 +1,6 @@
 # Project setup CLI
 
-Install `xp` in the application, then run its local executable:
+Install `@frostme/xp` in the application, then run its local executable:
 
 ```sh
 bun run xp setup
@@ -9,7 +9,7 @@ npm exec -- xp setup
 yarn exec xp setup
 ```
 
-`xp setup` generates storage files for the application's migration or infrastructure workflow. It does not install packages, connect to a database, apply migrations, or provision resources. Installed schema tools may run locally to generate or validate files. The application still passes a supported native database client to `xp/server`; selecting an ORM does not add an ORM runtime adapter.
+`xp setup` generates storage files for the application's migration or infrastructure workflow. It does not install packages, connect to a database, apply migrations, or provision resources. Installed schema tools may run locally to generate or validate files. The application still passes a supported native database client to `@frostme/xp/server`; selecting an ORM does not add an ORM runtime adapter.
 
 ## Wizard
 
@@ -112,10 +112,10 @@ Planning fingerprints source files and applying checks them again. New files and
 
 ## Programmatic interface
 
-Importing `xp/cli` has no terminal or argument-parsing side effects:
+Importing `@frostme/xp/cli` has no terminal or argument-parsing side effects:
 
 ```ts
-import cli, { type SetupOptions } from "xp/cli";
+import cli, { type SetupOptions } from "@frostme/xp/cli";
 
 const setup = cli();
 const options: SetupOptions = {
