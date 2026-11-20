@@ -166,6 +166,8 @@
     "oxfmt": "^0.73.0",
     "oxlint": "^1.88.0",
     "pg": "^8.23.1",
+    "sequelize": "^6.37.8",
+    "tedious": "^20.3.9",
     "tsc-alias": "^1.9.10",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5",
@@ -177,7 +179,8 @@
     "mongodb": "^7.8.0",
     "mssql": "^12.7.14",
     "mysql2": "^3.24.6",
-    "pg": "^8.23.1"
+    "pg": "^8.23.1",
+    "sequelize": "^6.37.8"
   },
   "peerDependenciesMeta": {
     "pg": {
@@ -196,6 +199,9 @@
       "optional": true
     },
     "@aws-sdk/lib-dynamodb": {
+      "optional": true
+    },
+    "sequelize": {
       "optional": true
     }
   },
