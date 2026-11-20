@@ -267,3 +267,7 @@ export default defineNuxtPlugin(async () => {
 ```
 
 The endpoint authenticates the incoming request, calls `createXpRequest` and returns `{ sessionKey, ...await decisions.preload([...]) }`. Update the same state with the new revision on account switch. The root wrapper stays mounted during page navigation. Both integrations can start from a pending SSR shell before an auth bootstrap exists.
+
+## Angular standalone components
+
+Use the standalone structural directives to render branches and `inject(XpDecisions).cohort(slug)` for a refreshable signal. The generated provider can carry public request preloads through Angular hydration. [Angular setup, signals and SSR](angular.md)

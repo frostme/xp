@@ -60,6 +60,7 @@
         "wireit": "^0.14.13",
       },
       "peerDependencies": {
+        "@angular/core": ">=22.3.0 <23",
         "@apollo/server": "^5.5.2",
         "@aws-sdk/client-dynamodb": "^3.1164.0",
         "@aws-sdk/lib-dynamodb": "^3.1164.0",
@@ -75,6 +76,7 @@
         "vue": ">=3.5.46 <4",
       },
       "optionalPeers": [
+        "@angular/core",
         "@apollo/server",
         "@aws-sdk/client-dynamodb",
         "@aws-sdk/lib-dynamodb",

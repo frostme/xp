@@ -169,3 +169,7 @@ xp setup --scope frontend --frontend nuxt --transport graphql --endpoint /api/gr
 The Vue profile follows the component import in a conventional `src/main.ts` or `src/main.js` `createApp(App).mount(...)` call and wraps that component's template. Nuxt wraps `app/app.vue` or creates it for the recognized implicit pages layout. Existing layouts, pages and imports remain in their original order. For a custom mount, import the generated `XpAppProvider.vue` and wrap the host tree used by the browser and SSR. Generated options and the runnable `CheckoutBanner.vue` example live in `src/xp/` for Vue or `app/xp/` for Nuxt.
 
 Set a reactive public session revision and supply personalized decisions through the request bootstrap. Hosts can start with the empty bootstrap and the configured browser endpoint. [Vue and Nuxt authentication and SSR](experiments.md#vue-3-and-nuxt-4)
+
+### Angular setup
+
+Run `xp setup --scope frontend --frontend angular --dry-run` from the Angular package to preview its provider registration. The generated helper supports a host-supplied session revision and Angular request preloads. [Standalone bootstrap and server setup](angular.md)
