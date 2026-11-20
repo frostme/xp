@@ -2,7 +2,14 @@ import type { KnipConfig } from "knip";
 
 const config: KnipConfig = {
   $schema: "https://unpkg.com/knip@6/schema.json",
-  entry: ["src/**/__tests__/*-integration.{ts,tsx}", "src/**/__tests__/*-unit.{ts,tsx}"],
+  entry: [
+    "scripts/fixtures/xp-journey/journey.test.mjs",
+    "scripts/fixtures/host-package-smoke/*.{ts,tsx,mjs}",
+    "src/**/__tests__/*-integration.{ts,tsx}",
+    "src/**/__tests__/*-unit.{ts,tsx}",
+  ],
+  // These modules are compiled inside the temporary packed consumers.
+  ignoreUnresolved: ["./compiled/browser.js", "./compiled/graphql.js"],
   ignoreExportsUsedInFile: true,
   // Keep the copied registry APIs intact for future upstream updates.
   ignoreIssues: { "src/cli/termcn/**": ["exports", "types"] },
