@@ -21,6 +21,7 @@ export async function mongoFixture(): Promise<
   try {
     await generatedMongo(db);
     return {
+      startupOptions: { connection: client, databaseName },
       client,
       databaseName,
       adaptor: new MongoDBAdaptor(client, databaseName),

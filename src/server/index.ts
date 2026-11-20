@@ -1,3 +1,5 @@
+import type { CohortRuntime } from "~/interfaces/runtime";
+
 import { ServerFramework } from "~/frameworks";
 import {
   GetGroup,
@@ -13,12 +15,23 @@ import {
   RemoveCohort,
   SetExperimentAvailability,
 } from "~/use-cases";
+import { seedExperiments } from "~/use-cases/experiment/seed";
 
 import { detectClient, type ServerOptions } from "./detectClient";
+import { readSeedConfig } from "./readSeedConfig";
 
-const server = (client: unknown, options: ServerOptions = {}) => {
-  const serverConfig = detectClient(client, options);
+export type { CohortDecision, CohortRuntime, SeedReport, UserIdentity } from "~/interfaces/runtime";
+export { ExperimentNotFoundError } from "~/errors/experimentNotFoundError";
 
+export interface InitializeOptions extends ServerOptions {
+  connection: unknown;
+  cwd?: string;
+  configPath?: string;
+}
+
+function createServer(
+  serverConfig: ReturnType<typeof detectClient>,
+): ServerFramework & CohortRuntime {
   const groupUseCase = new GetGroup(
     serverConfig.dao.userDAO,
     serverConfig.dao.experimentDAO,
@@ -69,7 +82,7 @@ const server = (client: unknown, options: ServerOptions = {}) => {
 
   const removeCohortUseCase = new RemoveCohort(serverConfig.dao.cohortDAO);
 
-  return new ServerFramework(
+  const framework = new ServerFramework(
     groupUseCase,
     joinCohortUseCase,
     leaveExperimentUseCase,
@@ -83,7 +96,25 @@ const server = (client: unknown, options: ServerOptions = {}) => {
     removeCohortUseCase,
     new SetExperimentAvailability(serverConfig.dao.experimentDAO),
   );
-};
+  return Object.assign(framework, {
+    driverKind: serverConfig.driverKind,
+    ...(serverConfig.driverKind === "sequelize" ? { dialect: serverConfig.dialect } : {}),
+    resolveCohort: groupUseCase.resolveCohort.bind(groupUseCase),
+  });
+}
 
 export { ExperimentPausedError, NotFoundError } from "~/errors";
-export default server;
+export default function server(client: unknown, options: ServerOptions = {}) {
+  return createServer(detectClient(client, options));
+}
+
+export async function initializeXp({ connection, cwd, configPath, ...options }: InitializeOptions) {
+  const config = detectClient(connection, options);
+  const declarations = await readSeedConfig(
+    cwd,
+    configPath,
+    config.driverKind === "dynamodb" ? 32 : undefined,
+  );
+  const seedReport = await seedExperiments(declarations, config.dao.experimentDAO);
+  return Object.assign(createServer(config), { seedReport });
+}

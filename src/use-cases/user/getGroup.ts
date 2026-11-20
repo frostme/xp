@@ -1,7 +1,12 @@
+import type { Experiment, ExperimentSlug, CohortSlug, PKey } from "~/entities";
 import type { IUseCase, IUserDAO, IExperimentDAO, ICohortDAO, IBucketer } from "~/interfaces";
+import type { CohortDecision, UserIdentity } from "~/interfaces/runtime";
 
-import { type ExperimentSlug, type CohortSlug, type PKey } from "~/entities";
+import { normalizeIdentity } from "~/entities/identity";
 import { DuplicateAssignmentError, ExperimentPausedError, NotFoundError } from "~/errors";
+import { ExperimentNotFoundError } from "~/errors/experimentNotFoundError";
+
+import { validateExperimentSlug } from "./validateExperimentSlug";
 
 type UseCaseParams = {
   userId: PKey<"User">;
@@ -24,12 +29,32 @@ export default class GetGroup implements IUseCase<CohortSlug | null> {
       throw new NotFoundError(`User with id ${userId} not found`);
     }
 
-    const experiment = await this.experimentDAO.findBySlug(experimentSlug);
+    return this.assign(userId, await this.experiment(experimentSlug));
+  }
 
-    if (!experiment) {
-      throw new NotFoundError(`Experiment with slug ${experimentSlug} not found`);
+  async resolveCohort(identity: UserIdentity, slug: string): Promise<CohortDecision> {
+    const experimentSlug = validateExperimentSlug(slug) as ExperimentSlug;
+    const userId = normalizeIdentity(identity) as PKey<"User"> | null;
+    if (userId === null) return { slug: null };
+    try {
+      if (!(await this.userDAO.findById(userId))) return { slug: null };
+    } catch (error) {
+      if (error instanceof NotFoundError) return { slug: null };
+      throw error;
     }
+    const experiment = await this.experiment(experimentSlug);
+    const assigned = await this.assign(userId, experiment);
+    const isOff = experiment.type === "flag" && assigned === `${experiment.slug}_off`;
+    return { slug: isOff ? null : assigned };
+  }
 
+  private async experiment(slug: ExperimentSlug): Promise<Experiment> {
+    const experiment = await this.experimentDAO.findBySlug(slug);
+    if (!experiment) throw new ExperimentNotFoundError(slug);
+    return experiment;
+  }
+
+  private async assign(userId: PKey<"User">, experiment: Experiment): Promise<CohortSlug | null> {
     if (!experiment.enabled) return null;
 
     if (experiment.winner) {
@@ -46,7 +71,7 @@ export default class GetGroup implements IUseCase<CohortSlug | null> {
     const cohorts = await this.cohortDAO.getByExperimentId(experiment.id);
 
     if (cohorts.length === 0) {
-      throw new NotFoundError(`No cohorts found for experiment with slug ${experimentSlug}`);
+      throw new NotFoundError(`No cohorts found for experiment with slug ${experiment.slug}`);
     }
 
     const cohortId = await this.bucketer(

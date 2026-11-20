@@ -32,6 +32,7 @@ export async function dynamodbFixture(): Promise<
       await client.send(new PutCommand({ TableName: tableName, Item: { ...userKey(id), id } }));
     };
     return {
+      startupOptions: { connection: client, tableName },
       adaptor,
       server: server(client, { tableName }),
       reopen: () => server(client, { tableName }),

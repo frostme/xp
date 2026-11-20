@@ -35,6 +35,7 @@ export async function setupPostgres(version: 1 | 2 = 2): Promise<PostgresFixture
     await admin.query(`CREATE SCHEMA "${schema}"`);
     await pool.query(generatedSql("postgres", version));
     return {
+      startupOptions: { connection: pool },
       pool,
       connectionConfig,
       adaptor: new PostgresAdaptor(pool),

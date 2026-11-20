@@ -5,11 +5,15 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { CreationPayload, Experiment, CohortSlug, ExperimentSlug, PKey } from "~/entities";
 import type { ServerFramework } from "~/frameworks";
 import type { IDataAccessAdaptor } from "~/interfaces";
+import type { InitializeOptions } from "~/server";
 
 import { DuplicateAssignmentError, ExperimentPausedError, NotFoundError } from "~/errors";
 import { GetGroup } from "~/use-cases";
 
+import { registerStartupContract } from "./startup";
+
 export interface StorageFixture {
+  startupOptions: Pick<InitializeOptions, "connection" | "databaseName" | "tableName">;
   adaptor: IDataAccessAdaptor;
   server: ServerFramework;
   reopen(): ServerFramework;
@@ -167,6 +171,7 @@ export function registerStorageContract(
       await server.removeExperiment(experiment.id);
       expect(await adaptor.experimentDAO.findBySlug(experiment.slug)).toBeNull();
     });
+    registerStartupContract(current, experimentInput);
 
     it("creates and hydrates complete experiments with supplied percentages and primitive IDs", async () => {
       const { adaptor } = current();
