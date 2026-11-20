@@ -16,6 +16,7 @@ const failures = channel("xp.request.error");
 
 /** Structural signatures keep the root declaration usable without Express types. */
 interface HostRequest {
+  method: string;
   app: { locals: Record<string, unknown> };
   body?: unknown;
   userId?: unknown;
@@ -90,7 +91,11 @@ function createHandler<R extends HostRequest>(options: MiddlewareOptions<R>): Ha
       .status(status)
       .json({ error: status === 500 ? "Internal server error" : "Invalid JSON request" });
   });
-  return router as unknown as Handler;
+  const handle = router as unknown as Handler;
+  // An Express Router answers OPTIONS automatically for paths with matching routes.
+  // Let the host handle CORS preflights and every other method it owns.
+  return (request, response, next) =>
+    request.method === "POST" ? handle(request, response, next) : next();
 }
 
 let bare: Handler | undefined;

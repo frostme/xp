@@ -42,6 +42,7 @@ function application(runtime: unknown, handler = xpMiddleware({})) {
     next();
   });
   router.use(handler);
+  router.options("/xp", (_req, res) => res.set("x-host", "cors").status(204).end());
   router.get("/xp", (_req, res) => res.send("sibling"));
   router.post("/other", (req, res) => res.json({ untouched: req.body === undefined }));
   app.use("/api", router);
@@ -68,6 +69,9 @@ it("Express bare mount coexists with auth, sibling routes and independent apps",
   expect(await basic.text()).not.toContain("private driver info");
   expect(basic.headers.get("cache-control")).toBe("private, no-store");
   expect(await (await fetch(url + "/api/xp")).text()).toBe("sibling");
+  const preflight = await fetch(url + "/api/xp", { method: "OPTIONS" });
+  expect(preflight.status).toBe(204);
+  expect(preflight.headers.get("x-host")).toBe("cors");
   const other = await fetch(url + "/api/other", {
     method: "POST",
     headers: { "content-type": "application/json" },
