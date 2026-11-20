@@ -11,7 +11,7 @@ import { isSql, renderAvailabilityUpgrade } from "../storage";
 import { migrationStamp } from "./common";
 import { generateDrizzle } from "./drizzle";
 import { generateModels } from "./models";
-import { prismaBlocks } from "./schema-utils";
+import { maskComments, prismaBlocks } from "./schema-utils";
 import { generateSql } from "./sql";
 
 /** Upgrade only files whose v1 fingerprints have already been verified. */
@@ -32,6 +32,7 @@ export async function generateUpgrade(
   const generated = generateModels(options);
   for (const model of generated.files) model.merge = true;
   if (options.orm === "prisma") {
+    let foundExperiment = false;
     for (const file of previous.filter(
       (file) => file.path.endsWith(".prisma") || file.path.endsWith(".prisma.snippet"),
     )) {
@@ -39,6 +40,16 @@ export async function generateUpgrade(
         (block) => block.kind === "model" && block.name === "XpExperiment",
       );
       if (!block) continue;
+      if (
+        foundExperiment ||
+        !/@@map\s*\(\s*"experiments"\s*\)/.test(maskComments(block.body)) ||
+        /^\s*enabled\s|@map\s*\(\s*"enabled"\s*\)/m.test(maskComments(block.body))
+      ) {
+        throw new Error(
+          `Cannot add enabled to the existing XpExperiment definition in ${file.path}. Reconcile its field and table mappings before upgrading.`,
+        );
+      }
+      foundExperiment = true;
       const field =
         options.database === "mssql"
           ? 'Boolean @default(true, map: "experiments_enabled_df")'
@@ -54,7 +65,7 @@ export async function generateUpgrade(
         merge: true,
       });
     }
-    if (!generated.files.length)
+    if (!foundExperiment)
       throw new Error("Cannot locate the v1 XpExperiment model in the generated Prisma schema.");
     if (isSql(options.database)) {
       generated.files.push({

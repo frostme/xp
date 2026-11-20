@@ -32,9 +32,67 @@ interface SetupManifest {
 function stringify(value: unknown): string {
   return JSON.stringify(value, null, 2) + "\n";
 }
-function equivalent(left: SetupOptions, right: SetupOptions): boolean {
-  return JSON.stringify(storedOptions(left)) === JSON.stringify(storedOptions(right));
+function equivalent(settings: SetupOptions, manifest: SetupManifest): boolean {
+  const saved = storedOptions(manifest.options);
+  // A first run can generate the conventional config itself. Discovery will find
+  // that same path on every later run, although the original options omitted it.
+  if (
+    !saved.config &&
+    settings.config &&
+    manifest.files.some(
+      (entry) =>
+        entry.path === settings.config &&
+        (entry.purpose === "Drizzle schema and migration paths" ||
+          entry.purpose === "Prisma schema/migration paths and environment-based connection"),
+    )
+  )
+    saved.config = settings.config;
+  return JSON.stringify(storedOptions(settings)) === JSON.stringify(storedOptions(saved));
 }
+/** These host-owned files are retained verbatim or receive a targeted schema edit. */
+function canUpgradeEditedFile(
+  manifest: SetupManifest,
+  entry: SetupManifest["files"][number],
+  current: string,
+): boolean {
+  if (
+    [
+      "Drizzle schema and migration paths",
+      "Register xp tables in the existing Drizzle schema",
+      "Integrated Prisma xp schema",
+      "Align Prisma schema and migration paths",
+      "Prisma schema/migration paths and environment-based connection",
+    ].includes(entry.purpose)
+  )
+    return true;
+  if (
+    entry.purpose !== "Drizzle-generated migration metadata" ||
+    !entry.path.endsWith("/meta/_journal.json")
+  )
+    return false;
+  // Drizzle appends to the journal for the host's own migrations. Verify the
+  // original bytes as a prefix of its entries before accepting an extension.
+  const journal = JSON.parse(current);
+  if (!Array.isArray(journal?.entries)) return false;
+  const migration = manifest.files.find((file) => file.purpose === "Drizzle SQL migration");
+  if (!migration) return false;
+  const tag = path.basename(migration.path, ".sql");
+  const index = journal.entries.findIndex((item: { tag: string }) => item?.tag === tag);
+  return (
+    index >= 0 &&
+    fingerprint(
+      JSON.stringify(
+        {
+          ...journal,
+          entries: journal.entries.slice(0, index + 1),
+        },
+        null,
+        2,
+      ),
+    ) === entry.hash
+  );
+}
+
 function strings(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
@@ -177,7 +235,7 @@ export default class ProjectManager implements IProjectManager {
         throw new Error(
           "The existing setup manifest belongs to an unsupported schema version. Upgrade through an explicit migration.",
         );
-      if (!equivalent(settings, previous.options))
+      if (!equivalent(settings, previous))
         throw new Error(
           "This project already has an xp setup with different options. Existing migrations will not be rewritten; make an explicit follow-up migration or use a fresh project.",
         );
@@ -190,7 +248,13 @@ export default class ProjectManager implements IProjectManager {
           throw new Error("Invalid generated-file entry in .xp/setup.json.");
         seen.add(file);
         const content = await readText(target);
-        if (content === null || fingerprint(content) !== entry.hash)
+        const currentHash = content === null ? null : fingerprint(content);
+        if (
+          content === null ||
+          currentHash === null ||
+          (currentHash !== entry.hash &&
+            (previous.schemaVersion !== 1 || !canUpgradeEditedFile(previous, entry, content)))
+        )
           throw new Error(
             `Previously generated file changed or is missing: ${file}. Restore it before rerunning initial setup; xp will not overwrite your edits.`,
           );
@@ -199,10 +263,12 @@ export default class ProjectManager implements IProjectManager {
           content,
           purpose: entry.purpose,
           before: content,
-          beforeHash: entry.hash,
+          beforeHash: currentHash,
           action: "unchanged",
         });
-        project.inputs[file] = entry.hash;
+        if (project.inputs[file] !== undefined && project.inputs[file] !== currentHash)
+          throw new Error(`Project changed during generation: ${file}. Run setup again.`);
+        project.inputs[file] = currentHash;
       }
       if (previous.schemaVersion === STORAGE_VERSION) {
         files.push({

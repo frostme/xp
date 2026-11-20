@@ -108,6 +108,8 @@ Setup records normalized choices, storage version, generated paths, and fingerpr
 
 An unchanged rerun is a no-op. Changed or missing generated files are reported as conflicts; setup does not overwrite manual edits or rewrite historical migrations. Different setup options after initial generation require an explicit follow-up migration. Schema upgrades are not inferred from deleting or replacing the manifest.
 
+When upgrading storage v1, setup recognizes the Prisma or Drizzle config it generated on the first run. The upgrade keeps host config edits and adds the availability field to the integrated Prisma schema. Drizzle preserves its recorded snapshots, applied SQL and subsequent application migrations. A changed xp-owned Drizzle declaration requires a manual schema merge.
+
 Planning fingerprints source files and applying checks them again. New files and precise existing schema/config changes are staged before publication. If writing fails, setup attempts to restore its changes while preserving concurrent edits. The final result distinguishes complete file generation from files requiring manual integration; it never means the database has been migrated.
 
 ## Programmatic interface
