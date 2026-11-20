@@ -51,17 +51,20 @@ try {
       ...(driver === "sequelize" ? ["pg"] : []),
       ...(driver === "@aws-sdk/lib-dynamodb" ? ["@aws-sdk/client-dynamodb"] : []),
     ];
-    const absent = [...Object.keys(constructors), "@aws-sdk/client-dynamodb"].filter(
-      (name) => !installed.includes(name),
-    );
+    const absent = [
+      ...Object.keys(constructors),
+      "@aws-sdk/client-dynamodb",
+      "express",
+      "@types/express",
+    ].filter((name) => !installed.includes(name));
     await writeFile(
       join(directory, "smoke.mjs"),
-      `import assert from 'node:assert/strict'; import {createRequire} from 'node:module'; import server from '@frostme/xp/server'; import cli from '@frostme/xp/cli'; assert.equal(typeof cli, 'function'); const require=createRequire(import.meta.url); for(const name of ${JSON.stringify(absent)}) { assert.throws(()=>require.resolve(name),{code:'MODULE_NOT_FOUND'}); } ${driver ? (constructors[driver] ?? "") : "assert.throws(()=>server({}),TypeError);"}`,
+      `import assert from 'node:assert/strict'; import {createRequire} from 'node:module'; import {xpMiddleware} from '@frostme/xp'; assert.equal(typeof xpMiddleware,'function'); import server from '@frostme/xp/server'; import cli from '@frostme/xp/cli'; assert.equal(typeof cli, 'function'); const require=createRequire(import.meta.url); for(const name of ${JSON.stringify(absent)}) { assert.throws(()=>require.resolve(name),{code:'MODULE_NOT_FOUND'}); } ${driver ? (constructors[driver] ?? "") : "assert.throws(()=>server({}),TypeError);"}`,
     );
     execFileSync("node", ["smoke.mjs"], { cwd: directory, stdio: "pipe" });
     await writeFile(
       join(directory, "consumer.ts"),
-      `import server from '@frostme/xp/server'; const xp=server({}); const result: Promise<unknown> = xp.getGroup('user','experiment'); void result;`,
+      `import {xpMiddleware} from '@frostme/xp'; import {createRestLoader} from '@frostme/xp/client'; void xpMiddleware; const load: Promise<string|null> = createRestLoader()('checkout'); void load; import server from '@frostme/xp/server'; const xp=server({}); const result: Promise<unknown> = xp.getGroup('user','experiment'); void result;`,
     );
     execFileSync(
       join(root, "node_modules", ".bin", "tsc"),
