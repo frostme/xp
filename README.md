@@ -1,6 +1,6 @@
 # xp
 
-A TypeScript experiment framework with caller-owned database connections.
+A TypeScript experiment framework with caller-owned database connections. Declare experiments in `xp.config.json`, resolve assignments through Express or GraphQL, and render sticky decisions in React. [Authenticated setup and React examples](docs/experiments.md)
 
 ```sh
 npm install @frostme/xp
@@ -66,7 +66,7 @@ docker compose -f docker-compose.test.yml down -v
 ```
 
 Integration tests create and destroy isolated fixtures. Live database checks are
-not cached. Static checks and package-import smoke tests do not need a database.
+not cached. Static checks and package-import smoke tests run independently of the databases. Run `bun run test:transports` for Express, Yoga, Apollo and React. After `bun run build`, `bun run test:hosts` checks isolated tarball consumers and the browser bundle. With PostgreSQL running, `bun run test:journey` checks the installed package from React render through membership persistence.
 Select `postgres`, `mysql`, `mssql`, `mongodb`, or `dynamodb` with `XP_DATABASE`;
 start the matching Compose service. SQL Server integration runs on native Linux
 amd64 CI because local ARM emulation is unsupported.

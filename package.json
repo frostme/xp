@@ -48,7 +48,9 @@
     "test:package": "wireit",
     "test:generators": "wireit",
     "test:schemas": "wireit",
-    "test:transports": "vitest run --config vitest.transport.config.ts"
+    "test:transports": "vitest run --config vitest.transport.config.ts",
+    "test:hosts": "node scripts/host-package-smoke.mjs",
+    "test:journey": "node scripts/test-installed-journey.mjs"
   },
   "wireit": {
     "build": {
