@@ -296,3 +296,40 @@ The endpoint authenticates the incoming request, calls `createXpRequest` and ret
 ## Angular standalone components
 
 Use the standalone structural directives to render branches and `inject(XpDecisions).cohort(slug)` for a refreshable signal. The generated provider can carry public request preloads through Angular hydration. [Angular setup, signals and SSR](angular.md)
+
+## Solid components and SSR
+
+Use `@frostme/xp/solid` with Solid 2.0.3 or later in major 2 and its matching `@solidjs/web` renderer. Solid 1.9 apps from 1.9.20 onward, including SolidStart 2.2, use `@frostme/xp/solid/v1`. Configure Vite with the corresponding `@solidjs/vite-plugin` or `vite-plugin-solid`. Each import has a browser build and a server build compiled for that major.
+
+```tsx
+import type { XpPreload } from "@frostme/xp/client";
+
+import { XPProvider, Experiment, Cohort, createCohort } from "@frostme/xp/solid";
+
+function Retry() {
+  const decision = createCohort();
+  return (
+    <button disabled={decision().status !== "error"} onClick={() => void decision().refresh()}>
+      Retry decision
+    </button>
+  );
+}
+
+export function Checkout(props: { revision: string; preload: XpPreload }) {
+  return (
+    <XPProvider sessionKey={props.revision} {...props.preload} endpoint="/api/xp">
+      <Experiment slug="checkout-banner" loading={<p>Loading offer…</p>}>
+        <Cohort slug="on">New offer</Cohort>
+        <Cohort default>
+          Standard checkout <Retry />
+        </Cohort>
+      </Experiment>
+      <Cohort slug="delivery-copy_short">Short delivery copy</Cohort>
+    </XPProvider>
+  );
+}
+```
+
+Call `createCohort()` inside a component under an experiment, or pass an experiment slug. For a changing prop, pass a getter such as `createCohort(() => props.slug)`. Read the returned accessor in JSX so it tracks the current snapshot. A nested provider starts its own scope. Pending renders the experiment's loading content. A null assignment or failed decision renders the default. A retry exposes loading before the next decision.
+
+Instantiate `createXpRequest` inside the authenticated server request, resolve the route's slugs, and pass the returned public preload and revision to the same provider tree on the server and browser. Return personalized responses with `Cache-Control: private, no-store`. Use Solid's hydration script with a manual `renderToString` host. In SolidStart, a host-owned server query can return the public envelope through the router's native serialization. Mount the provider after `createAsync` resolves under the route's suspense boundary. Revalidate the query after an account change and return the new public revision. See the [Solid setup recipe](cli.md#solid-and-solidstart).

@@ -39,5 +39,10 @@
     "verbatimModuleSyntax": true
   },
   "include": ["src"],
-  "exclude": ["**/__tests__/**", "src/client/angular/**", "src/client/svelte/**"]
+  "exclude": [
+    "**/__tests__/**",
+    "src/client/angular/**",
+    "src/client/svelte/**",
+    "src/client/solid"
+  ]
 }

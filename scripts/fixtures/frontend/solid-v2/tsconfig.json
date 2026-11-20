@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "jsx": "preserve",
+    "jsxImportSource": "@solidjs/web",
+    "skipLibCheck": true,
+    "allowJs": true
+  },
+  "include": ["src", "fixture-shared/solid/App.tsx"]
+}

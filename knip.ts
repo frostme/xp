@@ -5,6 +5,8 @@ const config: KnipConfig = {
   entry: [
     "scripts/fixtures/frontend/**/*.{ts,tsx,js,jsx,mjs,vue}",
     "tools/svelte/svelte.config.js",
+    "scripts/toolchains/solid-v*/vite.config.mjs",
+    "src/client/solid/{index.tsx,lifecycle.ts,v1/lifecycle.ts}",
     "scripts/fixtures/xp-journey/journey.test.mjs",
     "scripts/fixtures/host-package-smoke/*.{ts,tsx,mjs}",
     "src/**/__tests__/*-integration.{ts,tsx}",
@@ -15,6 +17,12 @@ const config: KnipConfig = {
   ignoreIssues: {
     // The external fixture installer copies shared app sources and generates xp/options.
     "scripts/fixtures/frontend/{vue,nuxt}/**/*": ["unresolved", "unlisted"],
+    // These fixtures are copied to isolated apps before Vite and the installed CLI resolve their imports.
+    "scripts/fixtures/frontend/{solid-v1,solid-v2,solidstart,shared/solid}/**": [
+      "unlisted",
+      "unresolved",
+    ],
+    "scripts/toolchains/solid-v*/vite.config.mjs": ["unlisted"],
     // Native tooling and packed Svelte fixtures install their own pinned dependencies.
     "tools/svelte/svelte.config.js": ["unlisted"],
     "scripts/fixtures/frontend/{svelte,sveltekit}/**": ["unlisted", "unresolved"],
@@ -25,7 +33,15 @@ const config: KnipConfig = {
     "scripts/fixtures/frontend/react/src/{App,main}.tsx": ["unresolved"],
   },
   tags: ["-lintignore"],
-  ignoreDependencies: ["lint-staged", "@swc-node/register", "pino", "@angular/core", "svelte"],
+  ignoreDependencies: [
+    "lint-staged",
+    "@swc-node/register",
+    "pino",
+    "@angular/core",
+    "svelte",
+    "solid-js",
+    "@solidjs/web",
+  ],
   ignoreFiles: ["dpdm.config.ts"],
 };
 

@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
+    "target": "ESNext",
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "outDir": ".cache/types",
+    "rootDir": ".cache/src",
+    "paths": {
+      "@frostme/xp/client": ["../../../dist/client/index.d.ts"]
+    }
+  },
+  "include": [".cache/src"]
+}
