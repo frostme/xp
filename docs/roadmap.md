@@ -1,16 +1,10 @@
 # Roadmap
 
-The current release includes native storage on PostgreSQL, MySQL, SQL Server, MongoDB and DynamoDB, Sequelize 6 on the three SQL providers, the v2 storage upgrade, startup seeding, and React decisions over Express, GraphQL Yoga and Apollo Server. [Consumer guide](experiments.md) · [Setup CLI](cli.md)
+The current release includes native storage on PostgreSQL, MySQL, SQL Server, MongoDB and DynamoDB, Sequelize 6 on the three SQL providers, the v2 storage upgrade, startup seeding, and frontend decisions over Express, GraphQL Yoga and Apollo Server. [Consumer guide](experiments.md) · [Setup CLI](cli.md)
 
 ## Client frameworks
 
-| Framework | Planned integration                                                            |
-| --------- | ------------------------------------------------------------------------------ |
-| Vue       | A composable for cohort decisions and experiment/default components.           |
-| Angular   | An injectable decision service and experiment/cohort directives or components. |
-| Svelte    | A reactive cohort store and experiment/cohort components.                      |
-| Astro     | Request-local decisions for server-rendered components and hydrated islands.   |
-| Solid     | A cohort resource or hook and reactive experiment/cohort components.           |
+The package includes React DOM, Vue and Nuxt, standalone Angular, Svelte and SvelteKit, Solid 1.9 and 2, SolidStart, and request-local Astro pages. Astro can hydrate React, Vue, Svelte and Solid 1.9 islands. Custom frontends can subscribe to `createXpSession`. [Frontend usage and SSR](experiments.md) · [Setup profiles](cli.md)
 
 ## Server frameworks and protocols
 

@@ -83,6 +83,22 @@ try {
       { cwd: directory, stdio: "pipe" },
     );
     if (driver === null) {
+      const installedRoot = join(directory, "node_modules", manifest.name);
+      const published = JSON.parse(await readFile(join(installedRoot, "package.json"), "utf8"));
+      // Check the real tarball, including condition branches the plain Node loader never selects.
+      async function checkTargets(target) {
+        if (typeof target === "string") {
+          assert(target.startsWith("./dist/"), target);
+          assert((await readFile(join(installedRoot, target))).length > 0, target);
+        } else {
+          await Promise.all(Object.values(target).map(checkTargets));
+        }
+      }
+      await checkTargets(published.exports);
+      for (const peer of ["vue", "@angular/core", "svelte", "astro", "solid-js", "@solidjs/web"]) {
+        assert.equal(published.peerDependenciesMeta[peer]?.optional, true, peer);
+        assert.ok(published.peerDependencies[peer], peer);
+      }
       const executable = join(directory, "node_modules", manifest.name, "dist", "cli", "bin.js");
       assert.match(
         await readFile(join(directory, "node_modules/@frostme/xp/docs/termcn.md"), "utf8"),

@@ -1,6 +1,20 @@
-# Serving experiments to React
+# Serving experiments to frontends
 
-Install `@frostme/xp`, React 19, your database driver, and the host framework you use. These examples use Express 5, GraphQL Yoga 6, or Apollo Server 5 with GraphQL 16. The application authenticates each request and owns its database connection.
+Install `@frostme/xp` and the frontend runtime for your application. On the server, install your database driver and host framework. These examples use Express 5, GraphQL Yoga 6, or Apollo Server 5 with GraphQL 16. The application authenticates each request and owns its database connection.
+
+## Choose a frontend
+
+Run `xp setup --scope frontend --frontend <profile> --dry-run` in the application package to see its proposed files and entry-point edit. Use the profile that owns the app bootstrap. [Setup and manual registration](cli.md)
+
+| Setup profile         | Package entry                                                     | Consumer example                                                               |
+| --------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `react`               | `@frostme/xp/react`                                               | [React components and hooks](#react-components-and-hooks)                      |
+| `vue`, `nuxt`         | `@frostme/xp/vue`                                                 | [Vue and Nuxt](#vue-3-and-nuxt-4)                                              |
+| `angular`             | `@frostme/xp/angular`                                             | [Angular signals and structural directives](#angular-standalone-components)    |
+| `svelte`, `sveltekit` | `@frostme/xp/svelte`                                              | [Svelte stores and snippets](#svelte-5-and-sveltekit-3)                        |
+| `solid`, `solidstart` | `@frostme/xp/solid` for Solid 2 or `@frostme/xp/solid/v1` for 1.9 | [Solid components and SSR](#solid-components-and-ssr)                          |
+| `astro`               | `@frostme/xp/astro`                                               | [Request-local Astro pages](#astro-on-demand-pages)                            |
+| Custom                | `@frostme/xp/client`                                              | [Sessions and request preloads](#request-local-decisions-and-custom-frontends) |
 
 ## Initialize before accepting requests
 

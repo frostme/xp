@@ -1,6 +1,6 @@
 # xp
 
-A TypeScript experiment framework with caller-owned database connections. Declare experiments in `xp.config.json`, resolve assignments through Express or GraphQL, and render sticky decisions in React. [Authenticated setup and React examples](docs/experiments.md)
+A TypeScript experiment framework with caller-owned database connections. Declare experiments in `xp.config.json`, resolve assignments through Express or GraphQL, and render sticky decisions in React, Vue, Angular, Svelte, Solid or Astro. [Consumer guide](docs/experiments.md)
 
 ```sh
 npm install @frostme/xp
@@ -21,8 +21,16 @@ bun run xp setup
 # or: pnpm exec xp setup
 ```
 
-The wizard detects your ORM and project layout, previews migrations/schema changes,
-and optionally generates supporting models. It writes files without applying them.
+Select the application package and preview its frontend wiring before applying it.
+
+```sh
+xp setup --cwd apps/shop --scope frontend --frontend vue --transport rest --endpoint /api/xp --dry-run
+xp setup --cwd apps/shop --scope frontend --frontend vue --transport rest --endpoint /api/xp --yes
+```
+
+Setup recognizes React DOM, Vue, Nuxt, standalone Angular, Svelte, SvelteKit, Solid, SolidStart and Astro. The generated example uses the seeded `checkout-banner` experiment. Connect the provider to the host's public session revision so it updates on login, logout and account changes. On the server, preload decisions after authenticating the request and serve personalized HTML with `Cache-Control: private, no-store`.
+
+The storage scope previews migrations, schemas and optional supporting models. Use `--scope both` to review storage and frontend changes together.
 See the [CLI guide](docs/cli.md) for supported tools, flags, and automation.
 
 Install the driver for the database you use. Drivers are optional peers; xp does not
@@ -67,6 +75,17 @@ docker compose -f docker-compose.test.yml down -v
 
 Integration tests create and destroy isolated fixtures. Live database checks are
 not cached. Static checks and package-import smoke tests run independently of the databases. Run `bun run test:transports` for Express, Yoga, Apollo and React. After `bun run build`, `bun run test:hosts` checks isolated tarball consumers and the browser bundle. With PostgreSQL running, `bun run test:journey` checks the installed package from React render through membership persistence.
+For native SSR, hydration and CLI-generated mounts in external tarball consumers, run:
+
+```sh
+bun run build
+bunx playwright install --with-deps chromium
+bun run test:frontend
+XP_PROFILE=vue bun run test:frontend
+# With the PostgreSQL test service running
+bun run test:frontend:journey
+```
+
 Select `postgres`, `mysql`, `mssql`, `mongodb`, or `dynamodb` with `XP_DATABASE`;
 start the matching Compose service. SQL Server integration runs on native Linux
 amd64 CI because local ARM emulation is unsupported.
