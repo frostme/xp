@@ -25,7 +25,8 @@
     "./cli": "./dist/cli/index.js",
     "./server": "./dist/server/index.js",
     "./client": "./dist/client/index.js",
-    "./server/express": "./dist/server/express/index.js"
+    "./server/express": "./dist/server/express/index.js",
+    "./server/graphql": "./dist/server/graphql/index.js"
   },
   "scripts": {
     "build": "wireit",
@@ -175,7 +176,10 @@
     "tsc-alias": "^1.9.10",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5",
-    "wireit": "^0.14.13"
+    "wireit": "^0.14.13",
+    "@apollo/server": "^5.5.2",
+    "graphql": "^16.15.0",
+    "graphql-yoga": "^6.1.0"
   },
   "peerDependencies": {
     "@aws-sdk/client-dynamodb": "^3.1164.0",
@@ -185,7 +189,10 @@
     "mssql": "^12.7.14",
     "mysql2": "^3.24.6",
     "pg": "^8.23.1",
-    "sequelize": "^6.37.8"
+    "sequelize": "^6.37.8",
+    "@apollo/server": "^5.5.2",
+    "graphql": "^16.15.0",
+    "graphql-yoga": "^6.1.0"
   },
   "peerDependenciesMeta": {
     "pg": {
@@ -210,6 +217,15 @@
       "optional": true
     },
     "express": {
+      "optional": true
+    },
+    "graphql": {
+      "optional": true
+    },
+    "graphql-yoga": {
+      "optional": true
+    },
+    "@apollo/server": {
       "optional": true
     }
   },
