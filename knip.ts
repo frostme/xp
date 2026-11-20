@@ -3,6 +3,7 @@ import type { KnipConfig } from "knip";
 const config: KnipConfig = {
   $schema: "https://unpkg.com/knip@6/schema.json",
   entry: [
+    "src/client/astro/index.d.mts",
     "scripts/fixtures/frontend/**/*.{ts,tsx,js,jsx,mjs,vue}",
     "tools/svelte/svelte.config.js",
     "scripts/toolchains/solid-v*/vite.config.mjs",
@@ -15,6 +16,8 @@ const config: KnipConfig = {
   ignoreExportsUsedInFile: true,
   // Keep the copied registry APIs intact for future upstream updates.
   ignoreIssues: {
+    // Astro fixture dependencies and generated modules resolve in the packed installation.
+    "scripts/fixtures/frontend/astro/**": ["unresolved", "unlisted"],
     // The external fixture installer copies shared app sources and generates xp/options.
     "scripts/fixtures/frontend/{vue,nuxt}/**/*": ["unresolved", "unlisted"],
     // These fixtures are copied to isolated apps before Vite and the installed CLI resolve their imports.
@@ -34,6 +37,7 @@ const config: KnipConfig = {
   },
   tags: ["-lintignore"],
   ignoreDependencies: [
+    "astro",
     "lint-staged",
     "@swc-node/register",
     "pino",

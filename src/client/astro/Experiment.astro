@@ -1,0 +1,11 @@
+---
+import type { XpLocals } from './index.mjs';
+interface Props { slug: string }
+const { slug } = Astro.props;
+const { xp } = Astro.locals as XpLocals;
+const result = await xp.resolve(slug);
+const slot = result.status === 'ready' && result.slug !== null
+  ? `cohort-${result.slug.slice(slug.length + 1)}`
+  : 'default';
+---
+{Astro.slots.has(slot) && <Fragment set:html={await Astro.slots.render(slot)} />}

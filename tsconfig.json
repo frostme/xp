@@ -43,6 +43,7 @@
     "**/__tests__/**",
     "src/client/angular/**",
     "src/client/svelte/**",
-    "src/client/solid"
+    "src/client/solid",
+    "src/client/astro/**"
   ]
 }

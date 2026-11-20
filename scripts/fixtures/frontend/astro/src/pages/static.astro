@@ -1,0 +1,7 @@
+---
+import { Experiment } from '@frostme/xp/astro';
+export const prerender = true;
+const { status, slug } = await Astro.locals.xp.resolve('checkout-banner');
+if (status !== 'ready' || slug !== null || Astro.locals.calls.size !== 0) throw new Error('Build must produce a public fallback');
+---
+<Experiment slug="checkout-banner"><Fragment slot="cohort-on">Personalized</Fragment>Public fallback</Experiment>
