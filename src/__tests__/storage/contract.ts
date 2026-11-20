@@ -7,7 +7,12 @@ import type { ServerFramework } from "~/frameworks";
 import type { IDataAccessAdaptor } from "~/interfaces";
 import type { InitializeOptions } from "~/server";
 
-import { DuplicateAssignmentError, ExperimentPausedError, NotFoundError } from "~/errors";
+import {
+  DuplicateAssignmentError,
+  ExperimentPausedError,
+  ExperimentSlugConflictError,
+  NotFoundError,
+} from "~/errors";
 import { GetGroup } from "~/use-cases";
 
 import { registerStartupContract } from "./startup";
@@ -130,6 +135,25 @@ export function registerStorageContract(
       if (!fixture) throw new Error("Storage fixture is not initialized");
       return fixture;
     };
+
+    it("distinguishes duplicate experiment slugs from a failed second cohort insert", async () => {
+      const { adaptor } = current();
+      const existing = await adaptor.experimentDAO.create(experimentInput());
+      await expect(adaptor.experimentDAO.create(experimentInput())).rejects.toMatchObject({
+        name: "ExperimentSlugConflictError",
+        slug: existing.slug,
+      });
+      const next = experimentInput("another-experiment");
+      const original = next.cohorts[1]!.slug;
+      next.cohorts[1]!.slug = existing.cohorts[1]!.slug;
+      const collision = adaptor.experimentDAO.create(next);
+      await expect(collision).rejects.toThrow();
+      await expect(collision).rejects.not.toBeInstanceOf(ExperimentSlugConflictError);
+      expect(await adaptor.experimentDAO.findBySlug(next.slug)).toBeNull();
+      expect(await adaptor.cohortDAO.findBySlug(next.cohorts[0]!.slug)).toBeNull();
+      next.cohorts[1]!.slug = original;
+      expect((await adaptor.experimentDAO.create(next)).cohorts).toHaveLength(2);
+    });
 
     it("fences a stale decision when pause commits before membership creation", async () => {
       const { adaptor, server, seedUser } = current();

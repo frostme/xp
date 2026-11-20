@@ -3,9 +3,14 @@ import { randomUUID } from "node:crypto";
 import type { Experiment, ExperimentSlug, PKey, CreationPayload } from "~/entities";
 import type { IExperimentDAO } from "~/interfaces";
 
-import { NotFoundError } from "~/errors";
+import { ExperimentSlugConflictError, NotFoundError } from "~/errors";
 
-import MongoStore, { type CohortDocument, type ExperimentDocument, mapCohort } from "./store";
+import MongoStore, {
+  type CohortDocument,
+  type ExperimentDocument,
+  isDuplicateKey,
+  mapCohort,
+} from "./store";
 
 export default class MongoExperimentDAO implements IExperimentDAO {
   constructor(private readonly store: MongoStore) {}
@@ -52,7 +57,22 @@ export default class MongoExperimentDAO implements IExperimentDAO {
       type: cohort.type,
     }));
     await this.store.transaction(async (session) => {
-      await this.store.experiments.insertOne({ ...record }, { session });
+      try {
+        await this.store.experiments.insertOne({ ...record }, { session });
+      } catch (error) {
+        const constraint = error as {
+          keyPattern?: Record<string, unknown>;
+          keyValue?: { slug?: string };
+        };
+        if (
+          isDuplicateKey(error) &&
+          constraint.keyValue?.slug === input.slug &&
+          Object.keys(constraint.keyPattern ?? {}).join(",") === "slug"
+        ) {
+          throw new ExperimentSlugConflictError(input.slug, { cause: error });
+        }
+        throw error;
+      }
       if (cohorts.length > 0) {
         await this.store.cohorts.insertMany(
           cohorts.map((cohort) => ({ ...cohort })),
