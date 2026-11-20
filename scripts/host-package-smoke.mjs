@@ -103,6 +103,7 @@ function checkIsolatedPeers(directory, peers) {
     "@nestjs/platform-express",
     "@grpc/grpc-js",
     "@grpc/proto-loader",
+    "@connectrpc/connect-node",
   ]) {
     if (!peers.includes(name)) {
       assert.throws(

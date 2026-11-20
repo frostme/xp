@@ -14,6 +14,8 @@ export default defineConfig({
     "./src/server/graphql/index.ts",
     "./src/server/nestjs/index.ts",
     "./src/server/grpc/index.ts",
+    "./src/server/grpc-web/index.ts",
+    "./src/client/grpc-web/index.ts",
   ],
   exitCode: "circular:1",
   transform: true,
