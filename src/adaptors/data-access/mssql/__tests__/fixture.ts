@@ -10,6 +10,7 @@ import MssqlAdaptor from "..";
 
 export interface MssqlFixture extends StorageFixture {
   pool: sql.ConnectionPool;
+  connectionConfig: sql.config;
 }
 
 export async function setupMssql(version: 1 | 2 = 2): Promise<MssqlFixture> {
@@ -27,7 +28,8 @@ export async function setupMssql(version: 1 | 2 = 2): Promise<MssqlFixture> {
   };
   const admin = new sql.ConnectionPool(config);
   await admin.connect();
-  const pool = new sql.ConnectionPool({ ...config, database });
+  const connectionConfig = { ...config, database };
+  const pool = new sql.ConnectionPool(connectionConfig);
   const dropDatabase = () =>
     admin
       .request()
@@ -40,6 +42,7 @@ export async function setupMssql(version: 1 | 2 = 2): Promise<MssqlFixture> {
     await pool.request().query(generatedSql("mssql", version));
     return {
       pool,
+      connectionConfig,
       adaptor: new MssqlAdaptor(pool),
       server: server(pool),
       reopen: () => server(pool),
