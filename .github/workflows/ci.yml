@@ -105,6 +105,18 @@ jobs:
       - name: Installed React journey over Express, Yoga and Apollo
         if: matrix.database == 'postgres'
         run: bun run build && bun run test:journey
+      - name: Installed frontend journeys in Chromium and PostgreSQL
+        if: matrix.database == 'postgres'
+        env:
+          XP_TRACE_DIR: frontend-db-traces
+        run: |
+          bunx playwright install --with-deps chromium
+          bun run test:frontend:journey
+      - uses: actions/upload-artifact@v4
+        if: failure() && matrix.database == 'postgres'
+        with:
+          name: frontend-db-traces
+          path: frontend-db-traces/
       - if: always()
         run: docker compose -f docker-compose.test.yml logs
       - if: always()

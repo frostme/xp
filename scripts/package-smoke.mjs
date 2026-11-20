@@ -56,6 +56,7 @@ try {
       "@aws-sdk/client-dynamodb",
       "express",
       "@types/express",
+      "vue",
     ].filter((name) => !installed.includes(name));
     await writeFile(
       join(directory, "smoke.mjs"),

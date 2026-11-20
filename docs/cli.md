@@ -158,3 +158,14 @@ The exported types include `SetupOptions`, `ProjectDetection`, `SetupPlan`, and 
 ## Upgrading existing storage
 
 Run `xp setup --dry-run` in the application that holds the v1 `.xp/setup.json`. Setup verifies the recorded files and previews the v2 migration and model changes. Run `xp setup` again to generate them. Apply the migration with your application's normal runner before deploying the updated xp server. Previously applied migrations retain their original contents and fingerprints.
+
+### Vue and Nuxt
+
+```sh
+xp setup --scope frontend --frontend vue --transport rest --endpoint /api/xp --dry-run
+xp setup --scope frontend --frontend nuxt --transport graphql --endpoint /api/graphql --non-interactive --yes
+```
+
+The Vue profile follows the component import in a conventional `src/main.ts` or `src/main.js` `createApp(App).mount(...)` call and wraps that component's template. Nuxt wraps `app/app.vue` or creates it for the recognized implicit pages layout. Existing layouts, pages and imports remain in their original order. For a custom mount, import the generated `XpAppProvider.vue` and wrap the host tree used by the browser and SSR. Generated options and the runnable `CheckoutBanner.vue` example live in `src/xp/` for Vue or `app/xp/` for Nuxt.
+
+Set a reactive public session revision and supply personalized decisions through the request bootstrap. Hosts can start with the empty bootstrap and the configured browser endpoint. [Vue and Nuxt authentication and SSR](experiments.md#vue-3-and-nuxt-4)
