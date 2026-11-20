@@ -50,11 +50,15 @@
       "types": "./dist/client/solid/v2.d.ts",
       "browser": "./dist/client/solid/v2.browser.js",
       "default": "./dist/client/solid/v2.server.js"
+    },
+    "./astro": {
+      "types": "./dist/client/astro/index.d.mts",
+      "default": "./dist/client/astro/index.mjs"
     }
   },
   "scripts": {
     "build": "wireit",
-    "build:swc": "swc src -d dist --config-file .swcrc --strip-leading-paths --ignore \"**/__tests__/**,**/client/angular/**,**/client/svelte/**,**/client/solid/**\"",
+    "build:swc": "swc src -d dist --config-file .swcrc --strip-leading-paths --ignore \"**/__tests__/**,**/client/astro/**,**/client/angular/**,**/client/svelte/**,**/client/solid/**\"",
     "build:tsc": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json --resolve-full-paths --resolve-full-extension .js",
     "ci": "wireit",
     "circular:check": "wireit",
@@ -78,11 +82,12 @@
     "test:frontend:journey": "node scripts/test-frontend-journey.mjs",
     "build:angular": "node scripts/angular/build.mjs",
     "build:svelte": "node tools/svelte/build.mjs",
-    "build:solid": "node scripts/build-solid.mjs"
+    "build:solid": "node scripts/build-solid.mjs",
+    "build:astro": "node scripts/build-astro.mjs"
   },
   "wireit": {
     "build": {
-      "command": "concurrently \"bun build:swc\" \"bun build:tsc\" && bun run build:angular && bun run build:svelte && bun run build:solid",
+      "command": "concurrently \"bun build:swc\" \"bun build:tsc\" && bun run build:angular && bun run build:svelte && bun run build:solid && bun run build:astro",
       "files": [
         "src/**/*.{ts,tsx}",
         ".swcrc",
@@ -93,7 +98,9 @@
         "tools/svelte/*.{json,js,mjs,lock}",
         "scripts/build-solid.mjs",
         "scripts/toolchains/solid-config.mjs",
-        "scripts/toolchains/solid-v*/{bun.lock,package.json,tsconfig.json,vite.config.mjs}"
+        "scripts/toolchains/solid-v*/{bun.lock,package.json,tsconfig.json,vite.config.mjs}",
+        "src/client/astro/**/*",
+        "scripts/build-astro.mjs"
       ],
       "output": [
         "dist/**/*.js",
@@ -102,7 +109,10 @@
         "dist/**/*.d.ts.map",
         "node_modules/.tmp/tsconfig.tsbuildinfo",
         "dist/client/angular/fesm2022/*.mjs",
-        "dist/client/svelte/**/*.svelte"
+        "dist/client/svelte/**/*.svelte",
+        "dist/client/astro/*.astro",
+        "dist/client/astro/*.mjs",
+        "dist/client/astro/*.d.mts"
       ],
       "allowUsuallyExcludedPaths": true
     },
@@ -233,6 +243,7 @@
     "@aws-sdk/client-dynamodb": "^3.1164.0",
     "@aws-sdk/lib-dynamodb": "^3.1164.0",
     "@solidjs/web": ">=2.0.3 <3",
+    "astro": ">=7.4.13 <8",
     "express": "^5.3.0",
     "graphql": "^16.15.0",
     "graphql-yoga": "^6.1.0",
@@ -293,6 +304,9 @@
       "optional": true
     },
     "@solidjs/web": {
+      "optional": true
+    },
+    "astro": {
       "optional": true
     }
   },

@@ -195,3 +195,12 @@ Declare and install `solid-js` in the selected application package. For Solid 2 
 For a conventional client-only mount, setup wraps the existing render callback in the generated `AppXp`. For custom layouts or separate hydration entries, import `{ AppXp }` from `./xp/provider` in both the server and client render trees. Pass the identical request-local preload to both along with an opaque `sessionKey`. Seed `checkout-banner` and render the generated `CheckoutBanner` below the provider to exercise the endpoint.
 
 SolidStart 2.2.3 with Solid 1.9.20 and `@solidjs/router` 1.0.3 uses the v1 adapter. Setup wraps the routed children inside a recognized router root. Its generated boundary waits on a server query under the existing suspense boundary. With no configured identity the query returns a neutral preload and the browser requests its first decisions. To add personalized SSR, export a named `xpBootstrap` router query from an app-owned `src/xp-bootstrap.ts` (or `.js`) before running setup. Inside its server function, authenticate the incoming request, instantiate `createXpRequest`, and return `{ ...await request.preload(slugs), sessionKey: publicRevision }`. Revalidate the query when the account changes. Keep private cache headers and session credentials in the host.
+
+### Astro server-rendered setup
+
+```sh
+xp setup --cwd apps/site --scope frontend --frontend astro --transport graphql --endpoint /graphql --dry-run
+xp setup --cwd apps/site --scope frontend --frontend astro --transport graphql --endpoint /graphql --yes
+```
+
+The Astro 7 profile generates `src/xp/request.ts` (or `.js`), request-local types and `src/xp/CheckoutBanner.astro`. Import the banner in the page or layout that needs it. Setup creates conventional request middleware or composes an existing exported `onRequest` built with `defineMiddleware` or `sequence`. For a custom chain, import `xpMiddleware` from `./xp/request` in `src/middleware.ts` and append it after your auth handler with `sequence(auth, xpMiddleware)`. Connect the host's request-bound loader and public session revision in `context.locals.xpHost`. Personalized HTML needs an on-demand route and a configured Astro server adapter. The default prerendered output works without a renderer or client JavaScript.

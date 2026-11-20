@@ -333,3 +333,32 @@ export function Checkout(props: { revision: string; preload: XpPreload }) {
 Call `createCohort()` inside a component under an experiment, or pass an experiment slug. For a changing prop, pass a getter such as `createCohort(() => props.slug)`. Read the returned accessor in JSX so it tracks the current snapshot. A nested provider starts its own scope. Pending renders the experiment's loading content. A null assignment or failed decision renders the default. A retry exposes loading before the next decision.
 
 Instantiate `createXpRequest` inside the authenticated server request, resolve the route's slugs, and pass the returned public preload and revision to the same provider tree on the server and browser. Return personalized responses with `Cache-Control: private, no-store`. Use Solid's hydration script with a manual `renderToString` host. In SolidStart, a host-owned server query can return the public envelope through the router's native serialization. Mount the provider after `createAsync` resolves under the route's suspense boundary. Revalidate the query after an account change and return the new public revision. See the [Solid setup recipe](cli.md#solid-and-solidstart).
+
+## Astro on-demand pages
+
+In Astro 7.4.13 and later 7.x releases, an on-demand page renders a decision into HTML. Register the generated middleware after authentication. The host supplies a loader bound to the current request. For a co-located runtime, set `context.locals.xpHost` in your authentication middleware before calling `next()`.
+
+```ts
+context.locals.xpHost = {
+  load: async (slug) => (await runtime.resolveCohort(authenticatedUser?.id, slug)).slug,
+  sessionKey: publicAccountRevision,
+};
+```
+
+For a separate service, call the generated `createHostLoader({ endpoint, headers })` with a trusted absolute endpoint and the credentials your server obtained for this request. Keep the loader and credentials inside middleware. Each request gets its own `Astro.locals.xp`. The generated middleware sets `Cache-Control: private, no-store` when the host provides a request loader.
+
+```astro
+---
+import { Experiment, Cohort } from "@frostme/xp/astro";
+export const prerender = false;
+const result = await Astro.locals.xp.resolve("checkout-banner");
+---
+<Experiment slug="checkout-banner">
+  <Fragment slot="cohort-on">Early checkout</Fragment>
+  <p>Current checkout</p>
+</Experiment>
+<aside><Cohort slug="checkout-banner_on">Early access</Cohort></aside>
+<Cohort experiment="checkout-banner" default>Current offer</Cohort>
+```
+
+Every lookup for one experiment shares its request promise, including `await Astro.locals.xp.preload(["checkout-banner"])`. Each experiment evaluates only the selected slot. An unlisted treatment renders empty. A guest null and a failure render the default. Use `result.status` to distinguish them. Plain pages work with JavaScript disabled. Prerendered pages and an unconfigured host render the deliberate public default without visitor lookups at build time. To supply `locals` from your own middleware, extend `App.Locals` with `XpLocals` from `@frostme/xp/astro` and set `locals.xp = createXpRequest(load, { signal: request.signal })` per request.

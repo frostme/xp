@@ -194,5 +194,26 @@
       "reactive-slug",
       "client-navigation"
     ]
+  },
+  {
+    "id": "astro",
+    "frontend": "astro",
+    "compiler": "Astro with Node standalone SSR",
+    "entry": "test.mjs",
+    "dependencies": {
+      "astro": "7.4.13",
+      "@astrojs/node": "11.1.14",
+      "@astrojs/check": "0.9.12",
+      "typescript": "6.0.3",
+      "@types/node": "26.6.5"
+    },
+    "cases": [
+      "private-html",
+      "concurrent-identities",
+      "public-prerender",
+      "lazy-slots",
+      "server-transports"
+    ],
+    "journey": "apollo"
   }
 ]

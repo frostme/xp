@@ -19,6 +19,7 @@ export const FRONTENDS = [
   "sveltekit",
   "solid",
   "solidstart",
+  "astro",
 ] as const;
 export type SetupFrontend = (typeof FRONTENDS)[number];
 export type SetupScope = "storage" | "frontend" | "both";

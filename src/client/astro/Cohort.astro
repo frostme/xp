@@ -1,0 +1,9 @@
+---
+import { parseGate, matchesGate } from '../gates.js';
+import type { XpLocals, AstroCohortProps as Props } from './index.mjs';
+const { experiment, slug, default: isDefault } = Astro.props;
+const gate = parseGate(experiment, slug, isDefault);
+const { xp } = Astro.locals as XpLocals;
+const selected = matchesGate(gate, await xp.resolve(gate.experiment));
+---
+{selected && <slot />}

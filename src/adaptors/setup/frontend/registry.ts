@@ -1,6 +1,7 @@
 import type { FrontendProfile } from "./types";
 
 import { angular } from "./angular";
+import { astro } from "./astro";
 import { react } from "./react";
 import { solid, solidstart } from "./solid";
 import { svelte, sveltekit } from "./svelte";
@@ -15,4 +16,5 @@ export const profiles: FrontendProfile[] = [
   sveltekit,
   solid,
   solidstart,
+  astro,
 ];

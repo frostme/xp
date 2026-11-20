@@ -1,0 +1,17 @@
+---
+import { Cohort, Experiment } from '@frostme/xp/astro';
+import CheckoutBanner from '../xp/CheckoutBanner.astro';
+import Unused from '../components/Unused.astro';
+const preload = await Astro.locals.xp.preload(['checkout-banner', 'empty', 'failed', 'checkout-banner']);
+const [first, again] = await Promise.all([Astro.locals.xp.resolve('checkout-banner'), Astro.locals.xp.resolve('checkout-banner')]);
+if (first !== again || Astro.locals.calls.get('checkout-banner') !== 1) throw new Error('Request should reuse the decision');
+---
+<html lang="en"><head><title>Experiment details</title></head><body>
+<CheckoutBanner />
+<Experiment slug="checkout-banner"><b slot="cohort-on">one</b><b slot="cohort-off">two</b></Experiment>
+<Cohort slug="checkout-banner_on"><i>dup</i></Cohort><Cohort slug="checkout-banner_on"><i>dup</i></Cohort>
+<Cohort experiment="failed" default>Failed default</Cohort><Cohort experiment="empty" default>Empty default</Cohort>
+<Experiment slug="checkout-banner"><Unused slot="cohort-missing" /><Unused /></Experiment>
+<Cohort slug="checkout-banner_unknown"><Unused /></Cohort>
+<output id="preload">{JSON.stringify(preload)}</output>
+</body></html>

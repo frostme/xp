@@ -119,6 +119,7 @@ export default defineConfig({
   },
   rules: generalRules,
   overrides: [
+    { files: ["**/*.astro"], globals: { Astro: "readonly" } },
     {
       files: [
         "src/client/svelte/**/*.svelte",

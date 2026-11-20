@@ -1,0 +1,9 @@
+---
+import { Experiment } from '@frostme/xp/astro';
+const experiment = Astro.url.searchParams.get('slug') ?? 'delivery-copy';
+const decision = await Astro.locals.xp.resolve(experiment);
+---
+<html lang="en"><head><title>Delivery</title></head><body>
+<output data-xp-status>{decision.status}</output><output data-xp-error>{String(decision.status === 'error')}</output><output data-xp-slug>{decision.slug}</output>
+<output data-xp-branch><Experiment slug={experiment}><Fragment slot="cohort-short">short</Fragment><Fragment slot="cohort-control">control</Fragment><Fragment slot="cohort-detailed">detailed</Fragment>default</Experiment></output>
+</body></html>
