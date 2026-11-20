@@ -19,12 +19,13 @@ try {
   assert.ok(tarball, "bun pack produced a tarball");
   const drivers = process.env.XP_SMOKE_DRIVER
     ? [process.env.XP_SMOKE_DRIVER]
-    : Object.keys(manifest.peerDependencies).filter((name) => name !== "@aws-sdk/client-dynamodb");
+    : ["pg", "mysql2", "mssql", "mongodb", "@aws-sdk/lib-dynamodb", "sequelize"];
   for (const driver of [null, ...drivers]) {
     const directory = join(temporary, driver?.replaceAll("/", "-") ?? "no-driver");
     await mkdir(directory);
     const dependencies = { [manifest.name]: `file:${join(temporary, tarball)}` };
     if (driver) dependencies[driver] = manifest.devDependencies[driver];
+    if (driver === "sequelize") dependencies.pg = manifest.devDependencies.pg;
     // AWS document client has its own SDK peer; it is part of the same provider.
     if (driver === "@aws-sdk/lib-dynamodb")
       dependencies["@aws-sdk/client-dynamodb"] =
@@ -38,6 +39,7 @@ try {
       stdio: "pipe",
     });
     const constructors = {
+      sequelize: `const {Sequelize}=await import("sequelize"); const client=new Sequelize("postgres://localhost/xp",{logging:false}); server(client); await client.close();`,
       pg: `const {Client}=await import('pg'); server(new Client());`,
       mysql2: `const mysql=await import('mysql2/promise'); const pool=mysql.createPool({}); server(pool); await pool.end();`,
       mssql: `const sql=await import('mssql'); server(new sql.default.ConnectionPool({server:'localhost'}));`,
@@ -46,6 +48,7 @@ try {
     };
     const installed = [
       driver,
+      ...(driver === "sequelize" ? ["pg"] : []),
       ...(driver === "@aws-sdk/lib-dynamodb" ? ["@aws-sdk/client-dynamodb"] : []),
     ];
     const absent = [...Object.keys(constructors), "@aws-sdk/client-dynamodb"].filter(

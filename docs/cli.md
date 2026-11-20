@@ -9,7 +9,7 @@ npm exec -- xp setup
 yarn exec xp setup
 ```
 
-`xp setup` generates storage files for the application's migration or infrastructure workflow. It does not install packages, connect to a database, apply migrations, or provision resources. Installed schema tools may run locally to generate or validate files. The application still passes a supported native database client to `@frostme/xp/server`; selecting an ORM does not add an ORM runtime adapter.
+`xp setup` generates storage files for the application's migration or infrastructure workflow. It does not install packages, connect to a database, apply migrations, or provision resources. Installed schema tools may run locally to generate or validate files. The application passes its native database client or Sequelize 6 instance to `@frostme/xp/server`. Other ORM profiles provide schema and migration generation.
 
 ## Wizard
 
