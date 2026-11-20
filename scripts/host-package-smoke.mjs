@@ -71,7 +71,7 @@ const hosts = [
   {
     name: "react",
     peers: ["react", "react-dom", "@types/react", "@types/react-dom"],
-    sources: ["browser.tsx"],
+    sources: ["browser.tsx", "protocols.tsx"],
     execute: "compiled/render.mjs",
   },
 ];
@@ -124,7 +124,15 @@ function checkIsolatedPeers(directory, peers) {
 async function checkBrowserGraph(directory) {
   run(
     "bun",
-    ["build", "browser.tsx", "--target=browser", "--outdir=web", "--metafile=browser-meta.json"],
+    [
+      "build",
+      "browser.tsx",
+      "--production",
+      "--splitting",
+      "--target=browser",
+      "--outdir=web",
+      "--metafile=browser-meta.json",
+    ],
     directory,
   );
   const meta = JSON.parse(await readFile(join(directory, "browser-meta.json"), "utf8"));
@@ -137,7 +145,7 @@ async function checkBrowserGraph(directory) {
   }
   // Inspect the complete input graph, including imports elided from the emitted JS.
   const packages =
-    /(?:^|\/)(?:ink|pg|mysql2|mssql|tedious|mongodb|sequelize|express|graphql|graphql-yoga|@apollo\/server|@aws-sdk\/[^/]+)(?:\/|$)/;
+    /(?:^|(?:^|\/)node_modules\/)(?:ink|pg|mysql2|mssql|tedious|mongodb|sequelize|express|fastify|soap|@grpc\/[^/]+|@nestjs\/[^/]+|@connectrpc\/connect-node|graphql|graphql-yoga|@apollo\/server|@aws-sdk\/[^/]+)(?:\/|$)/;
   const serverFiles = /\/dist\/(?:server|cli|config|adaptors|use-cases|frameworks)(?:\/|$)/;
   const forbidden = (name) =>
     isBuiltin(name) || name.startsWith("node:") || packages.test(name) || serverFiles.test(name);
@@ -148,6 +156,42 @@ async function checkBrowserGraph(directory) {
       if (imported.original)
         assert.ok(!forbidden(imported.original), `Server import: ${imported.original}`);
     }
+  }
+
+  const entries = Object.entries(meta.outputs);
+  const browserEntry = entries.find(([, chunk]) => chunk.entryPoint === "browser.tsx");
+  assert.ok(browserEntry, "Missing REST browser entry chunk");
+  const initial = new Set();
+  function visitStaticImports(path) {
+    if (initial.has(path)) return;
+    initial.add(path);
+    const chunk = meta.outputs[path];
+    assert.ok(chunk, `Missing emitted chunk ${path}`);
+    for (const imported of chunk.imports) {
+      if (imported.kind !== "dynamic-import" && !imported.external)
+        visitStaticImports(imported.path);
+    }
+  }
+  visitStaticImports(browserEntry[0]);
+
+  const protocolCode =
+    /\/dist\/client\/(?:grpc-web|soap)\/|\/dist\/(?:protocols\/soap|proto)\/|\/node_modules\/(?:@bufbuild|@connectrpc|saxes|xmlchars)\//;
+  for (const path of initial) {
+    for (const input of Object.keys(meta.outputs[path].inputs)) {
+      assert.ok(!protocolCode.test("/" + input), `Initial REST chunk includes ${input}`);
+    }
+  }
+  for (const protocol of ["grpc-web", "soap"]) {
+    assert.ok(
+      entries.some(
+        ([path, chunk]) =>
+          !initial.has(path) &&
+          Object.keys(chunk.inputs).some((input) =>
+            input.endsWith(`/dist/client/${protocol}/index.js`),
+          ),
+      ),
+      `Missing lazy ${protocol} implementation`,
+    );
   }
 }
 
