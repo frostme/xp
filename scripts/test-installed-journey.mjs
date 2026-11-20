@@ -16,14 +16,45 @@ try {
   await cp(join(root, "scripts/fixtures/xp-journey"), app, { recursive: true });
   const dependencies = { "@frostme/xp": `file:${join(stage, tarballs[0])}` };
   // Test the same host versions installed by the repository's frozen lockfile.
-  for (const name of ["react", "react-dom", "jsdom", "express", "graphql", "graphql-yoga", "@apollo/server", "pg"]) {
-    const installed = JSON.parse(await readFile(join(root, "node_modules", name, "package.json"), "utf8"));
+  for (const name of [
+    "react",
+    "react-dom",
+    "jsdom",
+    "express",
+    "graphql",
+    "graphql-yoga",
+    "@apollo/server",
+    "pg",
+  ]) {
+    const installed = JSON.parse(
+      await readFile(join(root, "node_modules", name, "package.json"), "utf8"),
+    );
     dependencies[name] = installed.version;
   }
-  await writeFile(join(app, "package.json"), JSON.stringify({ private: true, type: "module", dependencies }));
+  await writeFile(
+    join(app, "package.json"),
+    JSON.stringify({ private: true, type: "module", dependencies }),
+  );
   run("bun", ["install", "--ignore-scripts"], app);
-  run("node", ["node_modules/@frostme/xp/dist/cli/bin.js", "setup", "--orm", "none", "--database", "postgres",
-    "--user-storage", "reuse", "--user-id-type", "TEXT", "--migrations-dir", "migrations", "--yes"], app);
+  run(
+    "node",
+    [
+      "node_modules/@frostme/xp/dist/cli/bin.js",
+      "setup",
+      "--orm",
+      "none",
+      "--database",
+      "postgres",
+      "--user-storage",
+      "reuse",
+      "--user-id-type",
+      "TEXT",
+      "--migrations-dir",
+      "migrations",
+      "--yes",
+    ],
+    app,
+  );
   run("node", ["--test", "journey.test.mjs"], app);
 } finally {
   await rm(stage, { recursive: true, force: true });
