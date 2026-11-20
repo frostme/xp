@@ -1,7 +1,14 @@
 import type { Cohort, Experiment, User, UserCohort, PKey } from "~/entities";
 import type { IDataAccessAdaptor } from "~/interfaces";
 
-import { DuplicateAssignmentError, ExperimentPausedError, NotFoundError } from "~/errors";
+import {
+  DuplicateAssignmentError,
+  ExperimentPausedError,
+  ExperimentSlugConflictError,
+  NotFoundError,
+} from "~/errors";
+
+import { isExperimentSlugConflict } from "./experimentSlugConflict";
 
 export type Row = Record<string, unknown>;
 export interface SqlSession {
@@ -106,27 +113,41 @@ export function relationalAdaptor(database: SqlDatabase): IDataAccessAdaptor {
             result.push(await hydrate(s, row));
           return result;
         }),
-      create: (input) =>
-        database.transaction(async (s) => {
-          const row = await s.insert("experiments", {
-            name: input.name,
-            slug: input.slug,
-            type: input.type,
-            description: input.description,
-            winner: null,
+      create: async (input) => {
+        let parentInsertFailure: unknown;
+        try {
+          return await database.transaction(async (s) => {
+            const row = await s
+              .insert("experiments", {
+                name: input.name,
+                slug: input.slug,
+                type: input.type,
+                description: input.description,
+                winner: null,
+              })
+              .catch((error: unknown) => {
+                parentInsertFailure = error;
+                throw error;
+              });
+            for (const item of input.cohorts) {
+              await s.insert("cohorts", {
+                experiment_id: row["id"],
+                slug: item.slug,
+                type: item.type,
+                description: item.description,
+                percentage: item.percentage,
+                value: JSON.stringify(item.value ?? null),
+              });
+            }
+            return hydrate(s, row);
           });
-          for (const item of input.cohorts) {
-            await s.insert("cohorts", {
-              experiment_id: row["id"],
-              slug: item.slug,
-              type: item.type,
-              description: item.description,
-              percentage: item.percentage,
-              value: JSON.stringify(item.value ?? null),
-            });
+        } catch (error) {
+          if (error === parentInsertFailure && (await isExperimentSlugConflict(database, error))) {
+            throw new ExperimentSlugConflictError(input.slug, { cause: error });
           }
-          return hydrate(s, row);
-        }),
+          throw error;
+        }
+      },
       update: (id, values, winnerCohortId) =>
         database.transaction(async (s) => {
           const rows = await s.lock("experiments", `id = ${s.parameter(1)}`, [id]);

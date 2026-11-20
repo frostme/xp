@@ -41,6 +41,7 @@ export async function setupMssql(version: 1 | 2 = 2): Promise<MssqlFixture> {
     await pool.connect();
     await pool.request().query(generatedSql("mssql", version));
     return {
+      startupOptions: { connection: pool },
       pool,
       connectionConfig,
       adaptor: new MssqlAdaptor(pool),

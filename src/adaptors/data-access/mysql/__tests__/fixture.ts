@@ -48,6 +48,7 @@ export async function setupMysql(
       await pool.query(statement);
     }
     return {
+      startupOptions: { connection: pool },
       pool,
       connectionConfig,
       adaptor: new MysqlAdaptor(pool),

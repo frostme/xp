@@ -18,6 +18,7 @@ import type {
 import {
   DuplicateAssignmentError,
   ExperimentPausedError,
+  ExperimentSlugConflictError,
   NotFoundError,
   ValidationError,
 } from "~/errors";
@@ -302,11 +303,20 @@ export default class DynamoDBStore {
       type: input.type,
       winner: null,
     };
-    await this.write([
-      this.put({ ...experimentKey(id), ...fields, state: "active" }),
-      this.put({ ...experimentClaim(input.slug), experiment_id: id }),
-      ...cohorts.flatMap((cohort) => this.cohortItems(cohort).map((item) => this.put(item))),
-    ]);
+    try {
+      await this.write([
+        this.put({ ...experimentKey(id), ...fields, state: "active" }),
+        this.put({ ...experimentClaim(input.slug), experiment_id: id }),
+        ...cohorts.flatMap((cohort) => this.cohortItems(cohort).map((item) => this.put(item))),
+      ]);
+    } catch (error) {
+      // Item 1 is the unique experiment slug claim. Child slug claims can also fail
+      // when another initializer committed this same declaration first.
+      if (cancellationReasons(error)?.[1]?.Code === "ConditionalCheckFailed") {
+        throw new ExperimentSlugConflictError(input.slug, { cause: error });
+      }
+      throw error;
+    }
     return { ...fields, enabled: true, cohorts };
   }
 
