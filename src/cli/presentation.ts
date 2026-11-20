@@ -1,16 +1,23 @@
-import type { SetupPlan, SetupResult } from "~/interfaces/setup";
+import type { ScopedSetupPlan, SetupResult } from "~/interfaces/setup";
 
-export function describePlan(plan: SetupPlan): string {
+export function describePlan(plan: ScopedSetupPlan): string {
   const o = plan.options;
   return [
-    `Using ${o.orm}${o.ormVersion ? ` ${o.ormVersion}` : ""} with ${o.database}`,
-    `Project: ${o.cwd}`,
-    `Migrations: ${o.migrationsDir}`,
-    ...(o.schema ? [`Schema: ${o.schema}`] : []),
-    `Models: ${o.models ? o.modelsDir : "not requested"}`,
-    `Language: ${o.language}; modules: ${o.moduleFormat}`,
-    `Users: ${o.userStorage} users.id (${o.userIdType}${o.userIdCollation ? `, ${o.userIdCollation}` : ""})`,
-    ...(o.database === "dynamodb" ? [`Table: ${o.tableName}`] : []),
+    ...(o.scope === "frontend"
+      ? []
+      : [
+          `Using ${o.orm}${o.ormVersion ? ` ${o.ormVersion}` : ""} with ${o.database}`,
+          `Project: ${o.cwd}`,
+          `Migrations: ${o.migrationsDir}`,
+          ...(o.schema ? [`Schema: ${o.schema}`] : []),
+          `Models: ${o.models ? o.modelsDir : "not requested"}`,
+          `Language: ${o.language}; modules: ${o.moduleFormat}`,
+          `Users: ${o.userStorage} users.id (${o.userIdType}${o.userIdCollation ? `, ${o.userIdCollation}` : ""})`,
+          ...(o.database === "dynamodb" ? [`Table: ${o.tableName}`] : []),
+        ]),
+    ...(o.frontend
+      ? [`Frontend: ${o.frontend} (${o.transport} ${o.endpoint})`, `Scope: ${o.scope}`]
+      : []),
     "",
     ...plan.files.map((file) => `${file.action.padEnd(9)} ${file.path} — ${file.purpose}`),
     ...plan.warnings.map((value) => `Note: ${value}`),
@@ -30,12 +37,16 @@ export function describeResult(result: SetupResult): string {
     ...result.warnings.map((value) => `Note: ${value}`),
     "",
     ...result.nextSteps,
-    "@frostme/xp/server accepts your native database client or supported Sequelize 6 instance. Apply the generated migration or provisioning files before using xp.",
+    ...(result.scope === "frontend"
+      ? []
+      : [
+          "@frostme/xp/server accepts your native database client or supported Sequelize 6 instance. Apply the generated migration or provisioning files before using xp.",
+        ]),
   ].join("\n");
 }
 
 /** A compact complete before/after review, without hiding removed content. */
-export function previewFile(plan: SetupPlan, index: number): string[] {
+export function previewFile(plan: ScopedSetupPlan, index: number): string[] {
   const file = plan.files[index];
   if (!file) return [];
   if (file.action === "unchanged") return file.content.split("\n").map((line) => `  ${line}`);

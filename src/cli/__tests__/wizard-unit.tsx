@@ -322,3 +322,52 @@ describe("arguments", () => {
     expect(() => parseArguments(["setup", "--database", "sqlite"])).toThrow("Invalid --database");
   });
 });
+
+describe("frontend wizard", () => {
+  it("offers frontend and scope groups, previews host edits, and cancels before writing", async () => {
+    const f = fixture();
+    const framework = f.framework;
+    const scoped = {
+      scope: "frontend" as const,
+      frontend: "react" as const,
+      transport: "rest" as const,
+      endpoint: "/xp",
+      cwd: "/project",
+    };
+    vi.spyOn(framework, "detectScoped").mockResolvedValue({
+      ...project,
+      options: scoped,
+      frontendCandidates: ["react"],
+    });
+    vi.spyOn(framework, "planScoped").mockResolvedValue({
+      ...plan,
+      options: scoped,
+      files: [
+        {
+          path: "src/main.tsx",
+          before: "root.render(<App />)",
+          beforeHash: "unused",
+          action: "update",
+          content: "root.render(<AppXp><App /></AppXp>)",
+          purpose: "React DOM root",
+        },
+      ],
+    });
+    const finish = vi.fn();
+    const app = await render(<Wizard framework={framework} options={{}} onFinish={finish} />);
+    await frameContains(app, "Review actions");
+    await choose(app, 1);
+    await frameContains(app, "Edit settings");
+    expect(app.lastFrame()).not.toContain("User identity");
+    await choose(app, 0);
+    await frameContains(app, "Frontend settings");
+    await choose(app, 3);
+    await frameContains(app, "Review actions");
+    await choose(app, 2);
+    await frameContains(app, "AppXp");
+    await input(app, "\u001b");
+    await choose(app, 3);
+    expect(finish).toHaveBeenCalledWith(130);
+    expect(f.applying).not.toHaveBeenCalled();
+  });
+});

@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import type { SetupPlan, SetupResult } from "~/interfaces/setup";
+import type { ScopedSetupPlan, SetupResult } from "~/interfaces/setup";
 
 import { describeResult } from "./presentation";
 import { Alert } from "./termcn/components/ui/alert";
@@ -13,26 +13,34 @@ import { Select } from "./termcn/components/ui/select";
 import { StatusMessage } from "./termcn/components/ui/status-message";
 import { Table } from "./termcn/components/ui/table";
 
-export function PlanSummary({ plan, width }: { plan: SetupPlan; width: number }) {
+export function PlanSummary({ plan, width }: { plan: ScopedSetupPlan; width: number }) {
   const o = plan.options;
   return (
     <Box flexDirection="column">
-      <StatusMessage>{`Using ${o.orm}${o.ormVersion ? ` ${o.ormVersion}` : ""} with ${o.database}`}</StatusMessage>
-      <KeyValue
-        keyWidth={Math.min(12, Math.floor(width / 3))}
-        items={[
-          { key: "Project", value: o.cwd },
-          { key: "Migrations", value: o.migrationsDir },
-          ...(o.config ? [{ key: "Config", value: o.config }] : []),
-          ...(o.schema ? [{ key: "Schema", value: o.schema }] : []),
-          { key: "Models", value: o.models ? o.modelsDir : "not requested" },
-          { key: "Language", value: `${o.language}; ${o.moduleFormat}` },
-          { key: "Users", value: `${o.userStorage} users.id (${o.userIdType})` },
-          ...(o.userIdCharset ? [{ key: "Charset", value: o.userIdCharset }] : []),
-          ...(o.userIdCollation ? [{ key: "Collation", value: o.userIdCollation }] : []),
-          ...(o.database === "dynamodb" ? [{ key: "Table", value: o.tableName }] : []),
-        ]}
-      />
+      {o.scope === "storage" && <StatusMessage>Scope: storage</StatusMessage>}
+      {o.scope !== "frontend" && (
+        <>
+          <StatusMessage>{`Using ${o.orm}${o.ormVersion ? ` ${o.ormVersion}` : ""} with ${o.database}`}</StatusMessage>
+          <KeyValue
+            keyWidth={Math.min(12, Math.floor(width / 3))}
+            items={[
+              { key: "Project", value: o.cwd },
+              { key: "Migrations", value: o.migrationsDir ?? "" },
+              ...(o.config ? [{ key: "Config", value: o.config }] : []),
+              ...(o.schema ? [{ key: "Schema", value: o.schema }] : []),
+              { key: "Models", value: o.models ? (o.modelsDir ?? "") : "not requested" },
+              { key: "Language", value: `${o.language}; ${o.moduleFormat}` },
+              { key: "Users", value: `${o.userStorage} users.id (${o.userIdType})` },
+              ...(o.userIdCharset ? [{ key: "Charset", value: o.userIdCharset }] : []),
+              ...(o.userIdCollation ? [{ key: "Collation", value: o.userIdCollation }] : []),
+              ...(o.database === "dynamodb" ? [{ key: "Table", value: o.tableName ?? "" }] : []),
+            ]}
+          />
+        </>
+      )}
+      {o.frontend && (
+        <StatusMessage>{`Scope: ${o.scope} · ${o.frontend} · ${o.transport} ${o.endpoint}`}</StatusMessage>
+      )}
       <Table
         isActive={false}
         data={plan.files.map((file) => ({ action: file.action, path: file.path }))}
@@ -45,6 +53,15 @@ export function PlanSummary({ plan, width }: { plan: SetupPlan; width: number })
       {plan.files.map((file) => (
         <StatusMessage key={file.path}>{`${file.path}: ${file.purpose}`}</StatusMessage>
       ))}
+      {o.frontend &&
+        plan.files
+          .filter((file) => file.action === "update" && file.merge)
+          .map((file) => (
+            <Box key={file.path} flexDirection="column">
+              <StatusMessage>{file.path}</StatusMessage>
+              <DiffView oldText={file.before ?? ""} newText={file.content} mode="inline" />
+            </Box>
+          ))}
       {plan.warnings.map((warning, i) => (
         <Alert key={`warning-${i}`} variant="warning">
           {warning}
@@ -68,7 +85,7 @@ export function ResultSummary({ result }: { result: SetupResult }) {
 }
 
 type PreviewMode = "diff" | "before" | "after";
-export function FilePreview({ plan, height }: { plan: SetupPlan; height: number }) {
+export function FilePreview({ plan, height }: { plan: ScopedSetupPlan; height: number }) {
   const [fileIndex, setFileIndex] = useState(0);
   const [mode, setMode] = useState<PreviewMode>("diff");
   const [choosingFile, setChoosingFile] = useState(false);

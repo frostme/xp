@@ -10,6 +10,9 @@ export const ORMS = [
   "none",
 ] as const;
 export const DATABASES = ["postgres", "mysql", "mssql", "mongodb", "dynamodb"] as const;
+export const FRONTENDS = ["react"] as const;
+export type SetupFrontend = (typeof FRONTENDS)[number];
+export type SetupScope = "storage" | "frontend" | "both";
 export type SetupOrm = (typeof ORMS)[number];
 export type SetupDatabase = (typeof DATABASES)[number];
 export type SetupLanguage = "typescript" | "javascript";
@@ -36,6 +39,20 @@ export interface SetupOptions {
   userIdCollation?: string;
   userIdCharset?: string;
   tableName?: string;
+}
+
+export interface ScopedSetupOptions extends SetupOptions {
+  scope?: SetupScope;
+  frontend?: SetupFrontend;
+  transport?: "rest" | "graphql";
+  endpoint?: string;
+  island?: "none" | "react" | "vue" | "svelte" | "solid";
+}
+
+export interface ScopedDetection extends Omit<ProjectDetection, "options" | "missing"> {
+  options: ScopedSetupOptions;
+  missing: (keyof ScopedSetupOptions)[];
+  frontendCandidates?: string[];
 }
 
 export interface ResolvedSetup extends SetupOptions {
@@ -97,7 +114,12 @@ export interface SetupPlan extends GeneratedArtifacts {
   status: "ready" | "manual-steps-required";
 }
 
+export interface ScopedSetupPlan extends Omit<SetupPlan, "options"> {
+  options: ScopedSetupOptions & { cwd: string };
+}
+
 export interface SetupResult {
+  scope?: SetupScope;
   status: "complete" | "manual-steps-required" | "unchanged";
   files: string[];
   prerequisites: string[];
@@ -110,6 +132,9 @@ export interface ISetupGenerator {
 }
 
 export interface IProjectManager {
+  detectScoped?(options: ScopedSetupOptions, interactive?: boolean): Promise<ScopedDetection>;
+  planScoped?(options: ScopedSetupOptions): Promise<ScopedSetupPlan>;
+  applyScoped?(plan: ScopedSetupPlan): Promise<SetupResult>;
   detectProject(options?: SetupOptions): Promise<ProjectDetection>;
   planSetup(options?: SetupOptions): Promise<SetupPlan>;
   applySetup(plan: SetupPlan): Promise<SetupResult>;

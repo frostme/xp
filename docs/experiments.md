@@ -223,3 +223,9 @@ session.dispose(); // on teardown or before installing a new account's session
 ```
 
 Use a fresh session when the account, endpoint or loader changes. React handles replacement when the opaque public `sessionKey` or transport configuration changes. Keep credentials, loaders, raw exceptions and database connections on the server.
+
+## Generate the React DOM provider
+
+Run `xp setup --scope frontend --frontend react --dry-run` in the application to review the provider, example and proposed mount edit. Re-run with `--yes` to apply it. Import `CheckoutBanner` from `./xp/CheckoutBanner` in your application and seed the `checkout-banner_on` decision. The generated provider defaults to same-origin REST at `/xp`.
+
+For personalized SSR, keep request identity on the server, preload the route’s slugs with `createXpRequest`, and pass its public fields and the app’s session revision as props to the generated `AppXp`. Use the same root and public props with `hydrateRoot`. Rotate `sessionKey` when switching accounts. A custom endpoint, transport, or app layout can be reviewed in [frontend setup](cli.md#frontend-and-combined-setup).

@@ -9,7 +9,7 @@ npm exec -- xp setup
 yarn exec xp setup
 ```
 
-`xp setup` generates storage files for the application's migration or infrastructure workflow. It does not install packages, connect to a database, apply migrations, or provision resources. Installed schema tools may run locally to generate or validate files. The application passes its native database client or Sequelize 6 instance to `@frostme/xp/server`. Other ORM profiles provide schema and migration generation.
+Storage setup generates files for the application's migration or infrastructure workflow. It does not install packages, connect to a database, apply migrations, or provision resources. Installed schema tools may run locally to generate or validate files. The application passes its native database client or Sequelize 6 instance to `@frostme/xp/server`. Other ORM profiles provide schema and migration generation.
 
 ## Wizard
 
@@ -67,6 +67,27 @@ xp setup --orm knex --database mysql --user-storage reuse \
 | `--help`, `--version`                      | Command reference and package version                                                                     |
 
 Noninteractive runs fail with the missing choices rather than guess them. `--yes` does not bypass missing values, incompatible versions, or existing-file conflicts. Dry runs may use temporary files and installed local generators; they do not change the application directory.
+
+## Frontend and combined setup
+
+From an existing React DOM application with React and React DOM 19.3.1 through 19.x installed, preview the source edits and apply them with the same flags.
+
+```sh
+xp setup --cwd apps/shop --scope frontend --frontend react --dry-run
+xp setup --cwd apps/shop --scope frontend --frontend react --non-interactive --yes
+xp setup --cwd apps/shop --frontend react --transport graphql --endpoint /api/graphql --dry-run
+xp setup --cwd apps/shop --scope both --frontend react --orm none --database postgres --user-storage create --dry-run
+```
+
+In the wizard, review the suggested scope or choose **Edit settings** to change it. Frontend shows the framework, transport and public endpoint. Combined setup plans both sets of files and applies them under the same project lock. Automated commands without frontend flags retain their storage workflow. A frontend flag selects frontend setup. Use `--scope both` when also passing storage flags.
+
+Detection checks dependencies declared by the selected package and resolves their installed versions, including workspace-hoisted packages. Run setup at the application’s package boundary. REST uses `/xp` and GraphQL uses `/graphql` by default. Supply a public root-relative path or HTTP(S) URL. For a credentialed fetch or headers, pass a loader constructed by your application. Keep query parameters, credentials and tokens out of the endpoint and the setup manifest.
+
+React setup generates `src/xp/provider.tsx` and `src/xp/CheckoutBanner.tsx` (or JSX). The first file exports `AppXp`; the second exports a working `CheckoutBanner` for a seeded `checkout-banner` experiment with a treatment named `on`. Setup wraps a single recognized React DOM `createRoot(...).render(...)` call in `src/main.tsx` or `.jsx`. The preview includes the host edit and its full before/after source. With custom layouts or hydration bootstraps, follow the printed insertion instruction to wrap the server and browser roots with the generated provider. Pass the same request-local preload on both initial renders.
+
+The app owns its auth integration. Supply a public session revision through `sessionKey` and change it when the signed-in account changes. Mount the example inside the provider and point it at an authenticated xp route. The versioned `.xp/frontend.json` records public transport settings, generated file hashes and registration paths. Setup reparses application-owned registrations on every run. Host edits and customized generated modules survive reruns. When a transport change would replace customized plumbing, setup reports the conflicting path for manual reconciliation.
+
+For programmatic review use `detectScoped(options)`, `planScoped(options)` and `applyScoped(plan)` on the `cli()` instance. A frontend-only plan has no storage settings or migration prerequisites. Storage-only callers can keep using `detectProject`, `planSetup` and `applySetup`.
 
 ## Supported generator profiles
 
