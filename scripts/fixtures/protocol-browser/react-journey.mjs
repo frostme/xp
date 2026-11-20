@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 // The calling fixture serves react.js at the page origin. Decisions travel
 // through the installed adapters, including Envoy's native gRPC upstream.
 export async function runReactJourney(page, { directBase, proxyBase, soapEndpoint }) {
+  await page.evaluate(async () => {
+    const url = new globalThis.URL("/react.js", globalThis.location.href);
+    globalThis.reactJourney = await import(url.href);
+  });
   const session = async (value) => {
     const context = page.context();
     await context.clearCookies({ name: "session" });
@@ -13,7 +17,7 @@ export async function runReactJourney(page, { directBase, proxyBase, soapEndpoin
     if (request.method() === "POST") calls.push(request.url());
   };
   const render = (loader, endpoint, sessionKey) =>
-    page.evaluate(async (options) => (await import("/react.js")).showSession(options), {
+    page.evaluate((options) => globalThis.reactJourney.showSession(options), {
       loader,
       endpoint,
       sessionKey,
@@ -51,7 +55,7 @@ export async function runReactJourney(page, { directBase, proxyBase, soapEndpoin
     // Arm the barrier and request in the same page evaluation. The response
     // has reached the real browser and decoded before B starts.
     const held = await page.evaluate(async (endpoint) => {
-      const app = await import("/react.js");
+      const app = globalThis.reactJourney;
       const result = app.holdNextResponse();
       app.showSession({ loader: "custom", endpoint, sessionKey: "alice" });
       return result;
@@ -61,7 +65,7 @@ export async function runReactJourney(page, { directBase, proxyBase, soapEndpoin
     await render("custom", proxyBase, "bob");
     await verify("bob", "ready", "delivery-copy_control", false, "control");
     const aborted = await page.evaluate(async () => {
-      const app = await import("/react.js");
+      const app = globalThis.reactJourney;
       const cancelled = await app.releaseResponse();
       // Let pending asynchronous loader and React callbacks settle.
       await new Promise((resolve) =>
