@@ -8,8 +8,6 @@ const config: KnipConfig = {
     "src/**/__tests__/*-integration.{ts,tsx}",
     "src/**/__tests__/*-unit.{ts,tsx}",
   ],
-  // These modules are compiled inside the temporary packed consumers.
-  ignoreUnresolved: ["./compiled/browser.js", "./compiled/graphql.js"],
   ignoreExportsUsedInFile: true,
   // Keep the copied registry APIs intact for future upstream updates.
   ignoreIssues: { "src/cli/termcn/**": ["exports", "types"] },
