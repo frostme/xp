@@ -13,6 +13,7 @@ export default defineConfig({
     "./src/server/fastify/index.ts",
     "./src/server/graphql/index.ts",
     "./src/server/nestjs/index.ts",
+    "./src/server/grpc/index.ts",
   ],
   exitCode: "circular:1",
   transform: true,

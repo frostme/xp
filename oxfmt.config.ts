@@ -3,7 +3,7 @@ import { defineConfig } from "oxfmt";
 export default defineConfig({
   printWidth: 100,
   embeddedLanguageFormatting: "auto",
-  ignorePatterns: ["dist", ".cache", "out", ".swc", ".wireit", ".vitest"],
+  ignorePatterns: ["src/proto/**/*_pb.ts", "dist", ".cache", "out", ".swc", ".wireit", ".vitest"],
   sortImports: {
     groups: [
       "type-import",

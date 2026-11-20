@@ -56,7 +56,9 @@
       "default": "./dist/client/astro/index.mjs"
     },
     "./server/fastify": "./dist/server/fastify/index.js",
-    "./server/nestjs": "./dist/server/nestjs/index.js"
+    "./server/nestjs": "./dist/server/nestjs/index.js",
+    "./server/grpc": "./dist/server/grpc/index.js",
+    "./proto/xp/v1/cohort.proto": "./dist/proto/xp/v1/cohort.proto"
   },
   "scripts": {
     "build": "wireit",
@@ -85,11 +87,13 @@
     "build:angular": "node scripts/angular/build.mjs",
     "build:svelte": "node tools/svelte/build.mjs",
     "build:solid": "node scripts/build-solid.mjs",
-    "build:astro": "node scripts/build-astro.mjs"
+    "build:astro": "node scripts/build-astro.mjs",
+    "generate:proto": "node scripts/generate-proto.mjs",
+    "test:proto": "node scripts/generate-proto.mjs --check"
   },
   "wireit": {
     "build": {
-      "command": "concurrently \"bun build:swc\" \"bun build:tsc\" && bun run build:angular && bun run build:svelte && bun run build:solid && bun run build:astro",
+      "command": "concurrently \"bun build:swc\" \"bun build:tsc\" && bun run build:angular && bun run build:svelte && bun run build:solid && bun run build:astro && node scripts/copy-schema.mjs proto/xp/v1/cohort.proto",
       "files": [
         "src/**/*.{ts,tsx}",
         ".swcrc",
@@ -102,7 +106,9 @@
         "scripts/toolchains/solid-config.mjs",
         "scripts/toolchains/solid-v*/{bun.lock,package.json,tsconfig.json,vite.config.mjs}",
         "src/client/astro/**/*",
-        "scripts/build-astro.mjs"
+        "scripts/build-astro.mjs",
+        "src/**/*.proto",
+        "scripts/copy-schema.mjs"
       ],
       "output": [
         "dist/**/*.js",
@@ -114,7 +120,8 @@
         "dist/client/svelte/**/*.svelte",
         "dist/client/astro/*.astro",
         "dist/client/astro/*.mjs",
-        "dist/client/astro/*.d.mts"
+        "dist/client/astro/*.d.mts",
+        "dist/**/*.proto"
       ],
       "allowUsuallyExcludedPaths": true
     },
@@ -129,7 +136,8 @@
         "test:unit",
         "test:package",
         "test:generators",
-        "test:schemas"
+        "test:schemas",
+        "test:proto"
       ]
     },
     "test:unit": {
@@ -186,6 +194,7 @@
   },
   "dependencies": {
     "@babel/parser": "^8.1.2",
+    "@bufbuild/protobuf": "2.17.0",
     "cli-spinners": "^3.4.0",
     "dpdm": "^4.3.0",
     "es-toolkit": "^1.52.0",
@@ -201,6 +210,10 @@
     "@apollo/server": "^5.5.2",
     "@aws-sdk/client-dynamodb": "^3.1164.0",
     "@aws-sdk/lib-dynamodb": "^3.1164.0",
+    "@bufbuild/buf": "1.75.0",
+    "@bufbuild/protoc-gen-es": "2.17.0",
+    "@grpc/grpc-js": "1.14.7",
+    "@grpc/proto-loader": "0.8.1",
     "@nestjs/common": "12.6.0",
     "@nestjs/core": "12.6.0",
     "@nestjs/platform-express": "12.6.0",
@@ -251,6 +264,8 @@
     "@apollo/server": "^5.5.2",
     "@aws-sdk/client-dynamodb": "^3.1164.0",
     "@aws-sdk/lib-dynamodb": "^3.1164.0",
+    "@grpc/grpc-js": "^1.14.7",
+    "@grpc/proto-loader": "^0.8.1",
     "@nestjs/common": "^12.0.0",
     "@solidjs/web": ">=2.0.3 <3",
     "astro": ">=7.4.13 <8",
@@ -324,6 +339,12 @@
       "optional": true
     },
     "@nestjs/common": {
+      "optional": true
+    },
+    "@grpc/grpc-js": {
+      "optional": true
+    },
+    "@grpc/proto-loader": {
       "optional": true
     }
   },
