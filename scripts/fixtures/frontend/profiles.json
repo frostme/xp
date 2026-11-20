@@ -215,5 +215,82 @@
       "server-transports"
     ],
     "journey": "apollo"
+  },
+  {
+    "id": "astro-react",
+    "extends": "astro",
+    "frontend": "astro",
+    "island": "react",
+    "compiler": "Astro Node SSR and @astrojs/react",
+    "entry": "test.mjs",
+    "dependencies": {
+      "astro": "7.4.13",
+      "@astrojs/node": "11.1.14",
+      "@astrojs/check": "0.9.12",
+      "typescript": "6.0.3",
+      "@types/node": "26.6.5",
+      "@astrojs/react": "7.1.9",
+      "react": "19.3.1",
+      "react-dom": "19.3.1",
+      "@types/react": "19.3.0",
+      "@types/react-dom": "19.3.0",
+      "oxc-transform-react": "0.156.0"
+    },
+    "cases": ["private-island-html", "scoped-preload", "independent-hydration", "retry"]
+  },
+  {
+    "id": "astro-vue",
+    "extends": "astro",
+    "frontend": "astro",
+    "island": "vue",
+    "compiler": "Astro Node SSR and @astrojs/vue",
+    "entry": "test.mjs",
+    "dependencies": {
+      "astro": "7.4.13",
+      "@astrojs/node": "11.1.14",
+      "@astrojs/check": "0.9.12",
+      "typescript": "6.0.3",
+      "@types/node": "26.6.5",
+      "@astrojs/vue": "7.1.6",
+      "vue": "3.5.46"
+    },
+    "cases": ["private-island-html", "scoped-preload", "independent-hydration", "retry"]
+  },
+  {
+    "id": "astro-svelte",
+    "extends": "astro",
+    "frontend": "astro",
+    "island": "svelte",
+    "compiler": "Astro Node SSR and @astrojs/svelte",
+    "entry": "test.mjs",
+    "dependencies": {
+      "astro": "7.4.13",
+      "@astrojs/node": "11.1.14",
+      "@astrojs/check": "0.9.12",
+      "typescript": "6.0.3",
+      "@types/node": "26.6.5",
+      "@astrojs/svelte": "9.1.6",
+      "svelte": "5.59.0"
+    },
+    "cases": ["private-island-html", "scoped-preload", "independent-hydration", "retry"]
+  },
+  {
+    "id": "astro-solid",
+    "extends": "astro",
+    "frontend": "astro",
+    "island": "solid",
+    "compiler": "Astro Node SSR and @astrojs/solid-js",
+    "entry": "test.mjs",
+    "dependencies": {
+      "astro": "7.4.13",
+      "@astrojs/node": "11.1.14",
+      "@astrojs/check": "0.9.12",
+      "typescript": "6.0.3",
+      "@types/node": "26.6.5",
+      "@astrojs/solid-js": "7.1.6",
+      "solid-js": "1.9.20",
+      "solid-devtools": "0.34.5"
+    },
+    "cases": ["private-island-html", "scoped-preload", "independent-hydration", "retry"]
   }
 ]

@@ -20,6 +20,7 @@ const help = `
     --cwd <path>               Project directory (defaults to current directory)
     --scope <scope>            storage, frontend or both
     --frontend <profile>       Installed frontend profile
+    --island <renderer>        Astro island renderer (none, react, vue, svelte, solid)
     --transport <transport>    rest (default) or graphql
     --endpoint <path-or-url>   Public decision endpoint
     --orm <tool>               sequelize, typeorm, mikroorm, prisma, drizzle,
@@ -57,6 +58,7 @@ export function parseArguments(argv: string[]) {
       cwd: { type: "string" },
       scope: { type: "string" },
       frontend: { type: "string" },
+      island: { type: "string" },
       transport: { type: "string" },
       endpoint: { type: "string" },
       orm: { type: "string" },
@@ -86,6 +88,7 @@ export function parseArguments(argv: string[]) {
   const checks = {
     scope: ["storage", "frontend", "both"],
     frontend: FRONTENDS,
+    island: ["none", "react", "vue", "svelte", "solid"],
     transport: ["rest", "graphql"],
     orm: ORMS,
     database: DATABASES,

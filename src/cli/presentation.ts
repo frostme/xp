@@ -16,7 +16,10 @@ export function describePlan(plan: ScopedSetupPlan): string {
           ...(o.database === "dynamodb" ? [`Table: ${o.tableName}`] : []),
         ]),
     ...(o.frontend
-      ? [`Frontend: ${o.frontend} (${o.transport} ${o.endpoint})`, `Scope: ${o.scope}`]
+      ? [
+          `Frontend: ${o.frontend} (${o.transport} ${o.endpoint})${o.frontend === "astro" ? ` · island: ${o.island}` : ""}`,
+          `Scope: ${o.scope}`,
+        ]
       : []),
     "",
     ...plan.files.map((file) => `${file.action.padEnd(9)} ${file.path} — ${file.purpose}`),

@@ -16,6 +16,8 @@ const config: KnipConfig = {
   ignoreExportsUsedInFile: true,
   // Keep the copied registry APIs intact for future upstream updates.
   ignoreIssues: {
+    // Island fixture dependencies and shared imports resolve in the packed installation.
+    "scripts/fixtures/frontend/astro-*/**": ["unlisted", "unresolved"],
     // Astro fixture dependencies and generated modules resolve in the packed installation.
     "scripts/fixtures/frontend/astro/**": ["unresolved", "unlisted"],
     // The external fixture installer copies shared app sources and generates xp/options.

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { FrontendContext } from "../types";
 
 import { astro, registerAstroMiddleware } from "../astro";
+import { resolveIslands } from "../astro-islands";
 
 const auth =
   'import { defineMiddleware as define } from "astro:middleware";\nexport const onRequest = define(async (ctx, next) => { /* auth first */ return next() });\n';
@@ -54,5 +55,29 @@ describe("Astro middleware registration", () => {
       read: async (p) => (p === first.path ? edited : null),
     });
     expect(rerun.registrations[0]?.content).toEqual(edited);
+  });
+});
+
+describe("Astro island detection", () => {
+  const vue = { "@astrojs/vue": "7.1.6", vue: "3.5.46" };
+  const svelte = { "@astrojs/svelte": "9.1.6", svelte: "5.59.0" };
+  it("selects the only installed compatible renderer or server-only", () => {
+    expect(resolveIslands({})).toEqual({ selected: "none", choices: ["none"] });
+    expect(resolveIslands(vue).selected).toBe("vue");
+    expect(resolveIslands(vue, "none").selected).toBe("none");
+    expect(resolveIslands({ ...vue, vue: "2.7.0" }).selected).toBe("none");
+    expect(resolveIslands({ "@astrojs/solid-js": "7.1.6", "solid-js": "2.0.3" }).selected).toBe(
+      "none",
+    );
+  });
+  it("offers a choice between several renderers and rejects incompatible explicit selections", () => {
+    expect(resolveIslands({ ...vue, ...svelte })).toEqual({
+      selected: undefined,
+      choices: ["none", "vue", "svelte"],
+    });
+    expect(resolveIslands({ ...vue, ...svelte }, "svelte").selected).toEqual("svelte");
+    expect(() => resolveIslands({ ...vue, "@astrojs/vue": "6.0.0" }, "vue")).toThrow(
+      /@astrojs\/vue/,
+    );
   });
 });

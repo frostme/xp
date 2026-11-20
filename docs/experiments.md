@@ -362,3 +362,23 @@ const result = await Astro.locals.xp.resolve("checkout-banner");
 ```
 
 Every lookup for one experiment shares its request promise, including `await Astro.locals.xp.preload(["checkout-banner"])`. Each experiment evaluates only the selected slot. An unlisted treatment renders empty. A guest null and a failure render the default. Use `result.status` to distinguish them. Plain pages work with JavaScript disabled. Prerendered pages and an unconfigured host render the deliberate public default without visitor lookups at build time. To supply `locals` from your own middleware, extend `App.Locals` with `XpLocals` from `@frostme/xp/astro` and set `locals.xp = createXpRequest(load, { signal: request.signal })` per request.
+
+### Astro islands
+
+Use an installed official Astro integration and a directly imported framework component to hydrate a decision. The CLI generates a native `XpIsland` for the selected renderer and a small `CheckoutIsland.astro` example. This page renders a React island with its own request-scoped snapshot.
+
+```astro
+---
+import XpIsland from "../xp/XpIsland.tsx";
+const experiments = ["checkout-banner"];
+const preload = Astro.isPrerendered || !Astro.locals.xpHost
+  ? { initialAssignments: {}, initialErrors: [] }
+  : await Astro.locals.xp.preload(experiments);
+const sessionKey = Astro.locals.xpHost?.sessionKey ?? 0;
+---
+<XpIsland client:load {experiments} {preload} {sessionKey} />
+```
+
+Pass each island its own experiment allowlist. Request memoization shares server work where the lists overlap. Native Astro serialization carries explicit null results and sanitized failures to each island. A preloaded decision stays visible without a browser lookup until refresh. An omitted decision renders pending, then loads after hydration. A static page can pass the empty preload shown above to defer all visitor decisions to the browser.
+
+Each island owns a separate provider. Refresh updates only that island. After login, logout or account switching, navigate or reload the personalized route so every island receives the new snapshot and opaque public revision. Hosts handling auth without navigation must broadcast the new revision to all mounted framework roots and pass it to each provider’s reactive `sessionKey` prop. Keep credentials in the host’s HTTP-only session.

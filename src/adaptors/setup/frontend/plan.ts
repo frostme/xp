@@ -13,6 +13,7 @@ import type {
 import { detectProject, installedVersions, storedOptions } from "../discovery";
 import { checkOutputPath, fingerprint, projectRoot, readText, relativePath } from "../filesystem";
 import { ORM_PACKAGES } from "../registry";
+import { resolveIslands } from "./astro-islands";
 import { profiles } from "./registry";
 
 const manifestPath = ".xp/frontend.json";
@@ -160,7 +161,14 @@ export async function detectScoped(
     ],
     inspect,
   );
+  if (explicit.island && frontend !== "astro")
+    throw new Error("--island requires --frontend astro.");
+  const islands =
+    frontend === "astro"
+      ? resolveIslands(versions, explicit.island ?? saved?.options.island)
+      : undefined;
   const options: ScopedSetupOptions = {
+    ...(islands?.selected ? { island: islands.selected } : {}),
     ...storage?.options,
     ...explicit,
     cwd,
@@ -176,10 +184,12 @@ export async function detectScoped(
   const missing: ScopedDetection["missing"] = selected
     ? [...(storage?.missing ?? []), ...(frontend ? [] : ["frontend" as const])]
     : ["scope"];
+  if (islands && !islands.selected) missing.push("island");
   return {
     cwd,
     options,
     missing,
+    ...(islands ? { islandCandidates: islands.choices } : {}),
     versions: { ...storage?.versions, ...versions },
     inputs: { ...storage?.inputs, ...inputs },
     frontendCandidates: candidates,

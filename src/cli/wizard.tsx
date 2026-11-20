@@ -42,6 +42,7 @@ type Phase =
 const labels = {
   scope: "Setup scope",
   frontend: "Frontend profile",
+  island: "Astro island renderer",
   transport: "Decision transport",
   endpoint: "Public endpoint",
   orm: "ORM / query tool",
@@ -69,10 +70,21 @@ const storageGroups: { title: string; fields: Field[] }[] = [
     fields: ["userStorage", "userIdType", "userIdCharset", "userIdCollation", "tableName"],
   },
 ];
-function settingsGroups(scope?: ScopedSetupOptions["scope"]) {
+function settingsGroups(
+  scope?: ScopedSetupOptions["scope"],
+  frontend?: ScopedSetupOptions["frontend"],
+) {
   const groups = scope === "frontend" ? [] : [...storageGroups];
   if (scope === "frontend" || scope === "both")
-    groups.push({ title: "Frontend", fields: ["frontend", "transport", "endpoint"] });
+    groups.push({
+      title: "Frontend",
+      fields: [
+        "frontend",
+        "transport",
+        "endpoint",
+        ...(frontend === "astro" ? ["island" as const] : []),
+      ],
+    });
   if (scope) groups.push({ title: "Scope", fields: ["scope"] });
   return groups;
 }
@@ -134,7 +146,10 @@ function SetupWizard({
 }: WizardProps) {
   const [choices, setChoices] = useState(initialOptions);
   const [project, setProject] = useState<ScopedDetection>();
-  const groups = settingsGroups(project?.options.scope ?? choices.scope);
+  const groups = settingsGroups(
+    project?.options.scope ?? choices.scope,
+    project?.options.frontend ?? choices.frontend,
+  );
   const [plan, setPlan] = useState<ScopedSetupPlan>();
   const [phase, setPhase] = useState<Phase>("loading");
   const [group, setGroup] = useState(0);
@@ -182,7 +197,11 @@ function SetupWizard({
         if (!(required in labels)) throw new Error(`Missing setup choice: ${required}`);
         setField(required as Field);
         setGroup(
-          returnGroup ?? groupFor(required as Field, settingsGroups(detection.options.scope)),
+          returnGroup ??
+            groupFor(
+              required as Field,
+              settingsGroups(detection.options.scope, detection.options.frontend),
+            ),
         );
         setPhase(returnGroup === undefined ? "field" : "settings");
         return;
@@ -196,7 +215,7 @@ function SetupWizard({
         setGroup(returnGroup);
         setPhase("settings");
       } else {
-        setGroup(settingsGroups(detection.options.scope).length);
+        setGroup(settingsGroups(detection.options.scope, detection.options.frontend).length);
         setPhase("review");
       }
     } catch (reason) {
@@ -263,6 +282,7 @@ function SetupWizard({
     };
     if (!value && field !== "models") delete next[field];
     if (field === "orm") delete next.ormVersion;
+    if (field === "frontend" && value !== "astro") delete next.island;
     if (field === "scope") {
       if (value === "storage")
         for (const key of ["frontend", "transport", "endpoint", "island"] as const)
@@ -272,7 +292,16 @@ function SetupWizard({
           for (const key of group.fields) if (key !== "language") delete next[key];
     }
     setChoices(next);
-    void resolve(next, groupFor(field, settingsGroups(next.scope ?? project?.options.scope)));
+    void resolve(
+      next,
+      groupFor(
+        field,
+        settingsGroups(
+          next.scope ?? project?.options.scope,
+          next.frontend ?? project?.options.frontend,
+        ),
+      ),
+    );
   }
   function navigate(next: number) {
     if (next === groups.length) {
@@ -335,7 +364,7 @@ function SetupWizard({
             initial={fieldValue(resolved, field)}
             width={Math.min(65, width - 4)}
             cwd={project?.cwd ?? initialOptions.cwd ?? "."}
-            choices={selections(field)}
+            choices={field === "island" ? project?.islandCandidates : selections(field)}
             path={["migrationsDir", "modelsDir", "config", "schema"].includes(field)}
             dirsOnly={field === "migrationsDir" || field === "modelsDir"}
             onSubmit={submit}
