@@ -65,7 +65,12 @@ function checkIsolatedPeers(directory, peers) {
     "graphql-yoga",
     "@apollo/server",
     "react-dom",
+    "vue",
     "@angular/core",
+    "svelte",
+    "solid-js",
+    "@solidjs/web",
+    "astro",
   ]) {
     if (!peers.includes(name)) {
       assert.throws(

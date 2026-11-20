@@ -1,6 +1,6 @@
-# Serving experiments to React
+# Serving experiments to frontends
 
-Install `@frostme/xp`, React 19, your database driver, and the host framework you use. These examples use Express 5, GraphQL Yoga 6, or Apollo Server 5 with GraphQL 16. The application authenticates each request and owns its database connection.
+Install `@frostme/xp` and the frontend runtime for your application. On the server, install your database driver and host framework. These examples use Express 5, GraphQL Yoga 6, or Apollo Server 5 with GraphQL 16. The application authenticates each request and owns its database connection.
 
 ## Initialize before accepting requests
 
