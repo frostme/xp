@@ -37,6 +37,10 @@ the setup guide for your provider before the first operation:
 | MongoDB    | `mongodb.MongoClient`                                 | `server(client, { databaseName })` | [Collections and indexes](docs/databases/mongodb.md) |
 | DynamoDB   | `DynamoDBDocumentClient` from `@aws-sdk/lib-dynamodb` | `server(client, { tableName })`    | [Table and keys](docs/databases/dynamodb.md)         |
 
+For Sequelize 6, call `server(sequelize)` with the application's connected instance.
+Use PostgreSQL with `pg`, MySQL with `mysql2`, or SQL Server with `tedious`.
+The application owns migrations, authentication, the connection pool, and shutdown.
+
 MongoDB requires a replica set. DynamoDB allows at most 32 initial cohorts per
 experiment; its staged deletions must be retried by ID after failures to finish
 cleanup. See the provider guides for size limits and operating requirements.

@@ -1,6 +1,8 @@
 import type IBucketer from "./bucketer";
 import type IDataAccessAdaptor from "./dataAccessAdaptor";
 import type { IValidatorAdaptor } from "./validator";
+export type SequelizeDialect = "postgres" | "mysql" | "mssql";
+
 export default interface IConfig {
   dao: IDataAccessAdaptor;
   validation: IValidatorAdaptor;
