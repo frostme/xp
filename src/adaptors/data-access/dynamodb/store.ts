@@ -14,6 +14,7 @@ import type {
   User,
   UserCohort,
 } from "~/entities";
+import type { DirectoryEntry, DirectoryPage, DirectoryQuery } from "~/interfaces/management";
 
 import {
   initialDelivery,
@@ -78,6 +79,40 @@ function transactionConflict(error: unknown): boolean {
     name === "TransactionInProgressException" ||
     cancellationReasons(error)?.some((reason) => reason.Code === "TransactionConflict") === true
   );
+}
+
+function encodeDirectoryCursor(key: Record<string, unknown>): string {
+  return Buffer.from(JSON.stringify({ pk: key["pk"], sk: key["sk"] })).toString("base64url");
+}
+
+function directoryCursor(cursor: string) {
+  const invalid = () =>
+    new ValidationError("Invalid experiment directory cursor.", [
+      { field: "cursor", message: "Restart pagination." },
+    ]);
+  if (cursor.length > 32_768) throw invalid();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+  } catch {
+    throw invalid();
+  }
+  if (
+    !parsed ||
+    typeof parsed !== "object" ||
+    !("pk" in parsed) ||
+    typeof parsed.pk !== "string" ||
+    !parsed.pk ||
+    Buffer.byteLength(parsed.pk) > 2048 ||
+    !("sk" in parsed) ||
+    typeof parsed.sk !== "string" ||
+    !parsed.sk ||
+    Buffer.byteLength(parsed.sk) > 1024
+  )
+    throw invalid();
+  const key = { pk: parsed.pk, sk: parsed.sk };
+  if (encodeDirectoryCursor(key) !== cursor) throw invalid();
+  return key;
 }
 
 function revisionCondition(expectedRevision: number) {
@@ -275,6 +310,82 @@ export default class DynamoDBStore {
       if (error instanceof NotFoundError) return null;
       throw error;
     }
+  }
+
+  async listPage({ query, limit, cursor }: DirectoryQuery): Promise<DirectoryPage> {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100)
+      throw new ValidationError("Directory page size must be an integer between 1 and 100.");
+    const result = await this.client.send(
+      new this.sdk.ScanCommand({
+        TableName: this.tableName,
+        ConsistentRead: true,
+        Limit: Math.max(64, 4 * limit),
+        ...(cursor === undefined ? {} : { ExclusiveStartKey: directoryCursor(cursor) }),
+        FilterExpression: "begins_with(pk, :prefix) AND sk = :meta AND #state = :active",
+        ProjectionExpression:
+          "pk, sk, slug, #name, #type, #enabled, winner, rollout_phase, rollout_revision",
+        ExpressionAttributeNames: {
+          "#name": "name",
+          "#type": "type",
+          "#enabled": "enabled",
+          "#state": "state",
+        },
+        ExpressionAttributeValues: { ":prefix": "EXP#", ":meta": "META", ":active": "active" },
+      }),
+    );
+    const search = query.toLowerCase();
+    const matches = ((result.Items ?? []) as StoredExperiment[]).filter(
+      (row) => row.slug.toLowerCase().includes(search) || row.name.toLowerCase().includes(search),
+    );
+    // Resume after the last returned parent on an overfull page, or DynamoDB's raw key on a sparse page.
+    const boundary = matches.length > limit ? matches[limit - 1] : undefined;
+    const nextKey = boundary ? { pk: boundary.pk, sk: boundary.sk } : result.LastEvaluatedKey;
+    const items = matches.slice(0, limit).map((row): DirectoryEntry => {
+      const { rolloutPhase } = rolloutMetadata(row.rollout_phase, row.rollout_revision);
+      return {
+        slug: row.slug,
+        name: row.name,
+        type: row.type,
+        enabled: row.enabled ?? true,
+        winner: row.winner ?? null,
+        ...(rolloutPhase ? { rolloutPhase } : {}),
+      };
+    });
+    const nextCursor =
+      nextKey && Object.keys(nextKey).length ? encodeDirectoryCursor(nextKey) : null;
+    return { items, nextCursor };
+  }
+
+  async countMemberships(experiment: Experiment): Promise<Record<string, number>> {
+    const counts: Record<string, number> = {};
+    for (let i = 0; i < experiment.cohorts.length; i += 4) {
+      await Promise.all(
+        experiment.cohorts.slice(i, i + 4).map(async (cohort) => {
+          let count = 0;
+          let cursor: Record<string, unknown> | undefined;
+          do {
+            const page = await this.client.send(
+              new this.sdk.QueryCommand({
+                TableName: this.tableName,
+                ConsistentRead: true,
+                Select: "COUNT",
+                KeyConditionExpression: "pk = :pk AND begins_with(sk, :prefix)",
+                ExpressionAttributeValues: { ":pk": cohortLocator(cohort.id).pk, ":prefix": "M#" },
+                ...(cursor ? { ExclusiveStartKey: cursor } : {}),
+              }),
+            );
+            if (page.Count === undefined) throw new Error("DynamoDB returned no membership count");
+            count += page.Count;
+            cursor =
+              page.LastEvaluatedKey && Object.keys(page.LastEvaluatedKey).length
+                ? page.LastEvaluatedKey
+                : undefined;
+          } while (cursor);
+          counts[cohort.slug] = count;
+        }),
+      );
+    }
+    return counts;
   }
 
   async listExperiments(): Promise<Experiment[]> {

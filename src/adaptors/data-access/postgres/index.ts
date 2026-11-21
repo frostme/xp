@@ -66,6 +66,7 @@ export default class PostgresAdaptor implements IDataAccessAdaptor {
       return serializeClient(client, () => execute(client));
     };
     const adaptor = relationalAdaptor({
+      dialect: "postgres",
       read: (work) => run(work, false),
       transaction: (work) => run(work, true),
     });

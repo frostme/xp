@@ -706,3 +706,5 @@ const sessionKey = Astro.locals.xpHost?.sessionKey ?? 0;
 Pass each island its own experiment allowlist. Request memoization shares server work where the lists overlap. Native Astro serialization carries explicit null results and sanitized failures to each island. A preloaded decision stays visible without a browser lookup until refresh. An omitted decision renders pending, then loads after hydration. A static page can pass the empty preload shown above to defer all visitor decisions to the browser.
 
 Each island owns a separate provider. Refresh updates only that island. After login, logout or account switching, navigate or reload the personalized route so every island receives the new snapshot and opaque public revision. Hosts handling auth without navigation must broadcast the new revision to all mounted framework roots and pass it to each provider’s reactive `sessionKey` prop. Keep credentials in the host’s HTTP-only session.
+
+For operator permissions, membership counts and lifecycle commands, see [Mount experiment management](management.md).

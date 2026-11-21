@@ -86,6 +86,7 @@ export default class MysqlAdaptor implements IDataAccessAdaptor {
       return serializeClient(client, () => execute(client));
     };
     const adaptor = relationalAdaptor({
+      dialect: "mysql",
       read: (work) => run(work, false),
       transaction: (work) => run(work, true),
     });

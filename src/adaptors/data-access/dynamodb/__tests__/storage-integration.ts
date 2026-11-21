@@ -1,4 +1,9 @@
-import { TransactWriteCommand, type DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
+import {
+  QueryCommand,
+  ScanCommand,
+  TransactWriteCommand,
+  type DynamoDBDocumentClient,
+} from "@aws-sdk/lib-dynamodb";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { CohortSlug, PKey } from "~/entities";
@@ -23,6 +28,63 @@ describe.skipIf(selectedDatabase() !== "dynamodb")("DynamoDB limits and resumabl
   });
   afterEach(async () => {
     await fixture?.cleanup();
+  });
+
+  it("finds an experiment by literal name through sparse physical scan pages", async () => {
+    const input = { ...experimentInput("checkout"), name: "Check [A+B]" };
+    await fixture.adaptor.experimentDAO.create(input);
+    await fixture.adaptor.experimentDAO.create(experimentInput("other"));
+    const client = {
+      send(command: ScanCommand) {
+        expect(command).toBeInstanceOf(ScanCommand);
+        return fixture.client.send(new ScanCommand({ ...command.input, Limit: 1 }));
+      },
+    } as DynamoDBDocumentClient;
+    const dao = new DynamoDBAdaptor(client, fixture.tableName).experimentDAO;
+    const matches = [];
+    let cursor: string | undefined;
+    let emptyPages = 0;
+    do {
+      const page = await dao.listPage({ query: "[a+b]", limit: 1, ...(cursor ? { cursor } : {}) });
+      matches.push(...page.items);
+      if (page.items.length === 0) emptyPages++;
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor);
+    expect(emptyPages).toBeGreaterThan(0);
+    expect(matches).toEqual([
+      { name: input.name, slug: input.slug, type: input.type, enabled: true, winner: null },
+    ]);
+  });
+
+  it("counts every reverse membership page, retains zero cohorts, and propagates unavailable reads", async () => {
+    const experiment = await fixture.adaptor.experimentDAO.create(experimentInput());
+    const [first, second] = experiment.cohorts;
+    const userIds = ["alice", "bob", "carol"] as PKey<"User">[];
+    for (const id of userIds) {
+      await fixture.seedUser(id);
+      await fixture.adaptor.userDAO.addUserCohort(id, experiment.id, first!.id);
+    }
+    let countQueries = 0;
+    let unavailable = false;
+    const client = {
+      send(command: QueryCommand) {
+        expect(command).toBeInstanceOf(QueryCommand);
+        expect(command.input).toMatchObject({ Select: "COUNT", ConsistentRead: true });
+        if (unavailable) throw new Error("count read failed");
+        countQueries++;
+        return fixture.client.send(new QueryCommand({ ...command.input, Limit: 1 }));
+      },
+    } as DynamoDBDocumentClient;
+    const dao = new DynamoDBAdaptor(client, fixture.tableName).experimentDAO;
+    await expect(dao.countMemberships(experiment)).resolves.toEqual({
+      [first!.slug]: 3,
+      [second!.slug]: 0,
+    });
+    expect(countQueries).toBeGreaterThan(3);
+    await fixture.adaptor.userDAO.removeUserCohort(userIds[0]!, experiment.id);
+    expect((await dao.countMemberships(experiment))[first!.slug]).toBe(2);
+    unavailable = true;
+    await expect(dao.countMemberships(experiment)).rejects.toThrow("count read failed");
   });
 
   it("rolls back all 32 weights and the parent when a child write loses its condition", async () => {

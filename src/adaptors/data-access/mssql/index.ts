@@ -52,6 +52,7 @@ export default class MssqlAdaptor implements IDataAccessAdaptor {
   constructor(pool: ConnectionPool) {
     const sql = loadDriver<Driver>("mssql");
     const adaptor = relationalAdaptor({
+      dialect: "mssql",
       read: (work) => work(session(pool, sql)),
       transaction: async (work) => {
         const transaction = new sql.Transaction(pool);

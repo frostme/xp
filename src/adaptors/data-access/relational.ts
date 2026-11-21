@@ -1,6 +1,7 @@
 import type { Cohort, Experiment, User, UserCohort, PKey } from "~/entities";
 import type { RolloutChange } from "~/entities/rollout";
 import type { IDataAccessAdaptor } from "~/interfaces";
+import type { DirectoryEntry, DirectoryPage, DirectoryQuery } from "~/interfaces/management";
 
 import { initialDelivery, rolloutMetadata } from "~/entities/rollout";
 import {
@@ -8,6 +9,7 @@ import {
   ExperimentPausedError,
   ExperimentSlugConflictError,
   NotFoundError,
+  ValidationError,
 } from "~/errors";
 import { RolloutConflictError } from "~/errors/rolloutConflictError";
 
@@ -21,6 +23,7 @@ export interface SqlSession {
   parameter(index: number): string;
 }
 export interface SqlDatabase {
+  dialect: "postgres" | "mysql" | "mssql";
   read<T>(work: (session: SqlSession) => Promise<T>): Promise<T>;
   transaction<T>(work: (session: SqlSession) => Promise<T>): Promise<T>;
 }
@@ -163,10 +166,93 @@ async function commitRollout(s: SqlSession, change: RolloutChange): Promise<void
   });
 }
 
+function directoryEntry(row: Row): DirectoryEntry {
+  const { rolloutPhase } = rolloutMetadata(row["rollout_phase"], row["rollout_revision"]);
+  return {
+    slug: row["slug"],
+    name: row["name"],
+    type: row["type"],
+    winner: row["winner"] ?? null,
+    enabled: isEnabled(row),
+    ...(rolloutPhase ? { rolloutPhase } : {}),
+  } as DirectoryEntry;
+}
+
+async function listPage(
+  s: SqlSession,
+  dialect: SqlDatabase["dialect"],
+  options: DirectoryQuery,
+): Promise<DirectoryPage> {
+  const { cursor, limit, query } = options;
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100)
+    throw new ValidationError("Directory page size must be an integer between 1 and 100.");
+  const values: unknown[] = [];
+  const conditions: string[] = [];
+  const bind = (value: string) => {
+    values.push(value);
+    return s.parameter(values.length);
+  };
+  if (cursor) conditions.push(`slug > ${bind(cursor)}`);
+  if (query) {
+    // Substring functions give %, _, [ and the SQL escape character their literal meanings.
+    const matches = ["name", "slug"].map((column) => {
+      const needle = `LOWER(${bind(query)})`;
+      const haystack = `LOWER(${column})`;
+      if (dialect === "postgres") return `STRPOS(${haystack}, ${needle}) > 0`;
+      const functionName = dialect === "mysql" ? "LOCATE" : "CHARINDEX";
+      return `${functionName}(${needle}, ${haystack}) > 0`;
+    });
+    conditions.push(`(${matches.join(" OR ")})`);
+  }
+  const where = conditions.length ? ` WHERE ${conditions.join(" AND ")}` : "";
+  const slice =
+    dialect === "mssql" ? `OFFSET 0 ROWS FETCH NEXT ${limit + 1} ROWS ONLY` : `LIMIT ${limit + 1}`;
+  const rows = await s.query(
+    `SELECT name, slug, type, winner, enabled, rollout_phase, rollout_revision FROM experiments${where} ORDER BY slug ${slice}`,
+    values,
+  );
+  const items = rows.slice(0, limit).map(directoryEntry);
+  return { items, nextCursor: rows.length > limit ? items[limit - 1]!.slug : null };
+}
+
+async function countMemberships(
+  s: SqlSession,
+  dialect: SqlDatabase["dialect"],
+  experiment: Experiment,
+): Promise<Record<string, number>> {
+  const aggregate = dialect === "mssql" ? "COUNT_BIG" : "COUNT";
+  const rows = await s.query(
+    `SELECT c.id, c.slug, ${aggregate}(m.cohort_id) AS members FROM cohorts c
+     LEFT JOIN user_cohorts m ON m.experiment_id = c.experiment_id AND m.cohort_id = c.id
+     WHERE c.experiment_id = ${s.parameter(1)} GROUP BY c.id, c.slug`,
+    [experiment.id],
+  );
+  const expected = new Map(experiment.cohorts.map(({ id, slug }) => [id, slug]));
+  if (rows.length !== expected.size) throw new RolloutConflictError();
+  return Object.fromEntries(
+    rows.map((row) => {
+      if (expected.get(row["id"] as Cohort["id"]) !== row["slug"]) throw new RolloutConflictError();
+      const value = row["members"];
+      const count =
+        typeof value === "number" ||
+        typeof value === "bigint" ||
+        (typeof value === "string" && /^\d+$/.test(value))
+          ? Number(value)
+          : NaN;
+      if (!Number.isSafeInteger(count) || count < 0)
+        throw new Error("Invalid stored membership count.");
+      return [String(row["slug"]), count];
+    }),
+  );
+}
+
 // All mutations lock the experiment first, including membership and winner changes.
 export function relationalAdaptor(database: SqlDatabase): IDataAccessAdaptor {
   return {
     experimentDAO: {
+      listPage: (options) => database.read((s) => listPage(s, database.dialect, options)),
+      countMemberships: (experiment) =>
+        database.read((s) => countMemberships(s, database.dialect, experiment)),
       getById: (id) =>
         database.read(async (s) => {
           const [row] = await s.query(`SELECT * FROM experiments WHERE id = ${s.parameter(1)}`, [
