@@ -1,8 +1,8 @@
 # Assignment capture with managed rollouts
 
-The disposable checkout combines the management API at `2e0f08370e3065a7ff544908adc53d6697352234` and the analytics journey at `7af23610dea44ae689afd6691ea9e14cb1ecd9bd`. Both include the serving and storage implementations from their earlier PRs.
+The disposable checkout combines the management source at `6cdad50be85dc6da9e957c77e82324cc2a86887b` and the analytics journey at `7af23610dea44ae689afd6691ea9e14cb1ecd9bd`. Both include the serving and storage implementations from their earlier PRs.
 
-The test provisions each database through xp’s fixtures and drives public runtime calls with synthetic identities. Before installing the analytics schema, a deterministic draw at 99.99% off puts a user in the remaining 0.01% treatment. The management detail reports one stored membership. The fixture then installs the analytics extension and opens a second runtime with a custom test destination.
+The test provisions each database through xp’s fixtures and drives public runtime calls with synthetic identities. Before installing the analytics schema, a draw of 0.0003 lands exactly on the upper edge of the 0.03% off allocation and assigns the user to the treatment. The management detail reports one stored membership. The fixture then installs the analytics extension and opens a second runtime with a custom test destination.
 
 | Operation on the second experiment                               | Public decision        | Stored result                                      |
 | ---------------------------------------------------------------- | ---------------------- | -------------------------------------------------- |
@@ -16,7 +16,7 @@ The sink claims three distinct event IDs. Current memberships stay at one off, t
 
 ## Reproduce
 
-Run the script from an xp checkout that has fetched both commits. It prepares a temporary worktree, reapplies the checked-in conflict resolutions and test, verifies the resulting Git tree, installs dependencies, checks TypeScript and runs the selected provider fixtures. The script cleans up its temporary worktree. Git 2.53.0, Bun 1.4.4 and Node 26.12.0 were used for the recorded run.
+Run the script from an xp checkout that has fetched both commits. It prepares a temporary worktree, reapplies the checked-in conflict resolutions and test, verifies the resulting Git tree, installs dependencies, checks TypeScript, runs the startup, weighted assignment and analytics capture unit tests, and runs the selected provider fixtures. The script cleans up its temporary worktree. Git 2.53.0, Bun 1.4.4 and Node 26.12.0 were used for the recorded run.
 
 ```sh
 docker compose -f docker-compose.test.yml up -d --wait postgres mysql mongodb dynamodb
@@ -25,4 +25,4 @@ bash review/experiment-management/analytics-compatibility/reproduce.sh postgres 
 
 The PostgreSQL and MySQL jobs each exercise native and Sequelize 6 adaptors. MongoDB uses a replica set. DynamoDB uses DynamoDB Local with the optional analytics index. The same script accepts `mssql` on a host running SQL Server. The recorded combined run covered the six integrations above on ARM64.
 
-[Management PR](https://github.com/frostme/xp/pull/49) · [Analytics PR](https://github.com/frostme/xp/pull/47)
+[Management PR](https://github.com/frostme/xp/pull/51) · [Analytics PR](https://github.com/frostme/xp/pull/47)

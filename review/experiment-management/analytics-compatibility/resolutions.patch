@@ -13,6 +13,32 @@ index f2b6256..c4f109f 100644
  ## Express
  
  In the following examples, `authenticateSession(cookie)` represents your application's existing session verification. It returns an account with a string or numeric `id`, or null for a guest.
+diff --git a/docs/roadmap.md b/docs/roadmap.md
+index 270ec91..1ebb3a8 100644
+--- a/docs/roadmap.md
++++ b/docs/roadmap.md
+@@ -12,6 +12,8 @@ Hosts can mount `ResolveCohort` with standalone Fastify or NestJS on Express and
+
+ ## Operations and storage
+
++The analytics storage extension captures cohort joins transactionally and supports a host-run delivery worker for Amplitude, Segment, Mixpanel, Fullstory, Heap, PostHog and custom destinations. [Analytics guide](analytics.md)
++
+ A host can mount the operator page on its own authenticated route. It reads current membership counts and supports off-first creation, weighted launch and adjustment, pause, resume and final winner selection. Existing experiments keep their uniform assignment behavior. [Management guide](management.md)
+
+-Analytics connectors are tracked independently. Further ORM runtime adapters, generator/version profiles, migration execution, cross-database migration and external identity storage remain open.
++Further ORM runtime adapters, generator/version profiles, migration execution, cross-database migration and external identity storage remain open.
+diff --git a/knip.ts b/knip.ts
+index d92596f..06c10be 100644
+--- a/knip.ts
++++ b/knip.ts
+@@ -14,6 +14,7 @@ const config: KnipConfig = {
+     "scripts/fixtures/protocol-browser/*.{ts,tsx,mjs}",
+     "scripts/fixtures/soap/*.{ts,js,mjs}",
+     "scripts/fixtures/xp-journey/*.test.mjs",
++    "scripts/fixtures/analytics-journey/{*.test.mjs,worker.mjs}",
+     "scripts/fixtures/management-journey/*.test.mjs",
+     "scripts/fixtures/xp-journey/protocol-page.mjs",
+     "scripts/fixtures/host-package-smoke/*.{ts,tsx,mjs}",
 diff --git a/scripts/setup-generator-smoke.mjs b/scripts/setup-generator-smoke.mjs
 index e10f1a3..0cdea22 100644
 --- a/scripts/setup-generator-smoke.mjs
@@ -44,7 +70,7 @@ index e10f1a3..0cdea22 100644
            if (file.path.includes("models") && orm === "typeorm") {
 diff --git a/src/__tests__/storage/combined.ts b/src/__tests__/storage/combined.ts
 new file mode 100644
-index 0000000..2985ff3
+index 0000000..22de6d6
 --- /dev/null
 +++ b/src/__tests__/storage/combined.ts
 @@ -0,0 +1,183 @@
@@ -77,13 +103,13 @@ index 0000000..2985ff3
 +      for (const user of ["disabled", "pinned", "manual", "auto", "race", "finalize-race"]) {
 +        await f.seedUser(user as PKey<"User">);
 +      }
-+      const runtime = await initializeXp({ ...f.startupOptions, cwd, random: () => 0.9999 });
++      const runtime = await initializeXp({ ...f.startupOptions, cwd, random: () => 0.0003 });
 +      const x = await runtime.management.create({ slug: "combined", cohorts: ["short", "long"] });
 +      const { id, slug } = x;
 +      const [off, short, long] = ["combined_off", "combined_short", "combined_long"] as const;
 +      const disabledAllocation = [
-+        { cohort: off, percentage: 99.99 },
-+        { cohort: short, percentage: 0.01 },
++        { cohort: off, percentage: 0.03 },
++        { cohort: short, percentage: 99.97 },
 +        { cohort: long, percentage: 0 },
 +      ];
 +      const counts = async () => {
@@ -255,7 +281,7 @@ index 0000000..74a1b34
 +
 +combined("dynamodb", dynamodbFixture);
 diff --git a/src/adaptors/data-access/dynamodb/__tests__/storage-integration.ts b/src/adaptors/data-access/dynamodb/__tests__/storage-integration.ts
-index 3c23cf7..9f0cdbc 100644
+index 05f8a96..a572cd3 100644
 --- a/src/adaptors/data-access/dynamodb/__tests__/storage-integration.ts
 +++ b/src/adaptors/data-access/dynamodb/__tests__/storage-integration.ts
 @@ -4,6 +4,7 @@ import {
@@ -834,7 +860,7 @@ index 45633c4..7b141d4 100644
    random?: () => number;
    databaseName?: string;
 diff --git a/src/server/index.ts b/src/server/index.ts
-index e11aa3a..3d86666 100644
+index f2178a2..f746c9b 100644
 --- a/src/server/index.ts
 +++ b/src/server/index.ts
 @@ -14,6 +14,8 @@ import {
@@ -846,7 +872,7 @@ index e11aa3a..3d86666 100644
  import { createExperimentManagement } from "~/use-cases/experiment/management";
  import { seedExperiments } from "~/use-cases/experiment/seed";
  
-@@ -33,14 +35,26 @@ export interface InitializeOptions extends ServerOptions {
+@@ -37,14 +39,26 @@ function storageDatabase(config: ReturnType<typeof detectClient>) {
  
  function createServer(
    serverConfig: ReturnType<typeof detectClient>,
@@ -873,15 +899,15 @@ index e11aa3a..3d86666 100644
      random,
    );
  
-@@ -103,6 +117,7 @@ function createServer(
+@@ -107,6 +121,7 @@ function createServer(
      new SetExperimentAvailability(serverConfig.dao.experimentDAO),
    );
    return Object.assign(framework, {
 +    checkAnalyticsStorage,
      management: createExperimentManagement(serverConfig.dao.experimentDAO, allowCreate, (input) =>
-       parseManagedDefinition(input, serverConfig.driverKind === "dynamodb" ? 32 : undefined),
+       parseManagedDefinition(input, storageDatabase(serverConfig)),
      ),
-@@ -114,7 +129,7 @@ function createServer(
+@@ -118,7 +133,7 @@ function createServer(
  
  export { ExperimentPausedError, NotFoundError } from "~/errors";
  export default function server(client: unknown, options: ServerOptions = {}) {
@@ -890,9 +916,9 @@ index e11aa3a..3d86666 100644
  }
  
  export async function initializeXp({ connection, cwd, configPath, ...options }: InitializeOptions) {
-@@ -124,6 +139,8 @@ export async function initializeXp({ connection, cwd, configPath, ...options }:
+@@ -128,6 +143,8 @@ export async function initializeXp({ connection, cwd, configPath, ...options }:
      configPath,
-     config.driverKind === "dynamodb" ? 32 : undefined,
+     storageDatabase(config),
    );
 +  const runtime = createServer(config, options.analytics, allowCreate, options.random);
 +  await runtime.checkAnalyticsStorage();
