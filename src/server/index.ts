@@ -15,6 +15,8 @@ import {
   RemoveCohort,
   SetExperimentAvailability,
 } from "~/use-cases";
+import { JoinCapture, type AnalyticsCaptureOptions } from "~/use-cases/analytics/capture";
+import { storageReadiness } from "~/use-cases/analytics/readiness";
 import { seedExperiments } from "~/use-cases/experiment/seed";
 
 import { detectClient, type ServerOptions } from "./detectClient";
@@ -22,6 +24,8 @@ import { readSeedConfig } from "./readSeedConfig";
 
 export type { CohortDecision, CohortRuntime, SeedReport, UserIdentity } from "~/interfaces/runtime";
 export { ExperimentNotFoundError } from "~/errors/experimentNotFoundError";
+
+export type { AnalyticsCaptureOptions };
 
 export interface InitializeOptions extends ServerOptions {
   connection: unknown;
@@ -31,18 +35,31 @@ export interface InitializeOptions extends ServerOptions {
 
 function createServer(
   serverConfig: ReturnType<typeof detectClient>,
-): ServerFramework & CohortRuntime {
+  analytics?: AnalyticsCaptureOptions,
+): ServerFramework & CohortRuntime & { checkAnalyticsStorage(): Promise<void> } {
+  const capture = analytics === undefined ? undefined : new JoinCapture(analytics);
+  const checkAnalyticsStorage = capture
+    ? storageReadiness(serverConfig.dao.analytics, capture.destinations)
+    : () => Promise.resolve();
+  const verifiedCapture = capture && {
+    async prepare(...args: Parameters<JoinCapture["prepare"]>) {
+      await checkAnalyticsStorage();
+      return capture.prepare(...args);
+    },
+  };
   const groupUseCase = new GetGroup(
     serverConfig.dao.userDAO,
     serverConfig.dao.experimentDAO,
     serverConfig.dao.cohortDAO,
     serverConfig.bucketer,
+    verifiedCapture,
   );
 
   const joinCohortUseCase = new JoinCohort(
     serverConfig.dao.userDAO,
     serverConfig.dao.experimentDAO,
     serverConfig.dao.cohortDAO,
+    verifiedCapture,
   );
 
   const leaveExperimentUseCase = new LeaveExperiment(
@@ -97,6 +114,7 @@ function createServer(
     new SetExperimentAvailability(serverConfig.dao.experimentDAO),
   );
   return Object.assign(framework, {
+    checkAnalyticsStorage,
     driverKind: serverConfig.driverKind,
     ...(serverConfig.driverKind === "sequelize" ? { dialect: serverConfig.dialect } : {}),
     resolveCohort: groupUseCase.resolveCohort.bind(groupUseCase),
@@ -105,7 +123,7 @@ function createServer(
 
 export { ExperimentPausedError, NotFoundError } from "~/errors";
 export default function server(client: unknown, options: ServerOptions = {}) {
-  return createServer(detectClient(client, options));
+  return createServer(detectClient(client, options), options.analytics);
 }
 
 export async function initializeXp({ connection, cwd, configPath, ...options }: InitializeOptions) {
@@ -115,6 +133,8 @@ export async function initializeXp({ connection, cwd, configPath, ...options }: 
     configPath,
     config.driverKind === "dynamodb" ? 32 : undefined,
   );
+  const runtime = createServer(config, options.analytics);
+  await runtime.checkAnalyticsStorage();
   const seedReport = await seedExperiments(declarations, config.dao.experimentDAO);
-  return Object.assign(createServer(config), { seedReport });
+  return Object.assign(runtime, { seedReport });
 }
