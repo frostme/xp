@@ -70,7 +70,11 @@
     "./client/grpc-web": "./dist/client/grpc-web/index.js",
     "./client/soap": "./dist/client/soap/index.js",
     "./server/soap": "./dist/server/soap/index.js",
-    "./wsdl/xp/v1/cohort.wsdl": "./dist/wsdl/xp/v1/cohort.wsdl"
+    "./wsdl/xp/v1/cohort.wsdl": "./dist/wsdl/xp/v1/cohort.wsdl",
+    "./server/management": {
+      "types": "./dist/server/management/index.d.ts",
+      "default": "./dist/server/management/index.js"
+    }
   },
   "scripts": {
     "build": "wireit",

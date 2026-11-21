@@ -2,9 +2,10 @@ import { randomUUID } from "node:crypto";
 
 import type { Experiment, ExperimentSlug, PKey } from "~/entities";
 import type { IExperimentDAO } from "~/interfaces";
+import type { DirectoryPage, DirectoryQuery } from "~/interfaces/management";
 
 import { initialDelivery, type ExperimentDefinition, type RolloutChange } from "~/entities/rollout";
-import { ExperimentSlugConflictError, NotFoundError } from "~/errors";
+import { ExperimentSlugConflictError, NotFoundError, ValidationError } from "~/errors";
 import { RolloutConflictError } from "~/errors/rolloutConflictError";
 
 import MongoStore, {
@@ -38,6 +39,61 @@ export default class MongoExperimentDAO implements IExperimentDAO {
         { session },
       );
     });
+  }
+
+  async listPage({ query, cursor, limit }: DirectoryQuery): Promise<DirectoryPage> {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100)
+      throw new ValidationError("Directory page size must be an integer between 1 and 100.");
+    const search = query ? new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i") : null;
+    const page = await this.store.experiments
+      .find(
+        {
+          ...(cursor === undefined ? {} : { slug: { $gt: cursor as ExperimentSlug } }),
+          ...(search ? { $or: [{ name: search }, { slug: search }] } : {}),
+        },
+        {
+          projection: {
+            _id: 0,
+            slug: 1,
+            name: 1,
+            type: 1,
+            enabled: 1,
+            winner: 1,
+            rollout_phase: 1,
+          },
+          readPreference: "primary",
+          sort: { slug: 1 },
+          limit: limit + 1,
+        },
+      )
+      .toArray();
+    const items = page.slice(0, limit).map((row) => ({
+      slug: row.slug,
+      name: row.name,
+      type: row.type,
+      enabled: row.enabled ?? true,
+      winner: row.winner,
+      ...(row.rollout_phase ? { rolloutPhase: row.rollout_phase } : {}),
+    }));
+    return { items, nextCursor: page.length > limit ? items[items.length - 1]!.slug : null };
+  }
+
+  async countMemberships(experiment: Experiment): Promise<Record<string, number>> {
+    const counts = await this.store.transaction((session) =>
+      this.store.memberships
+        .aggregate<{ _id: PKey<"Cohort">; total: number }>(
+          [
+            { $match: { experiment_id: experiment.id } },
+            { $group: { _id: "$cohort_id", total: { $sum: 1 } } },
+          ],
+          { session },
+        )
+        .toArray(),
+    );
+    const byId = new Map(counts.map((row) => [row._id, row.total]));
+    return Object.fromEntries(
+      experiment.cohorts.map((cohort) => [cohort.slug, byId.get(cohort.id) ?? 0]),
+    );
   }
 
   async list(): Promise<Experiment[]> {

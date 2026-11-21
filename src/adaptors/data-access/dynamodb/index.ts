@@ -19,6 +19,8 @@ export default class DynamoDBAdaptor implements IDataAccessAdaptor {
       commitRollout: (change) => store.commitRollout(change),
       setEnabled: (slug, enabled) => store.setEnabled(slug, enabled),
       list: () => store.listExperiments(),
+      listPage: (query) => store.listPage(query),
+      countMemberships: (experiment) => store.countMemberships(experiment),
       create: (input) => store.createExperiment(input),
       update: (id, updates, winnerCohortId) => store.updateExperiment(id, updates, winnerCohortId),
       remove: (id) => store.removeExperiment(id),

@@ -15,6 +15,7 @@ import {
 } from "~/errors";
 import { GetGroup } from "~/use-cases";
 
+import { registerManagementReadContract } from "./managementReads";
 import { registerRolloutContract } from "./rollout";
 import { registerStartupContract } from "./startup";
 
@@ -208,6 +209,7 @@ export function registerStorageContract(
       await server.removeExperiment(experiment.id);
       expect(await adaptor.experimentDAO.findBySlug(experiment.slug)).toBeNull();
     });
+    registerManagementReadContract(current, experimentInput);
     registerRolloutContract(current);
     registerStartupContract(current, experimentInput);
 

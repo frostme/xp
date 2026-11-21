@@ -114,6 +114,73 @@ describe("DynamoDB request boundaries", () => {
     expect(send.mock.calls[2]![0].constructor.name).toBe("GetCommand");
   });
 
+  it("returns a cursor for sparse raw pages, includes literal name matches and avoids hydrating records", async () => {
+    const raw = { pk: "USER#first", sk: "META" };
+    const matching = { ...root, name: "Test [Alpha]" };
+    const send = vi
+      .fn()
+      .mockResolvedValueOnce({ Items: [], LastEvaluatedKey: raw })
+      .mockResolvedValueOnce({ Items: [matching, { ...root, name: "Other" }] });
+    const dao = new DynamoDBAdaptor(fakeClient(send), "xp").experimentDAO;
+    const query = { query: "[ALPHA]", limit: 3 };
+    const page = await dao.listPage(query);
+    expect(page.items).toEqual([]);
+    expect(page.nextCursor).toEqual(expect.any(String));
+    const next = await dao.listPage({ ...query, cursor: page.nextCursor! });
+    expect(next).toEqual({
+      items: [
+        {
+          name: matching.name,
+          slug: root.slug,
+          type: root.type,
+          enabled: true,
+          winner: null,
+        },
+      ],
+      nextCursor: null,
+    });
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls[1]![0].input).toMatchObject({
+      ExclusiveStartKey: raw,
+      ConsistentRead: true,
+      Limit: 64,
+    });
+    for (const [command] of send.mock.calls) expect(command.constructor.name).toBe("ScanCommand");
+  });
+
+  it("continues at the last returned parent when one raw scan holds more matches than requested", async () => {
+    const second = { ...root, pk: "EXP#other", slug: "other" };
+    const send = vi
+      .fn()
+      .mockResolvedValueOnce({
+        Items: [root, second],
+        LastEvaluatedKey: { pk: "USER#later", sk: "META" },
+      })
+      .mockResolvedValueOnce({ Items: [second], LastEvaluatedKey: {} });
+    const dao = new DynamoDBAdaptor(fakeClient(send), "xp").experimentDAO;
+    const first = await dao.listPage({ query: "", limit: 1 });
+    const last = await dao.listPage({ query: "", limit: 1, cursor: first.nextCursor! });
+    expect(first.items.map((r) => r.slug)).toEqual([root.slug]);
+    expect(last.items.map((r) => r.slug)).toEqual(["other"]);
+    expect(last.nextCursor).toBeNull();
+    expect(send.mock.calls[1]![0].input.ExclusiveStartKey).toEqual({ pk: root.pk, sk: root.sk });
+  });
+
+  it("rejects malformed directory continuations before touching the table", async () => {
+    const send = vi.fn();
+    const dao = new DynamoDBAdaptor(fakeClient(send), "xp").experimentDAO;
+    for (const cursor of [
+      "",
+      "!",
+      ...["null", "{", "{}", '{"pk":"x","sk":7}', '{"pk":"x","sk":"META","leak":true}'].map(
+        (value) => Buffer.from(value).toString("base64url"),
+      ),
+    ]) {
+      await expect(dao.listPage({ query: "", limit: 5, cursor })).rejects.toThrow("cursor");
+    }
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it("ends a scan when DynamoDB returns an empty pagination key", async () => {
     const send = vi.fn().mockResolvedValue({ Items: [], LastEvaluatedKey: {} });
     expect(await new DynamoDBAdaptor(fakeClient(send), "xp").experimentDAO.list()).toEqual([]);
