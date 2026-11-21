@@ -44,7 +44,7 @@ export function generatedUpgrade(database: SetupDatabase): string[] {
   return renderAvailabilityUpgrade(setupOptions(database)).up;
 }
 
-export async function generatedMongo(db: Db): Promise<void> {
+export async function generatedMongo(db: Db, analytics = false): Promise<void> {
   const options = setupOptions("mongodb");
   const project: ProjectDetection = {
     cwd: ".",
@@ -58,7 +58,7 @@ export async function generatedMongo(db: Db): Promise<void> {
     missing: [],
     inputs: {},
   };
-  const artifact = generateMongoBootstrap(options, project).files[0]!;
+  const artifact = generateMongoBootstrap(options, project, analytics).files[0]!;
   const module = { exports: {} as { up(db: Db): Promise<void> } };
   // Exercise the generated executable's exported function without running its command entry point.
   const load = new Function("require", "module", artifact.content);

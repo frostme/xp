@@ -88,6 +88,6 @@ export function mapMembership(record: UserCohort): UserCohort {
   };
 }
 
-export function isDuplicateKey(error: unknown): boolean {
+export function isDuplicateKey(error: unknown): error is { code: 11000 } {
   return typeof error === "object" && error !== null && "code" in error && error.code === 11000;
 }

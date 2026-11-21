@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import type { CreationPayload, Cohort, PKey } from "~/entities";
 
+import { analyticsContract } from "~/__tests__/storage/analyticsContract";
 import {
   experimentInput,
   registerStorageContract,
@@ -21,6 +22,29 @@ describe.skipIf(selectedDatabase() !== "mongodb")("MongoDB transaction guarantee
 
   afterEach(async () => {
     await fixture?.cleanup();
+  });
+
+  test("atomically captures and replays deliveries through the installed analytics indexes", async () => {
+    await analyticsContract(fixture);
+  });
+
+  test("rejects an incomplete delivery uniqueness index before registering destinations", async () => {
+    await fixture.applyAnalytics();
+    const db = fixture.client.db(fixture.databaseName);
+    const deliveries = db.collection("xp_analytics_deliveries");
+    await deliveries.dropIndex("xp_analytics_event_dest_key");
+    await deliveries.createIndex(
+      { event_id: 1, destination_key: 1 },
+      {
+        name: "xp_analytics_event_dest_key",
+        unique: true,
+        partialFilterExpression: { state: "delivered" },
+      },
+    );
+    await expect(
+      fixture.adaptor.analytics!.ready([{ key: "test", provider: "amplitude" }]),
+    ).rejects.toThrow("xp setup --analytics");
+    expect(await db.collection("xp_analytics_destinations").countDocuments()).toBe(0);
   });
 
   test("projects domain fields without MongoDB metadata", async () => {
