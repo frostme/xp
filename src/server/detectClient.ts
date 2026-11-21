@@ -6,6 +6,8 @@ import { supportedDialect } from "~/adaptors/data-access/sequelize";
 import config from "~/config";
 
 export interface ServerOptions {
+  /** Uniform draw in [0, 1) for managed allocations. */
+  random?: () => number;
   databaseName?: string;
   tableName?: string;
 }

@@ -4,6 +4,7 @@ import type { Cohort, CohortSlug, CreationPayload, PKey } from "~/entities";
 import type { ICohortDAO } from "~/interfaces";
 
 import { NotFoundError } from "~/errors";
+import { RolloutConflictError } from "~/errors/rolloutConflictError";
 
 import MongoStore, { type CohortDocument, mapCohort } from "./store";
 
@@ -41,9 +42,12 @@ export default class MongoCohortDAO implements ICohortDAO {
       type: input.type,
     };
     await this.store.transaction(async (session) => {
-      if (!(await this.store.lockExperiment(input.experiment_id, session))) {
+      const parent = await this.store.lockExperiment(input.experiment_id, session, true);
+      if (!parent) {
         throw new NotFoundError(`Experiment with id ${input.experiment_id} not found`);
       }
+      if (parent.rollout_phase)
+        throw new RolloutConflictError("Managed experiment cohorts cannot be added.");
       await this.store.cohorts.insertOne({ ...record }, { session });
     });
     return mapCohort(record);
@@ -60,7 +64,11 @@ export default class MongoCohortDAO implements ICohortDAO {
 
     await this.store.transaction(async (session) => {
       const cohort = await this.store.cohorts.findOne({ id }, { session });
-      if (!cohort || !(await this.store.lockExperiment(cohort.experiment_id, session))) return;
+      if (!cohort) return;
+      const parent = await this.store.lockExperiment(cohort.experiment_id, session, true);
+      if (!parent) return;
+      if (parent.rollout_phase && fields.percentage !== undefined)
+        throw new RolloutConflictError("Use a rollout command to change the split.");
       await this.store.cohorts.updateOne({ id }, { $set: fields }, { session });
     });
   }
@@ -68,7 +76,11 @@ export default class MongoCohortDAO implements ICohortDAO {
   async remove(id: PKey<"Cohort">): Promise<void> {
     await this.store.transaction(async (session) => {
       const cohort = await this.store.cohorts.findOne({ id }, { session });
-      if (!cohort || !(await this.store.lockExperiment(cohort.experiment_id, session))) return;
+      if (!cohort) return;
+      const parent = await this.store.lockExperiment(cohort.experiment_id, session, true);
+      if (!parent) return;
+      if (parent.rollout_phase)
+        throw new RolloutConflictError("Managed experiment cohorts cannot be removed.");
       await this.store.memberships.deleteMany({ cohort_id: id }, { session });
       await this.store.experiments.updateOne(
         { id: cohort.experiment_id, winner: cohort.slug },

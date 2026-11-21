@@ -29,12 +29,17 @@ export interface InitializeOptions extends ServerOptions {
   configPath?: string;
 }
 
-function createServer(serverConfig: ReturnType<typeof detectClient>, allowCreate = false) {
+function createServer(
+  serverConfig: ReturnType<typeof detectClient>,
+  allowCreate = false,
+  random?: () => number,
+) {
   const groupUseCase = new GetGroup(
     serverConfig.dao.userDAO,
     serverConfig.dao.experimentDAO,
     serverConfig.dao.cohortDAO,
     serverConfig.bucketer,
+    random,
   );
 
   const joinCohortUseCase = new JoinCohort(
@@ -106,7 +111,7 @@ function createServer(serverConfig: ReturnType<typeof detectClient>, allowCreate
 
 export { ExperimentPausedError, NotFoundError } from "~/errors";
 export default function server(client: unknown, options: ServerOptions = {}) {
-  return createServer(detectClient(client, options));
+  return createServer(detectClient(client, options), false, options.random);
 }
 
 export async function initializeXp({ connection, cwd, configPath, ...options }: InitializeOptions) {
@@ -117,5 +122,5 @@ export async function initializeXp({ connection, cwd, configPath, ...options }: 
     config.driverKind === "dynamodb" ? 32 : undefined,
   );
   const seedReport = await seedExperiments(experiments, config.dao.experimentDAO);
-  return Object.assign(createServer(config, allowCreate), { seedReport });
+  return Object.assign(createServer(config, allowCreate, options.random), { seedReport });
 }

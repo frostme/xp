@@ -4,6 +4,7 @@ import type { PKey, User, UserCohort } from "~/entities";
 import type { IUserDAO } from "~/interfaces";
 
 import { DuplicateAssignmentError, ExperimentPausedError, NotFoundError } from "~/errors";
+import { RolloutConflictError } from "~/errors/rolloutConflictError";
 
 import MongoStore, { isDuplicateKey, mapMembership } from "./store";
 
@@ -31,6 +32,8 @@ export default class MongoUserDAO implements IUserDAO {
     userId: PKey<"User">,
     experimentId: PKey<"Experiment">,
     cohortId: PKey<"Cohort">,
+    _deliveries?: undefined,
+    expectedRevision?: number,
   ): Promise<UserCohort> {
     const record: UserCohort = {
       id: randomUUID() as PKey<"UserCohort">,
@@ -44,6 +47,11 @@ export default class MongoUserDAO implements IUserDAO {
         if (!experiment) {
           throw new NotFoundError(`Experiment with id ${experimentId} not found`);
         }
+        if (
+          expectedRevision !== undefined &&
+          expectedRevision !== (experiment.rollout_revision ?? 0)
+        )
+          throw new RolloutConflictError();
         if (experiment.enabled === false) throw new ExperimentPausedError();
         if (!(await this.store.users.findOne({ id: userId }, { session }))) {
           throw new NotFoundError(`User with id ${userId} not found`);
