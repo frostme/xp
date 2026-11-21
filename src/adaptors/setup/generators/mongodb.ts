@@ -1,5 +1,6 @@
 import type { GeneratedArtifacts, ProjectDetection, ResolvedSetup } from "~/interfaces/setup";
 
+import { analyticsTables, analyticsMongoIndexes } from "../analyticsStorage";
 import { MONGO_INDEXES, STORAGE } from "../storage";
 import {
   codeExtension,
@@ -19,19 +20,51 @@ function provisionBody(options: ResolvedSetup): string {
   return `  const topology = await db.admin().command({ hello: 1 });\n  if (!topology.setName && topology.msg !== "isdbgrid") {\n    throw new Error("xp requires a MongoDB replica set or sharded cluster supporting transactions.");\n  }\n  const collections = new Set((await db.listCollections({}, { nameOnly: true }).toArray()).map((entry${options.language === "typescript" && options.orm === "mikroorm" ? ": { name: string }" : ""}) => entry.name));\n${options.userStorage === "reuse" ? '  if (!collections.has("users")) throw new Error("Create the application users collection before provisioning xp, or explicitly choose user-storage=create.");\n' : ""}  if (collections.has("users")) {\n    const incompatible = await db.collection("users").findOne({ $or: [{ id: { $type: "array" } }, { id: { $not: { $type: ${JSON.stringify(options.userIdType)} } } }] });\n    if (incompatible) throw new Error("Every participating user needs a compatible physical users.id; ObjectId _id alone is insufficient. Map identities explicitly before provisioning.");\n  }\n  for (const name of ${JSON.stringify([...STORAGE.ownedTables, ...(options.userStorage === "create" ? ["users"] : [])])}) {\n    if (!collections.has(name)) await db.createCollection(name);\n  }\n  const indexes${options.language === "typescript" && options.orm === "mikroorm" ? ": { collection: string; key: Record<string, 1>; unique: boolean }[]" : ""} = ${JSON.stringify(MONGO_INDEXES, null, 2)};\n  for (const index of indexes) {\n    await db.collection(index.collection).createIndex(index.key, { unique: index.unique });\n  }`;
 }
 
+function analyticsProvisionBody(options: ResolvedSetup): string {
+  const definitions = analyticsTables.map((table) => ({
+    name: table.name,
+    indexes: analyticsMongoIndexes(table).map(({ fields, name, unique }) => ({
+      key: Object.fromEntries(fields.map((field) => [field, 1])),
+      name,
+      unique,
+    })),
+  }));
+  const typed = options.language === "typescript" && options.orm === "mikroorm";
+  return `  const tables${typed ? ": { name: string; indexes: { key: Record<string, 1>; unique: boolean; name: string }[] }[]" : ""} = ${JSON.stringify(definitions, null, 2)};
+  for (const table of tables) {
+    // Creating indexes provisions a missing collection and checks existing definitions.
+    for (const index of table.indexes) {
+      await db.collection(table.name).createIndex(index.key, { unique: index.unique, name: index.name });
+    }
+  }`;
+}
+
 export function generateMongoBootstrap(
   options: ResolvedSetup,
   project: ProjectDetection,
+  analytics = false,
 ): GeneratedArtifacts {
   const esm = options.moduleFormat === "esm";
-  const filename = outputPath(options.migrationsDir, `xp-bootstrap.${esm ? "mjs" : "cjs"}`);
-  const body = provisionBody({ ...options, language: "javascript" });
+  const filename = outputPath(
+    options.migrationsDir,
+    `${analytics ? "xp-analytics-v1" : "xp-bootstrap"}.${esm ? "mjs" : "cjs"}`,
+  );
+  const body = (analytics ? analyticsProvisionBody : provisionBody)({
+    ...options,
+    language: "javascript",
+  });
   const content =
     generatedHeader +
     `${esm ? 'import { MongoClient } from "mongodb";\nimport { pathToFileURL } from "node:url";\nimport process from "node:process";' : 'const { MongoClient } = require("mongodb");'}\n\n${esm ? "export " : ""}async function up(db) {\n${body}\n}\n\nasync function main() {\n  const uri = process.env.XP_MONGODB_URL;\n  const database = process.env.XP_MONGODB_DATABASE;\n  if (!uri || !database) throw new Error("Set XP_MONGODB_URL and XP_MONGODB_DATABASE explicitly.");\n  const client = new MongoClient(uri);\n  try {\n    await client.connect();\n    await up(client.db(database));\n    console.log("xp collections and indexes provisioned.");\n  } finally {\n    await client.close();\n  }\n}\n\n${esm ? "if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)" : "module.exports = { up };\nif (require.main === module)"} {\n  main().catch(() => {\n    // Do not print driver errors: connection strings may contain credentials.\n    console.error("xp provisioning failed. Verify topology, users.id, permissions, and existing indexes in your database tooling.");\n    process.exitCode = 1;\n  });\n}\n`;
   return {
     files: [
-      { path: filename, content, purpose: "Explicit MongoDB collection and index bootstrap" },
+      {
+        path: filename,
+        content,
+        purpose: analytics
+          ? "MongoDB analytics outbox v1 bootstrap"
+          : "Explicit MongoDB collection and index bootstrap",
+      },
     ],
     warnings: [
       "MongoDB requires a replica set or sharded cluster. Provisioning never backfills or converts application identities.",
@@ -51,15 +84,16 @@ export function generateMongoBootstrap(
 export function generateMongoMigration(
   options: ResolvedSetup,
   project: ProjectDetection,
+  analytics = false,
 ): GeneratedArtifacts {
-  if (options.orm !== "mikroorm") return generateMongoBootstrap(options, project);
+  if (options.orm !== "mikroorm") return generateMongoBootstrap(options, project, analytics);
   const typed = options.language === "typescript";
   const esm = typed || options.moduleFormat === "esm";
-  const name = `Migration${migrationStamp()}_xp_setup`;
+  const name = `Migration${migrationStamp(new Date(Date.now() + (analytics ? 1000 : 0)))}_${analytics ? "xp_analytics_v1" : "xp_setup"}`;
   const path = outputPath(options.migrationsDir, `${name}.${codeExtension(options)}`);
   const content =
     generatedHeader +
-    `${esm ? 'import { Migration } from "@mikro-orm/migrations-mongodb";' : 'const { Migration } = require("@mikro-orm/migrations-mongodb");'}\n\n${esm ? "export " : ""}class ${name} extends Migration {\n  ${typed ? "override " : ""}isTransactional()${typed ? ": boolean" : ""} { return false; }\n  ${typed ? "override " : ""}async up()${typed ? ": Promise<void>" : ""} {\n    const db = this.getDb();\n${provisionBody(options)}\n  }\n  ${typed ? "override " : ""}async down()${typed ? ": Promise<void>" : ""} {\n    // Application users are deliberately preserved.\n    for (const name of ${JSON.stringify([...STORAGE.ownedTables].reverse())}) {\n      await this.getDb().collection(name).drop();\n    }\n  }\n}\n${esm ? "" : `module.exports = { ${name} };\n`}`;
+    `${esm ? 'import { Migration } from "@mikro-orm/migrations-mongodb";' : 'const { Migration } = require("@mikro-orm/migrations-mongodb");'}\n\n${esm ? "export " : ""}class ${name} extends Migration {\n  ${typed ? "override " : ""}isTransactional()${typed ? ": boolean" : ""} { return false; }\n  ${typed ? "override " : ""}async up()${typed ? ": Promise<void>" : ""} {\n    const db = this.getDb();\n${(analytics ? analyticsProvisionBody : provisionBody)(options)}\n  }\n  ${typed ? "override " : ""}async down()${typed ? ": Promise<void>" : ""} {\n    // Application users are deliberately preserved.\n    for (const name of ${JSON.stringify(analytics ? analyticsTables.map((table) => table.name).reverse() : [...STORAGE.ownedTables].reverse())}) {\n      await this.getDb().collection(name).drop();\n    }\n  }\n}\n${esm ? "" : `module.exports = { ${name} };\n`}`;
   return {
     files: [{ path, content, purpose: "MikroORM MongoDB collection and index migration" }],
     warnings: [

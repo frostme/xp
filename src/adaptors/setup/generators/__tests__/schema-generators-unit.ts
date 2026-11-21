@@ -295,6 +295,75 @@ const sqlModules = process.env["XP_SCHEMA_TOOLS_NODE_MODULES"];
 const mongoModules = process.env["XP_PRISMA_MONGO_NODE_MODULES"];
 describe.skipIf(!sqlModules)("pinned schema toolchain compatibility", () => {
   it.each(["postgres", "mysql"] as const)(
+    "opts an installed Drizzle %s schema into analytics with one new snapshot",
+    async (database) => {
+      const { options } = await fixture(
+        {
+          orm: "drizzle",
+          ormVersion: "0.45.4",
+          database,
+          schema: "schema.ts",
+          migrationsDir: "drizzle",
+          userIdType: database === "postgres" ? "text" : "varchar(191)",
+        },
+        sqlModules,
+      );
+      const manager = new ProjectManager(new SetupGenerators());
+      const base = await manager.planSetup(options);
+      await manager.applySetup(base);
+      const extension = await manager.planSetup({ cwd: options.cwd, analytics: true });
+      const sql = extension.files.find((file) => file.path.endsWith("_xp_analytics_v1.sql"))!;
+      expect(sql.content).toContain("CREATE INDEX xp_analytics_due_idx");
+      expect(sql.content).not.toContain("CREATE TABLE experiments");
+      await manager.applySetup(extension);
+      expect(
+        await runLocal(
+          path.join(sqlModules!, "drizzle-kit/bin.cjs"),
+          ["generate", "--name=verify"],
+          options.cwd,
+        ),
+      ).toContain("No schema changes");
+      expect((await manager.applySetup(await manager.planSetup({ cwd: options.cwd }))).status).toBe(
+        "unchanged",
+      );
+    },
+  );
+
+  it.each(["postgres", "mysql", "mssql"] as const)(
+    "validates fresh and existing Prisma %s analytics schemas",
+    async (database) => {
+      for (const fresh of [true, false]) {
+        const { options } = await fixture(
+          {
+            database,
+            ormVersion: "7.10.1",
+            userIdType:
+              database === "postgres"
+                ? "text"
+                : database === "mysql"
+                  ? "varchar(191)"
+                  : "nvarchar(255)",
+          },
+          sqlModules,
+        );
+        const manager = new ProjectManager(new SetupGenerators());
+        if (!fresh) await manager.applySetup(await manager.planSetup(options));
+        const plan = await manager.planSetup({ ...options, analytics: true });
+        expect(plan.files.find((file) => file.path.endsWith("schema.prisma"))!.content).toContain(
+          "model XpAnalyticsDelivery",
+        );
+        expect(plan.files.some((file) => file.path.endsWith("xp_analytics_v1/migration.sql"))).toBe(
+          true,
+        );
+        await manager.applySetup(plan);
+        expect(
+          (await manager.applySetup(await manager.planSetup({ cwd: options.cwd }))).status,
+        ).toBe("unchanged");
+      }
+    },
+  );
+
+  it.each(["postgres", "mysql"] as const)(
     "upgrades v1 Drizzle %s with its generated config and preserves the applied migration and snapshot",
     async (database) => {
       const { options } = await fixture(
@@ -677,7 +746,7 @@ describe.skipIf(!sqlModules)("pinned schema toolchain compatibility", () => {
 describe.skipIf(!mongoModules)("Prisma 6 Mongo compatibility", () => {
   it("validates separate Mongo and xp identities without a database", async () => {
     const { options, project } = await fixture(
-      { database: "mongodb", userIdType: "string" },
+      { database: "mongodb", userIdType: "string", analytics: true },
       mongoModules,
     );
     const artifacts = await generatePrisma(options, project);
@@ -685,6 +754,7 @@ describe.skipIf(!mongoModules)("Prisma 6 Mongo compatibility", () => {
     const schema = artifacts.files.find((file) => file.path.endsWith("schema.prisma"))!.content;
     expect(schema).toContain('mongoId String @id @default(auto()) @map("_id") @db.ObjectId');
     expect(schema).toContain('id String @unique(map: "id_1")');
+    expect(schema).toContain("model XpAnalyticsDelivery");
     expect(artifacts.files.some((file) => file.path.endsWith("migration.sql"))).toBe(false);
   });
 });
