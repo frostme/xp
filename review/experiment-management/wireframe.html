@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>xp operator wireframes</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font:
+        16px/1.45 system-ui,
+        sans-serif;
+      color: #222;
+      background: #fff;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      max-width: 54rem;
+    }
+    nav {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      border-bottom: 1px solid;
+      padding: 0 0 1rem;
+    }
+    h1 {
+      font-size: 1.8rem;
+    }
+    h2 {
+      font-size: 1.2rem;
+    }
+    h3 {
+      font-size: 1rem;
+    }
+    a {
+      color: inherit;
+    }
+    a:focus-visible {
+      outline: 3px solid #2850b8;
+      outline-offset: 3px;
+    }
+    section {
+      display: none;
+    }
+    section:target {
+      display: block;
+    }
+    body:not(:has(section:target)) #directory {
+      display: block;
+    }
+    dl {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 0.6rem;
+    }
+    dd {
+      margin: 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    td,
+    th {
+      padding: 0.5rem;
+      text-align: left;
+      border-bottom: 1px solid #ccc;
+    }
+    small {
+      color: #484848;
+    }
+    p.actions {
+      display: flex;
+      gap: 0.8rem;
+      flex-wrap: wrap;
+    }
+    .actions a {
+      background: #eee;
+      padding: 0.4rem 0.8rem;
+      border: 1px solid #888;
+    }
+    code {
+      overflow-wrap: anywhere;
+    }
+    footer {
+      padding-top: 2rem;
+    }
+  </style>
+  <nav aria-label="Wireframe screens">
+    <a href="#directory">Directory</a><a href="#detail">Detail</a><a href="#create">Creation</a
+    ><a href="#edit">Allocation</a><a href="#confirm">Confirmation</a>
+  </nav>
+  <main>
+    <section id="directory">
+      <h1>Experiments</h1>
+      <p>Find by name or slug</p>
+      <dl>
+        <dt><a href="#detail">Checkout copy</a><br /><code>checkout-copy</code></dt>
+        <dd>Enabled · Allocating</dd>
+        <dt>Delivery promise<br /><code>delivery-promise</code></dt>
+        <dd>Enabled · Awaiting launch</dd>
+        <dt>Cart recap<br /><code>cart-recap</code></dt>
+        <dd>Enabled · Winner selected</dd>
+      </dl>
+      <p class="actions"><a href="#create">Create experiment</a></p>
+    </section>
+    <section id="detail">
+      <h1>Checkout copy</h1>
+      <code>checkout-copy</code>
+      <p>Enabled · Allocating</p>
+      <h2>Serving now</h2>
+      <p>Returning members keep their cohort. New members join using the split below.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Cohort</th>
+            <th>New assignment share</th>
+            <th>Current memberships</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th>off</th>
+            <td>90%</td>
+            <td>84</td>
+          </tr>
+          <tr>
+            <th>short</th>
+            <td>5%</td>
+            <td>11</td>
+          </tr>
+          <tr>
+            <th>detailed</th>
+            <td>5%</td>
+            <td>5</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="actions"><a href="#edit">Adjust split</a><a href="#confirm">Select winner</a></p>
+    </section>
+    <section id="create">
+      <h1>Create an experiment</h1>
+      <dl>
+        <dt>Experiment slug</dt>
+        <dd><code>checkout-copy</code></dd>
+        <dt>Treatments</dt>
+        <dd>short, detailed</dd>
+      </dl>
+      <p>xp adds the off control and serves the application default until launch.</p>
+      <p class="actions"><a href="#created">Create experiment</a></p>
+    </section>
+    <section id="created">
+      <h1>Checkout copy</h1>
+      <p>Enabled · Awaiting launch</p>
+      <h2>Serving application default</h2>
+      <p>The off control is pinned at 100%. No automatic memberships have been created.</p>
+      <p class="actions"><a href="#launch">Launch rollout</a></p>
+    </section>
+    <section id="launch">
+      <h1>Launch checkout-copy</h1>
+      <p>
+        Move from pinned off to 90% off, 5% short and 5% detailed for new members. The split applies
+        when an identified user first joins.
+      </p>
+      <p class="actions"><a href="#launched">Launch rollout</a></p>
+    </section>
+    <section id="launched">
+      <h1>Checkout copy</h1>
+      <p>Enabled · Allocating</p>
+      <p>New members join using 90 / 5 / 5. The current count in each cohort is zero.</p>
+    </section>
+    <section id="edit">
+      <h1>Review allocation</h1>
+      <p><code>checkout-copy</code></p>
+      <table>
+        <thead>
+          <tr>
+            <th>Cohort</th>
+            <th>Saved</th>
+            <th>Proposed</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th>off</th>
+            <td>90%</td>
+            <td>0%</td>
+          </tr>
+          <tr>
+            <th>short</th>
+            <td>5%</td>
+            <td>100%</td>
+          </tr>
+          <tr>
+            <th>detailed</th>
+            <td>5%</td>
+            <td>0%</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>Existing members keep their cohort. New members join short.</p>
+      <p class="actions"><a href="#applied">Apply split</a></p>
+    </section>
+    <section id="applied">
+      <h1>Checkout copy</h1>
+      <p>Enabled · Allocating</p>
+      <h2>Serving now</h2>
+      <p>Existing members keep their cohort. New members join short at 100%.</p>
+      <p class="actions"><a href="#confirm">Select winner</a></p>
+    </section>
+    <section id="confirm">
+      <h1>Select off as winner?</h1>
+      <code>checkout-copy_off</code>
+      <p>
+        Existing and new users will receive the application default. The 100 current memberships
+        stay in storage.
+      </p>
+      <p class="actions"><a href="#won">Select off as winner</a><a href="#detail">Cancel</a></p>
+    </section>
+    <section id="won">
+      <h1>Checkout copy</h1>
+      <p>Enabled · Winner selected</p>
+      <h2>Serving application default</h2>
+      <p>The selected winner is <code>checkout-copy_off</code>. Current memberships total 100.</p>
+    </section>
+  </main>
+</html>
