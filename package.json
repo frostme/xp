@@ -58,7 +58,9 @@
     "./server/fastify": "./dist/server/fastify/index.js",
     "./server/nestjs": "./dist/server/nestjs/index.js",
     "./server/grpc": "./dist/server/grpc/index.js",
-    "./proto/xp/v1/cohort.proto": "./dist/proto/xp/v1/cohort.proto"
+    "./proto/xp/v1/cohort.proto": "./dist/proto/xp/v1/cohort.proto",
+    "./server/grpc-web": "./dist/server/grpc-web/index.js",
+    "./client/grpc-web": "./dist/client/grpc-web/index.js"
   },
   "scripts": {
     "build": "wireit",
@@ -89,7 +91,8 @@
     "build:solid": "node scripts/build-solid.mjs",
     "build:astro": "node scripts/build-astro.mjs",
     "generate:proto": "node scripts/generate-proto.mjs",
-    "test:proto": "node scripts/generate-proto.mjs --check"
+    "test:proto": "node scripts/generate-proto.mjs --check",
+    "test:protocol-browser": "node scripts/test-protocol-browser.mjs"
   },
   "wireit": {
     "build": {
@@ -195,6 +198,8 @@
   "dependencies": {
     "@babel/parser": "^8.1.2",
     "@bufbuild/protobuf": "2.17.0",
+    "@connectrpc/connect": "2.3.0",
+    "@connectrpc/connect-web": "2.3.0",
     "cli-spinners": "^3.4.0",
     "dpdm": "^4.3.0",
     "es-toolkit": "^1.52.0",
@@ -212,6 +217,7 @@
     "@aws-sdk/lib-dynamodb": "^3.1164.0",
     "@bufbuild/buf": "1.75.0",
     "@bufbuild/protoc-gen-es": "2.17.0",
+    "@connectrpc/connect-node": "2.3.0",
     "@grpc/grpc-js": "1.14.7",
     "@grpc/proto-loader": "0.8.1",
     "@nestjs/common": "12.6.0",
@@ -264,6 +270,7 @@
     "@apollo/server": "^5.5.2",
     "@aws-sdk/client-dynamodb": "^3.1164.0",
     "@aws-sdk/lib-dynamodb": "^3.1164.0",
+    "@connectrpc/connect-node": "^2.3.0",
     "@grpc/grpc-js": "^1.14.7",
     "@grpc/proto-loader": "^0.8.1",
     "@nestjs/common": "^12.0.0",
@@ -345,6 +352,9 @@
       "optional": true
     },
     "@grpc/proto-loader": {
+      "optional": true
+    },
+    "@connectrpc/connect-node": {
       "optional": true
     }
   },

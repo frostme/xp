@@ -1,0 +1,58 @@
+static_resources:
+  listeners:
+    - name: browser
+      address:
+        socket_address: { address: 127.0.0.1, port_value: 18182 }
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: xp
+                route_config:
+                  name: xp
+                  virtual_hosts:
+                    - name: decisions
+                      domains: ["*"]
+                      routes:
+                        - match: { path: /api/xp.v1.CohortService/ResolveCohort }
+                          route:
+                            cluster: native
+                            prefix_rewrite: /xp.v1.CohortService/ResolveCohort
+                          response_headers_to_add:
+                            - header: { key: cache-control, value: "private, no-store" }
+                              append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                      typed_per_filter_config:
+                        envoy.filters.http.cors:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.CorsPolicy
+                          allow_origin_string_match:
+                            - exact: http://127.0.0.1:18180
+                          allow_methods: POST, OPTIONS
+                          allow_headers: content-type,authorization,x-grpc-web,x-user-agent,grpc-timeout
+                          expose_headers: grpc-status,grpc-message,grpc-status-details-bin
+                          allow_credentials: true
+                http_filters:
+                  - name: envoy.filters.http.cors
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.Cors
+                  - name: envoy.filters.http.grpc_web
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.grpc_web.v3.GrpcWeb
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+  clusters:
+    - name: native
+      type: STATIC
+      connect_timeout: 2s
+      typed_extension_protocol_options:
+        envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+          "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+          explicit_http_config: { http2_protocol_options: {} }
+      load_assignment:
+        cluster_name: native
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: { address: 127.0.0.1, port_value: 18183 }

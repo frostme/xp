@@ -1,0 +1,7 @@
+services:
+  envoy:
+    image: envoyproxy/envoy:v1.37.4@sha256:c67fb1211ec4e3f0f85a41778ae2d76ffb5c5accd4566b2e101327ac78307f22
+    network_mode: host
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml:ro
+    command: ["-c", "/etc/envoy/envoy.yaml", "--concurrency", "1"]

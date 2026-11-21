@@ -7,6 +7,8 @@
       "dependencies": {
         "@babel/parser": "^8.1.2",
         "@bufbuild/protobuf": "2.17.0",
+        "@connectrpc/connect": "2.3.0",
+        "@connectrpc/connect-web": "2.3.0",
         "cli-spinners": "^3.4.0",
         "dpdm": "^4.3.0",
         "es-toolkit": "^1.52.0",
@@ -24,6 +26,7 @@
         "@aws-sdk/lib-dynamodb": "^3.1164.0",
         "@bufbuild/buf": "1.75.0",
         "@bufbuild/protoc-gen-es": "2.17.0",
+        "@connectrpc/connect-node": "2.3.0",
         "@grpc/grpc-js": "1.14.7",
         "@grpc/proto-loader": "0.8.1",
         "@nestjs/common": "12.6.0",
@@ -76,6 +79,7 @@
         "@apollo/server": "^5.5.2",
         "@aws-sdk/client-dynamodb": "^3.1164.0",
         "@aws-sdk/lib-dynamodb": "^3.1164.0",
+        "@connectrpc/connect-node": "^2.3.0",
         "@grpc/grpc-js": "^1.14.7",
         "@grpc/proto-loader": "^0.8.1",
         "@nestjs/common": "^12.0.0",
@@ -100,6 +104,7 @@
         "@apollo/server",
         "@aws-sdk/client-dynamodb",
         "@aws-sdk/lib-dynamodb",
+        "@connectrpc/connect-node",
         "@grpc/grpc-js",
         "@grpc/proto-loader",
         "@nestjs/common",
@@ -268,6 +273,12 @@
     "@cacheable/memory": ["@cacheable/memory@2.2.0", "", { "dependencies": { "@cacheable/utils": "2.5.0", "@keyv/bigmap": "1.3.1", "hookified": "1.15.1", "keyv": "5.6.0" } }, "sha512-CTLKqLItRCEixEAewD3/j9DB3/o96gpTPD4eJ1v+DGOlxZRZncRQkGYqqnAGCscYd6RNeXfGeiuCphsPtqyIfQ=="],
 
     "@cacheable/utils": ["@cacheable/utils@2.5.0", "", { "dependencies": { "hashery": "1.5.1", "keyv": "5.6.0" } }, "sha512-buipgOVDkkPXNR5+xBpDw7Zk2n1EvU7qBJCNUcL7rhQ//kfpOXPAvQ511Os0vpLYJ1pZnvudNytkQt2hst3wqA=="],
+
+    "@connectrpc/connect": ["@connectrpc/connect@2.3.0", "", { "peerDependencies": { "@bufbuild/protobuf": "^2.7.0" } }, "sha512-rjAn8L9KbAZrkwiB8m1qzDsLs74hkYmwwM2iSWuxTPVOTRm/EZw31smKbQqPU50AXqJC5eKKpEnA6Uf/swQOgQ=="],
+
+    "@connectrpc/connect-node": ["@connectrpc/connect-node@2.3.0", "", { "peerDependencies": { "@bufbuild/protobuf": "^2.7.0", "@connectrpc/connect": "2.3.0" } }, "sha512-kcQgV4GqFIESsl0MOHInC9/wNYU4aJDvG1OfGR5Lq6/l0gqycSGqEk+fixXGcUtPLc8vJBgS4V1nTmWlh4o9gw=="],
+
+    "@connectrpc/connect-web": ["@connectrpc/connect-web@2.3.0", "", { "peerDependencies": { "@bufbuild/protobuf": "^2.7.0", "@connectrpc/connect": "2.3.0" } }, "sha512-JPXOiWaVsj+ZwaXOQjwvhc0ORnkl0a1w36Qyl3j1WTuak6/VYyuWGl1Aq8I60gQfQRjsjLLFGr64tO0sjwstcg=="],
 
     "@emnapi/core": ["@emnapi/core@1.11.2", "", { "dependencies": { "@emnapi/wasi-threads": "1.2.2", "tslib": "2.8.1" } }, "sha512-TC8MkTuZUtcTSiFeuC0ksCh9QIJ5+F21MvZ4Wn4ORfYaFJ/0dsiudv5tVkejgwZlwQ39jL9WWDe2lz8x0WglOA=="],
 
