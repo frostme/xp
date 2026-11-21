@@ -16,6 +16,8 @@ export default defineConfig({
     "./src/server/grpc/index.ts",
     "./src/server/grpc-web/index.ts",
     "./src/client/grpc-web/index.ts",
+    "./src/server/soap/index.ts",
+    "./src/client/soap/index.ts",
   ],
   exitCode: "circular:1",
   transform: true,

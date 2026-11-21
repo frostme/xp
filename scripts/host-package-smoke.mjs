@@ -104,6 +104,7 @@ function checkIsolatedPeers(directory, peers) {
     "@grpc/grpc-js",
     "@grpc/proto-loader",
     "@connectrpc/connect-node",
+    "soap",
   ]) {
     if (!peers.includes(name)) {
       assert.throws(

@@ -60,7 +60,10 @@
     "./server/grpc": "./dist/server/grpc/index.js",
     "./proto/xp/v1/cohort.proto": "./dist/proto/xp/v1/cohort.proto",
     "./server/grpc-web": "./dist/server/grpc-web/index.js",
-    "./client/grpc-web": "./dist/client/grpc-web/index.js"
+    "./client/grpc-web": "./dist/client/grpc-web/index.js",
+    "./client/soap": "./dist/client/soap/index.js",
+    "./server/soap": "./dist/server/soap/index.js",
+    "./wsdl/xp/v1/cohort.wsdl": "./dist/wsdl/xp/v1/cohort.wsdl"
   },
   "scripts": {
     "build": "wireit",
@@ -92,11 +95,12 @@
     "build:astro": "node scripts/build-astro.mjs",
     "generate:proto": "node scripts/generate-proto.mjs",
     "test:proto": "node scripts/generate-proto.mjs --check",
-    "test:protocol-browser": "node scripts/test-protocol-browser.mjs"
+    "test:protocol-browser": "node scripts/test-protocol-browser.mjs && bun run test:soap-browser",
+    "test:soap-browser": "node scripts/test-soap-browser.mjs"
   },
   "wireit": {
     "build": {
-      "command": "concurrently \"bun build:swc\" \"bun build:tsc\" && bun run build:angular && bun run build:svelte && bun run build:solid && bun run build:astro && node scripts/copy-schema.mjs proto/xp/v1/cohort.proto",
+      "command": "concurrently \"bun build:swc\" \"bun build:tsc\" && bun run build:angular && bun run build:svelte && bun run build:solid && bun run build:astro && node scripts/copy-schema.mjs proto/xp/v1/cohort.proto wsdl/xp/v1/cohort.wsdl",
       "files": [
         "src/**/*.{ts,tsx}",
         ".swcrc",
@@ -111,7 +115,8 @@
         "src/client/astro/**/*",
         "scripts/build-astro.mjs",
         "src/**/*.proto",
-        "scripts/copy-schema.mjs"
+        "scripts/copy-schema.mjs",
+        "src/**/*.wsdl"
       ],
       "output": [
         "dist/**/*.js",
@@ -124,7 +129,8 @@
         "dist/client/astro/*.astro",
         "dist/client/astro/*.mjs",
         "dist/client/astro/*.d.mts",
-        "dist/**/*.proto"
+        "dist/**/*.proto",
+        "dist/**/*.wsdl"
       ],
       "allowUsuallyExcludedPaths": true
     },
@@ -206,6 +212,7 @@
     "ink": "^8.0.0",
     "meow": "^14.1.0",
     "pino": "^10.4.0",
+    "saxes": "6.0.0",
     "semver": "7.8.5",
     "string-width": "^9.0.0",
     "type-fest": "^5.10.0",
@@ -258,6 +265,7 @@
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
     "sequelize": "^6.37.8",
+    "soap": "1.14.1",
     "tedious": "^20.3.9",
     "tsc-alias": "^1.9.10",
     "typescript": "^7.0.2",
@@ -286,6 +294,7 @@
     "pg": "^8.23.1",
     "react": "^19.3.0",
     "sequelize": "^6.37.8",
+    "soap": "^1.14.1",
     "solid-js": ">=1.9.20 <1.10 || >=2.0.3 <3",
     "svelte": "^5.59.0",
     "vue": ">=3.5.46 <4"
@@ -355,6 +364,9 @@
       "optional": true
     },
     "@connectrpc/connect-node": {
+      "optional": true
+    },
+    "soap": {
       "optional": true
     }
   },
