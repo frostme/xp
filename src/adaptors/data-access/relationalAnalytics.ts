@@ -128,50 +128,55 @@ export class SqlAnalyticsStore implements AnalyticsStore {
   }
 
   claim(destination: AnalyticsDestination, options: ClaimOptions): Promise<ClaimedDelivery[]> {
-    return this.db.transaction(async (s) => {
-      const p = s.parameter;
-      // Each equality on state gives the due index a bounded ordered range.
-      // Comparing the two pages keeps abandoned leases from starving new work.
-      const candidates: Row[] = [];
-      for (const state of ["pending", "claimed"]) {
-        const page = await s.query(
-          selectPage(
-            this.db.dialect,
-            "*",
-            deliveriesTable,
-            `destination_key = ${p(1)} AND provider = ${p(2)} AND state = ${p(3)} AND due_at <= ${p(4)}`,
-            "due_at",
-            options.limit,
-            true,
-          ),
-          [destination.key, destination.provider, state, options.now],
-        );
-        candidates.push(...page);
-      }
-      candidates.sort((left, right) => Number(left["due_at"]) - Number(right["due_at"]));
-      const claims: ClaimedDelivery[] = [];
-      for (const row of candidates.slice(0, options.limit)) {
-        const attempts = Number(row["attempts"]) + 1;
-        const leaseToken = randomUUID();
-        const leaseUntil = options.now + options.leaseMs;
-        await updateLocked(s, row["event_id"], destination.key, {
-          state: "claimed",
-          attempts,
-          lease_token: leaseToken,
-          due_at: leaseUntil,
-        });
-        claims.push({
-          event: JSON.parse(String(row["event_json"])) as CohortJoinedV1,
-          destinationKey: destination.key,
-          provider: destination.provider,
-          subjectId: String(row["subject_id"]),
-          attempts,
-          leaseToken,
-          leaseUntil,
-        });
-      }
-      return claims;
-    });
+    return this.db.transaction(
+      async (s) => {
+        const p = s.parameter;
+        // Each equality on state gives the due index a bounded ordered range.
+        // Comparing the two pages keeps abandoned leases from starving new work.
+        const candidates: Row[] = [];
+        for (const state of ["pending", "claimed"]) {
+          const page = await s.query(
+            selectPage(
+              this.db.dialect,
+              "*",
+              deliveriesTable,
+              `destination_key = ${p(1)} AND provider = ${p(2)} AND state = ${p(3)} AND due_at <= ${p(4)}`,
+              "due_at",
+              options.limit,
+              true,
+            ),
+            [destination.key, destination.provider, state, options.now],
+          );
+          candidates.push(...page);
+        }
+        candidates.sort((left, right) => Number(left["due_at"]) - Number(right["due_at"]));
+        const claims: ClaimedDelivery[] = [];
+        for (const row of candidates.slice(0, options.limit)) {
+          const attempts = Number(row["attempts"]) + 1;
+          const leaseToken = randomUUID();
+          const leaseUntil = options.now + options.leaseMs;
+          await updateLocked(s, row["event_id"], destination.key, {
+            state: "claimed",
+            attempts,
+            lease_token: leaseToken,
+            due_at: leaseUntil,
+          });
+          claims.push({
+            event: JSON.parse(String(row["event_json"])) as CohortJoinedV1,
+            destinationKey: destination.key,
+            provider: destination.provider,
+            subjectId: String(row["subject_id"]),
+            attempts,
+            leaseToken,
+            leaseUntil,
+          });
+        }
+        return claims;
+        // InnoDB's default repeatable-read gap locks can deadlock while moving a
+        // claimed row between index ranges. Row locks suffice for this queue.
+      },
+      this.db.dialect === "mysql" ? "READ COMMITTED" : undefined,
+    );
   }
 
   private withClaim(ref: ClaimRef, now: number, fields: Row, extendingTo?: number) {
@@ -302,32 +307,35 @@ export class SqlAnalyticsStore implements AnalyticsStore {
     limit: number,
     kind: "history" | "queued",
   ) {
-    return this.db.transaction(async (s) => {
-      const p = s.parameter;
-      const condition =
-        kind === "history"
-          ? `state IN ('delivered','failed') AND completed_at < ${p(2)}`
-          : `(state = 'pending' OR (state = 'claimed' AND due_at <= ${p(2)}))`;
-      const rows = await s.query(
-        selectPage(
-          this.db.dialect,
-          "event_id",
-          deliveriesTable,
-          `destination_key = ${p(1)} AND ${condition}`,
-          kind === "history" ? "completed_at, event_id" : "due_at, event_id",
-          limit,
-          true,
-        ),
-        [destinationKey, timestamp],
-      );
-      if (rows.length) {
-        const ids = rows.map((_, i) => p(i + 2)).join(", ");
-        await s.query(
-          `DELETE FROM ${deliveriesTable} WHERE destination_key = ${p(1)} AND event_id IN (${ids})`,
-          [destinationKey, ...rows.map((row) => row["event_id"])],
+    return this.db.transaction(
+      async (s) => {
+        const p = s.parameter;
+        const condition =
+          kind === "history"
+            ? `state IN ('delivered','failed') AND completed_at < ${p(2)}`
+            : `(state = 'pending' OR (state = 'claimed' AND due_at <= ${p(2)}))`;
+        const rows = await s.query(
+          selectPage(
+            this.db.dialect,
+            "event_id",
+            deliveriesTable,
+            `destination_key = ${p(1)} AND ${condition}`,
+            kind === "history" ? "completed_at, event_id" : "due_at, event_id",
+            limit,
+            true,
+          ),
+          [destinationKey, timestamp],
         );
-      }
-      return rows.length;
-    });
+        if (rows.length) {
+          const ids = rows.map((_, i) => p(i + 2)).join(", ");
+          await s.query(
+            `DELETE FROM ${deliveriesTable} WHERE destination_key = ${p(1)} AND event_id IN (${ids})`,
+            [destinationKey, ...rows.map((row) => row["event_id"])],
+          );
+        }
+        return rows.length;
+      },
+      this.db.dialect === "mysql" ? "READ COMMITTED" : undefined,
+    );
   }
 }

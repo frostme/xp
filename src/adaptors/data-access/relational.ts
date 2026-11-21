@@ -23,7 +23,10 @@ export interface SqlSession {
 export interface SqlDatabase {
   readonly dialect: SequelizeDialect;
   read<T>(work: (session: SqlSession) => Promise<T>): Promise<T>;
-  transaction<T>(work: (session: SqlSession) => Promise<T>): Promise<T>;
+  transaction<T>(
+    work: (session: SqlSession) => Promise<T>,
+    isolation?: "READ COMMITTED",
+  ): Promise<T>;
 }
 function required(rows: Row[], entity: string): Row {
   const row = rows[0];
