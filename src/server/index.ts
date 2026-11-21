@@ -37,6 +37,7 @@ function createServer(
   serverConfig: ReturnType<typeof detectClient>,
   analytics?: AnalyticsCaptureOptions,
   allowCreate = false,
+  random?: () => number,
 ) {
   const capture = analytics === undefined ? undefined : new JoinCapture(analytics);
   const checkAnalyticsStorage = capture
@@ -54,6 +55,7 @@ function createServer(
     serverConfig.dao.cohortDAO,
     serverConfig.bucketer,
     verifiedCapture,
+    random,
   );
 
   const joinCohortUseCase = new JoinCohort(
@@ -127,7 +129,7 @@ function createServer(
 
 export { ExperimentPausedError, NotFoundError } from "~/errors";
 export default function server(client: unknown, options: ServerOptions = {}) {
-  return createServer(detectClient(client, options), options.analytics);
+  return createServer(detectClient(client, options), options.analytics, false, options.random);
 }
 
 export async function initializeXp({ connection, cwd, configPath, ...options }: InitializeOptions) {
@@ -137,7 +139,7 @@ export async function initializeXp({ connection, cwd, configPath, ...options }: 
     configPath,
     config.driverKind === "dynamodb" ? 32 : undefined,
   );
-  const runtime = createServer(config, options.analytics, allowCreate);
+  const runtime = createServer(config, options.analytics, allowCreate, options.random);
   await runtime.checkAnalyticsStorage();
   const seedReport = await seedExperiments(experiments, config.dao.experimentDAO);
   return Object.assign(runtime, { seedReport });

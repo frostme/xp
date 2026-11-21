@@ -13,6 +13,7 @@ export default interface IUserDAO {
     experimentId: PKey<"Experiment">,
     cohortId: PKey<"Cohort">,
     deliveries?: readonly PendingDelivery[],
+    expectedRevision?: number,
   ): Promise<UserCohort>;
   removeUserCohort(userId: PKey<"User">, experimentId: PKey<"Experiment">): Promise<void>;
 }

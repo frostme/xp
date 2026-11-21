@@ -15,6 +15,7 @@ import {
 } from "~/errors";
 import { GetGroup } from "~/use-cases";
 
+import { registerRolloutContract } from "./rollout";
 import { registerStartupContract } from "./startup";
 
 export interface StorageFixture {
@@ -207,6 +208,7 @@ export function registerStorageContract(
       await server.removeExperiment(experiment.id);
       expect(await adaptor.experimentDAO.findBySlug(experiment.slug)).toBeNull();
     });
+    registerRolloutContract(current);
     registerStartupContract(current, experimentInput);
 
     it("creates and hydrates complete experiments with supplied percentages and primitive IDs", async () => {

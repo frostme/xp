@@ -16,6 +16,7 @@ export default class DynamoDBAdaptor implements IDataAccessAdaptor {
     this.experimentDAO = {
       getById: (id) => store.getExperiment(id),
       findBySlug: (slug) => store.findExperiment(slug),
+      commitRollout: (change) => store.commitRollout(change),
       setEnabled: (slug, enabled) => store.setEnabled(slug, enabled),
       list: () => store.listExperiments(),
       create: (input) => store.createExperiment(input),
@@ -33,8 +34,8 @@ export default class DynamoDBAdaptor implements IDataAccessAdaptor {
     this.userDAO = {
       findById: (id) => store.getUser(id),
       findUserCohort: (userId, experimentId) => store.findMembership(userId, experimentId),
-      addUserCohort: (userId, experimentId, cohortId, deliveries) =>
-        store.addMembership(userId, experimentId, cohortId, deliveries),
+      addUserCohort: (userId, experimentId, cohortId, deliveries, expectedRevision) =>
+        store.addMembership(userId, experimentId, cohortId, deliveries, expectedRevision),
       removeUserCohort: (userId, experimentId) => store.removeMembership(userId, experimentId),
     };
   }

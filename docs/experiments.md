@@ -82,6 +82,27 @@ Add `rollout: "off-first"` to a declaration to seed a managed experiment. The of
 
 This definition starts enabled and awaiting launch at 100% off. The two treatments start at 0%. The host's create switch defaults to false and is read at initialization. Config seeds can still create missing experiments. When creation is enabled, a trusted host can call `runtime.management.create({ slug, cohorts })` to persist the same off-first definition. A duplicate slug returns a conflict. An empty installation can declare `"experiments": []`. Adding an existing slug to config, removing its declaration, and restarting all preserve the saved database definition.
 
+### Serving and changing a managed rollout
+
+An identified user initially receives the application default. The pinned off decision creates zero automatic memberships. Launching clears the pin and assigns new users with the saved split. A user assigned off has a real membership and still receives `{ "slug": null }`. Raw `getGroup` returns the qualified cohort slug. An explicit `joinCohort` while enabled creates a membership even when a winner is pinned.
+
+Pass the revision from the saved definition when changing state. Each cohort appears exactly once with a percentage from 0 to 100, up to two decimal places. The total must equal 100. Selection uses 10,000 half-open intervals with the control first and treatments ordered by slug. For a deterministic consumer test, pass a uniform `random: () => number` in the range [0, 1) to `initializeXp` or `server`.
+
+```ts
+await runtime.management.apply("checkout-copy", 1, {
+  type: "launch",
+  allocation: [
+    { cohort: "checkout-copy_off", percentage: 90 },
+    { cohort: "checkout-copy_short", percentage: 5 },
+    { cohort: "checkout-copy_detailed", percentage: 5 },
+  ],
+});
+```
+
+Use `adjust` with the same allocation structure to update the split for future users. Existing memberships remain sticky. Pause takes precedence over sticky cohorts and winners. Resume restores the saved phase. Finalizing selects a qualified cohort for everyone and retains stored memberships. A final off winner serves the application default. The management service also permits pause, resume and (when a winner is available to select) finalization for legacy uniform experiments.
+
+Each effective change advances the revision. Retrying a command whose desired state already holds succeeds without advancing it. A different change based on a stale revision fails with a conflict. A managed automatic join checks the sampled revision in the storage write and retries from the current state on conflict, up to five attempts. Direct cohort additions, removals and percentage edits on a managed definition return a conflict; use a whole-split command. The generic server methods continue to support legacy definitions.
+
 ## Analytics for new cohort memberships
 
 Pass the optional `analytics` configuration to `initializeXp` or the synchronous server constructor to capture new memberships. A stored flag-off assignment generates a join, including when the HTTP response returns a null slug. Returning a pinned winner generates no join. The host controls consent, external identity and the worker. [Analytics guide](analytics.md)

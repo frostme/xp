@@ -6,8 +6,10 @@ import type { JoinCapture } from "~/use-cases/analytics/capture";
 import { normalizeIdentity } from "~/entities/identity";
 import { DuplicateAssignmentError, ExperimentPausedError, NotFoundError } from "~/errors";
 import { ExperimentNotFoundError } from "~/errors/experimentNotFoundError";
+import { RolloutConflictError } from "~/errors/rolloutConflictError";
 
 import { validateExperimentSlug } from "./validateExperimentSlug";
+import { weightedCohort } from "./weightedCohort";
 
 type UseCaseParams = {
   userId: PKey<"User">;
@@ -21,6 +23,7 @@ export default class GetGroup implements IUseCase<CohortSlug | null> {
     protected cohortDAO: ICohortDAO,
     protected bucketer: IBucketer,
     protected capture?: Pick<JoinCapture, "prepare">,
+    private readonly random: () => number = Math.random,
   ) {}
 
   async call(payload: UseCaseParams): Promise<CohortSlug | null> {
@@ -31,7 +34,7 @@ export default class GetGroup implements IUseCase<CohortSlug | null> {
       throw new NotFoundError(`User with id ${userId} not found`);
     }
 
-    return this.assign(userId, await this.experiment(experimentSlug));
+    return (await this.decision(userId, experimentSlug)).slug;
   }
 
   async resolveCohort(identity: UserIdentity, slug: string): Promise<CohortDecision> {
@@ -44,10 +47,21 @@ export default class GetGroup implements IUseCase<CohortSlug | null> {
       if (error instanceof NotFoundError) return { slug: null };
       throw error;
     }
-    const experiment = await this.experiment(experimentSlug);
-    const assigned = await this.assign(userId, experiment);
-    const isOff = experiment.type === "flag" && assigned === `${experiment.slug}_off`;
-    return { slug: isOff ? null : assigned };
+    const decision = await this.decision(userId, experimentSlug);
+    const off = decision.experiment.rolloutPhase || decision.experiment.type === "flag";
+    return { slug: off && decision.slug === `${experimentSlug}_off` ? null : decision.slug };
+  }
+
+  private async decision(userId: PKey<"User">, slug: ExperimentSlug) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const experiment = await this.experiment(slug);
+      try {
+        return { experiment, slug: await this.assign(userId, experiment) };
+      } catch (error) {
+        if (!(error instanceof RolloutConflictError) || attempt === 4) throw error;
+      }
+    }
+    throw new RolloutConflictError();
   }
 
   private async experiment(slug: ExperimentSlug): Promise<Experiment> {
@@ -70,17 +84,21 @@ export default class GetGroup implements IUseCase<CohortSlug | null> {
       return cohort.slug;
     }
 
-    const cohorts = await this.cohortDAO.getByExperimentId(experiment.id);
+    const cohorts = experiment.rolloutPhase
+      ? experiment.cohorts
+      : await this.cohortDAO.getByExperimentId(experiment.id);
 
     if (cohorts.length === 0) {
       throw new NotFoundError(`No cohorts found for experiment with slug ${experiment.slug}`);
     }
 
-    const cohortId = await this.bucketer(
-      userId,
-      experiment.id,
-      cohorts.map((c) => c.id),
-    );
+    const cohortId = experiment.rolloutPhase
+      ? weightedCohort(cohorts, this.random).id
+      : await this.bucketer(
+          userId,
+          experiment.id,
+          cohorts.map((c) => c.id),
+        );
     const cohort = cohorts.find((c) => c.id === cohortId);
 
     if (cohort) {
@@ -90,7 +108,13 @@ export default class GetGroup implements IUseCase<CohortSlug | null> {
           cohortSlug: cohort.slug,
           source: "automatic",
         });
-        await this.userDAO.addUserCohort(userId, experiment.id, cohort.id, deliveries);
+        await this.userDAO.addUserCohort(
+          userId,
+          experiment.id,
+          cohort.id,
+          deliveries,
+          experiment.rolloutPhase ? experiment.revision : undefined,
+        );
       } catch (error) {
         if (error instanceof ExperimentPausedError) return null;
         if (!(error instanceof DuplicateAssignmentError)) throw error;

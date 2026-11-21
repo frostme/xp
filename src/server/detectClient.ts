@@ -8,6 +8,8 @@ import config from "~/config";
 
 export interface ServerOptions {
   analytics?: AnalyticsCaptureOptions;
+  /** Uniform draw in [0, 1) for managed allocations. */
+  random?: () => number;
   databaseName?: string;
   tableName?: string;
 }

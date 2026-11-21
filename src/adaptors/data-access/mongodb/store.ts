@@ -1,4 +1,4 @@
-import type { ClientSession, MongoClient } from "mongodb";
+import type { ClientSession, Filter, MongoClient } from "mongodb";
 
 import type { Cohort, Experiment, PKey, User, UserCohort } from "~/entities";
 
@@ -8,7 +8,7 @@ export type ExperimentDocument = Omit<
   Experiment,
   "cohorts" | "enabled" | "rolloutPhase" | "revision"
 > & {
-  rollout_phase?: RolloutPhase;
+  rollout_phase?: RolloutPhase | null;
   rollout_revision?: number;
   enabled?: boolean;
   version: number;
@@ -49,18 +49,23 @@ export default class MongoStore {
     }
   }
 
-  async lockExperiment(id: PKey<"Experiment">, session: ClientSession) {
+  async lockExperiment(id: PKey<"Experiment">, session: ClientSession, definitionChange = false) {
     return this.experiments.findOneAndUpdate(
       { id },
-      { $inc: { version: 1 } },
+      { $inc: definitionChange ? { version: 1, rollout_revision: 1 } : { version: 1 } },
       { session, returnDocument: "after" },
     );
   }
 
-  async experiment(record: ExperimentDocument): Promise<Experiment> {
-    const cohorts = await this.cohorts
-      .find({ experiment_id: record.id }, { readPreference: "primary" })
-      .toArray();
+  async findExperiment(filter: Filter<ExperimentDocument>): Promise<Experiment | null> {
+    return this.transaction(async (session) => {
+      const record = await this.experiments.findOne(filter, { session });
+      return record ? this.experiment(record, session) : null;
+    });
+  }
+
+  async experiment(record: ExperimentDocument, session: ClientSession): Promise<Experiment> {
+    const cohorts = await this.cohorts.find({ experiment_id: record.id }, { session }).toArray();
     return mapExperiment(record, cohorts);
   }
 }

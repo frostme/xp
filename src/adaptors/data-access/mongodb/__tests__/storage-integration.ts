@@ -8,6 +8,7 @@ import {
   registerStorageContract,
   selectedDatabase,
 } from "~/__tests__/storage/contract";
+import { RolloutConflictError } from "~/errors/rolloutConflictError";
 
 import { mongoFixture } from "./fixture";
 
@@ -63,6 +64,30 @@ describe.skipIf(selectedDatabase() !== "mongodb")("MongoDB transaction guarantee
     expect(await fixture.adaptor.userDAO.findById("host-user" as PKey<"User">)).toEqual({
       id: "host-user",
     });
+  });
+
+  test("a split referencing a foreign cohort rolls back every update and the parent lock", async () => {
+    const { experimentDAO } = fixture.adaptor;
+    const definition = await experimentDAO.create(experimentInput());
+    const other = await experimentDAO.create(experimentInput("other"));
+    const parents = fixture.client.db(fixture.databaseName).collection("experiments");
+    const before = await parents.findOne({ id: definition.id });
+    await expect(
+      experimentDAO.commitRollout({
+        id: definition.id,
+        expectedRevision: 0,
+        enabled: true,
+        phase: "allocating",
+        winner: null,
+        weights: [
+          { id: definition.cohorts[0]!.id, basisPoints: 8000 },
+          { id: other.cohorts[1]!.id, basisPoints: 2000 },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(RolloutConflictError);
+    expect(await parents.findOne({ id: definition.id })).toEqual(before);
+    expect(await experimentDAO.getById(definition.id)).toEqual(definition);
+    expect(await experimentDAO.getById(other.id)).toEqual(other);
   });
 
   test("concurrent cohort creation cannot survive experiment deletion", async () => {

@@ -1,6 +1,8 @@
 import type { PKey } from "~/entities";
 import type { IUseCase, IExperimentDAO, ICohortDAO } from "~/interfaces";
 
+import { applyRollout } from "./rollout";
+
 export default class FinalizeExperiment implements IUseCase<void> {
   constructor(
     protected experimentDAO: IExperimentDAO,
@@ -15,6 +17,15 @@ export default class FinalizeExperiment implements IUseCase<void> {
       throw new Error("Cohort does not belong to the experiment");
     }
 
+    if (experiment.rolloutPhase) {
+      return applyRollout(
+        this.experimentDAO,
+        experiment.slug,
+        experiment.revision!,
+        { type: "finalize", cohort: cohort.slug },
+        experiment.id,
+      );
+    }
     await this.experimentDAO.update(experimentId, { winner: cohort.slug }, cohort.id);
   }
 }

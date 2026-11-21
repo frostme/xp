@@ -5,6 +5,7 @@ import type { PendingDelivery } from "~/entities/analytics";
 import type { IUserDAO } from "~/interfaces";
 
 import { DuplicateAssignmentError, ExperimentPausedError, NotFoundError } from "~/errors";
+import { RolloutConflictError } from "~/errors/rolloutConflictError";
 
 import type MongoAnalyticsStore from "./analytics";
 
@@ -38,6 +39,7 @@ export default class MongoUserDAO implements IUserDAO {
     experimentId: PKey<"Experiment">,
     cohortId: PKey<"Cohort">,
     pending: readonly PendingDelivery[] = [],
+    expectedRevision?: number,
   ): Promise<UserCohort> {
     const record: UserCohort = {
       id: randomUUID() as PKey<"UserCohort">,
@@ -50,6 +52,8 @@ export default class MongoUserDAO implements IUserDAO {
       if (!experiment) {
         throw new NotFoundError(`Experiment with id ${experimentId} not found`);
       }
+      if (expectedRevision !== undefined && (experiment.rollout_revision ?? 0) !== expectedRevision)
+        throw new RolloutConflictError();
       if (experiment.enabled === false) throw new ExperimentPausedError();
       if (!(await this.store.users.findOne({ id: userId }, { session }))) {
         throw new NotFoundError(`User with id ${userId} not found`);
