@@ -19,6 +19,7 @@ import {
   revisionTag,
   sameOrigin,
 } from "./request";
+import { serveManagementUi } from "./ui";
 
 export type {
   DirectoryEntry,
@@ -71,10 +72,12 @@ export function createXpManagementHandler<Request extends IncomingMessage = Inco
     response.setHeader("Cache-Control", "private, no-store");
     response.setHeader("X-Content-Type-Options", "nosniff");
     try {
-      const access = await options.access?.(request);
-      if (access !== "view" && access !== "manage")
-        throw new RequestError(403, "Experiment access is required.");
+      const permission = await options.access?.(request);
+      const access = permission === "manage" || permission === "view" ? permission : "deny";
       const path = url.pathname.slice(base.length);
+      if (request.method === "GET" && (await serveManagementUi(response, base, path, access)))
+        return;
+      if (access === "deny") throw new RequestError(403, "Experiment access is required.");
       const parts = /^\/api\/experiments\/([^/]+)(\/commands)?$/.exec(path);
       if (request.method === "GET") {
         if (path === "/api/capabilities")

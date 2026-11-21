@@ -109,11 +109,12 @@
     "test:proto": "node scripts/generate-proto.mjs --check",
     "test:protocol-browser": "node scripts/test-protocol-browser.mjs && bun run test:soap-browser",
     "test:soap-browser": "node scripts/test-soap-browser.mjs",
-    "test:protocol-journey": "node scripts/test-installed-journey.mjs --protocols"
+    "test:protocol-journey": "node scripts/test-installed-journey.mjs --protocols",
+    "test:management-ui": "node scripts/test-management-ui.mjs"
   },
   "wireit": {
     "build": {
-      "command": "concurrently \"bun build:swc\" \"bun build:tsc\" && bun run build:angular && bun run build:svelte && bun run build:solid && bun run build:astro && node scripts/copy-schema.mjs proto/xp/v1/cohort.proto wsdl/xp/v1/cohort.wsdl",
+      "command": "concurrently \"bun build:swc\" \"bun build:tsc\" && bun run build:angular && bun run build:svelte && bun run build:solid && bun run build:astro && node scripts/copy-schema.mjs proto/xp/v1/cohort.proto wsdl/xp/v1/cohort.wsdl server/management/ui/assets/app.css",
       "files": [
         "src/**/*.{ts,tsx}",
         ".swcrc",
@@ -129,7 +130,8 @@
         "scripts/build-astro.mjs",
         "src/**/*.proto",
         "scripts/copy-schema.mjs",
-        "src/**/*.wsdl"
+        "src/**/*.wsdl",
+        "src/server/management/ui/assets/**/*.{js,css}"
       ],
       "output": [
         "dist/**/*.js",
@@ -143,7 +145,8 @@
         "dist/client/astro/*.mjs",
         "dist/client/astro/*.d.mts",
         "dist/**/*.proto",
-        "dist/**/*.wsdl"
+        "dist/**/*.wsdl",
+        "dist/server/management/ui/assets/*.css"
       ],
       "allowUsuallyExcludedPaths": true
     },

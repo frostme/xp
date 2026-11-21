@@ -44,6 +44,8 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bunx --no-install playwright install --with-deps chromium
       - run: bun run build && bun run test:protocol-browser
+      - name: Management interface in Chromium
+        run: bun run test:management-ui
   frontend-matrix:
     runs-on: ubuntu-latest
     outputs:
