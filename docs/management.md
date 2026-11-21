@@ -63,3 +63,11 @@ Use `{"type":"pause"}`, `{"type":"resume"}` or `{"type":"finalize","cohort":"che
 A count measures current stored memberships, including explicit joins and assignments to off. A pinned winner can serve every visitor with zero memberships. A winner overrides previously assigned cohorts while their memberships stay intact. Leaving and rejoining update the counts. The read uses xp storage and works without an analytics provider.
 
 SQL groups memberships by cohort. MongoDB aggregates one experiment in a snapshot transaction. DynamoDB uses strongly consistent, paginated count queries per cohort. Those queries can observe different instants during concurrent changes. The directory reads a bounded portion of the DynamoDB table per request. `countsReadAt` records completion of a successful read. A failed count read returns null for the timestamp and each cohort's count, so clients can offer a retry.
+
+## Operator page
+
+Open the configured base path in the host after signing in. Search the directory by name or slug. Each detail page distinguishes the current decision for existing and new members from the stored membership counts. Expand **Experiment definition** to inspect qualified cohort slugs and values. A manager sees the commands available for the current lifecycle phase. The host must also enable creation for **Create experiment** to appear.
+
+The directory, `/create`, `/experiments/:slug` and `/experiments/:slug/split` accept direct links under the base path. Script and stylesheet requests stay on the same mount and use the same host authorization. The package supplies these assets. The host can use its existing Content Security Policy provided it allows the page's own scripts, styles and API connections.
+
+Review each change before applying it. Adjusting the split affects future assignments. Pausing preserves the saved phase and memberships. Selecting a winner changes what existing members see. A failed save keeps the proposal available, and a competing edit offers **Review current values** before another submission.

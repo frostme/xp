@@ -5,6 +5,7 @@ const config: KnipConfig = {
   entry: [
     // Offline design reviews load their entry points from HTML.
     "review/experiment-management/*/{decision.js,prototype.js,preview.tsx}",
+    "src/server/management/ui/assets/app.js",
     "src/client/astro/index.d.mts",
     "scripts/fixtures/frontend/**/*.{ts,tsx,js,jsx,mjs,vue}",
     "tools/svelte/svelte.config.js",
