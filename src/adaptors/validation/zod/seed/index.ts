@@ -1,9 +1,11 @@
 import * as z from "zod";
 
 import type { ExperimentDefinition } from "~/entities/rollout";
+import type { SetupDatabase } from "~/interfaces/setup";
 
 import { isSlugPart } from "~/entities/slug";
 import { ValidationError } from "~/errors";
+import { SQL_SLUG_LENGTH } from "~/interfaces/config";
 
 const slug = z.string().refine(isSlugPart, "Expected a nonempty kebab-case name");
 const definition = z.strictObject({ slug, cohorts: z.array(slug).min(1) });
@@ -32,13 +34,27 @@ function parse<T extends z.ZodType>(schema: T, value: unknown): z.output<T> {
 function normalize(
   input: z.output<typeof declaration>,
   path: string,
-  maxInitialCohorts?: number,
+  database?: SetupDatabase,
 ): ExperimentDefinition {
   const { slug: experimentSlug, rollout } = input;
   const managed = rollout === "off-first";
+  const maxLength =
+    database === "mysql" || database === "mssql" ? SQL_SLUG_LENGTH[database] : undefined;
+  if (maxLength !== undefined && experimentSlug.length + (managed ? 4 : 0) > maxLength)
+    invalid(
+      `${path}.slug`,
+      managed
+        ? `The experiment slug plus "_off" must fit in ${maxLength} characters.`
+        : `The experiment slug must fit in ${maxLength} characters.`,
+    );
   const names = new Set<string>();
   for (const [index, name] of input.cohorts.entries()) {
     if (names.has(name)) invalid(`${path}.cohorts[${index}]`, `Duplicate local name '${name}'`);
+    if (maxLength !== undefined && experimentSlug.length + 1 + name.length > maxLength)
+      invalid(
+        `${path}.cohorts[${index}]`,
+        `The qualified cohort slug must fit in ${maxLength} characters.`,
+      );
     names.add(name);
   }
   const cohorts = managed
@@ -49,8 +65,8 @@ function normalize(
       `${path}.cohorts`,
       managed ? "Supply at least one treatment" : "Supply at least two cohorts",
     );
-  if (maxInitialCohorts !== undefined && cohorts.length > maxInitialCohorts)
-    invalid(`${path}.cohorts`, `DynamoDB supports at most ${maxInitialCohorts} initial cohorts`);
+  if (database === "dynamodb" && cohorts.length > 32)
+    invalid(`${path}.cohorts`, "DynamoDB supports at most 32 initial cohorts");
 
   let allocated = 0;
   const storedCohorts = cohorts.map((name, index) => {
@@ -81,19 +97,19 @@ function normalize(
   } as ExperimentDefinition;
 }
 
-export function parseManagedDefinition(input: unknown, maxInitialCohorts?: number) {
+export function parseManagedDefinition(input: unknown, database?: SetupDatabase) {
   const values = parse(definition, input);
-  return normalize({ ...values, rollout: "off-first" }, "$", maxInitialCohorts);
+  return normalize({ ...values, rollout: "off-first" }, "$", database);
 }
 
-export function parseSeedConfig(value: unknown, maxInitialCohorts?: number) {
+export function parseSeedConfig(value: unknown, database?: SetupDatabase) {
   const parsed = parse(config, value);
   const seen = new Set<string>();
   const experiments = parsed.experiments.map((input, index) => {
     const path = `$.experiments[${index}]`;
     if (seen.has(input.slug)) invalid(`${path}.slug`, `Duplicate experiment '${input.slug}'`);
     seen.add(input.slug);
-    return normalize(input, path, maxInitialCohorts);
+    return normalize(input, path, database);
   });
   return { allowCreate: parsed.management?.allowCreate ?? false, experiments };
 }

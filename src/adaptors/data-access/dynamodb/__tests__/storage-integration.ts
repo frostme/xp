@@ -91,7 +91,7 @@ describe.skipIf(selectedDatabase() !== "dynamodb")("DynamoDB limits and resumabl
     const dao = fixture.adaptor.experimentDAO;
     const names = Array.from({ length: 31 }, (_, i) => `treatment-${i}`);
     const created = await dao.create(
-      parseManagedDefinition({ slug: "allocation", cohorts: names }, 32),
+      parseManagedDefinition({ slug: "allocation", cohorts: names }, "dynamodb"),
     );
     const weights = created.cohorts.map((c) => ({
       id: c.id,

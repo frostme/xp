@@ -43,6 +43,8 @@ All routes below are relative to the mount. Responses are private and uncached. 
 
 Continue a directory search by sending its `nextCursor` as `cursor` with the same search text. An empty page may have a continuation on DynamoDB. The default limit is 25 and the maximum is 100.
 
+When creating a definition on MySQL or SQL Server, its fully qualified cohort slugs must fit the generated columns (191 and 255 characters respectively). The API returns the offending field when a qualified slug is too long.
+
 To launch or adjust, send a full split using qualified cohort slugs. Up to two decimal places are supported and percentages must total 100.
 
 ```json

@@ -29,6 +29,10 @@ export interface InitializeOptions extends ServerOptions {
   configPath?: string;
 }
 
+function storageDatabase(config: ReturnType<typeof detectClient>) {
+  return config.driverKind === "sequelize" ? config.dialect : config.driverKind;
+}
+
 function createServer(
   serverConfig: ReturnType<typeof detectClient>,
   allowCreate = false,
@@ -101,7 +105,7 @@ function createServer(
   );
   return Object.assign(framework, {
     management: createExperimentManagement(serverConfig.dao.experimentDAO, allowCreate, (input) =>
-      parseManagedDefinition(input, serverConfig.driverKind === "dynamodb" ? 32 : undefined),
+      parseManagedDefinition(input, storageDatabase(serverConfig)),
     ),
     driverKind: serverConfig.driverKind,
     ...(serverConfig.driverKind === "sequelize" ? { dialect: serverConfig.dialect } : {}),
@@ -119,7 +123,7 @@ export async function initializeXp({ connection, cwd, configPath, ...options }: 
   const { experiments, allowCreate } = await readSeedConfig(
     cwd,
     configPath,
-    config.driverKind === "dynamodb" ? 32 : undefined,
+    storageDatabase(config),
   );
   const seedReport = await seedExperiments(experiments, config.dao.experimentDAO);
   return Object.assign(createServer(config, allowCreate, options.random), { seedReport });

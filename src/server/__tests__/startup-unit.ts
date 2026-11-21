@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CohortRuntime } from "~/interfaces/runtime";
 
-import { parseSeedConfig } from "~/adaptors/validation/zod/seed";
+import { parseManagedDefinition, parseSeedConfig } from "~/adaptors/validation/zod/seed";
 import { ExperimentSlugConflictError, NotFoundError, ValidationError } from "~/errors";
 import { ExperimentNotFoundError } from "~/errors/experimentNotFoundError";
 import { seedExperiments } from "~/use-cases/experiment/seed";
@@ -34,9 +34,32 @@ describe("seed configuration", () => {
     expect(() => parseSeedConfig({ experiments: [], credentials: {} })).toThrow("$.credentials");
     expect(() => parseSeedConfig({ experiments: [flag, flag] })).toThrow("$.experiments[1].slug");
     const config = { experiments: [flag, { slug: "many", cohorts: names(33) }] };
-    expect(() => parseSeedConfig(config, 32)).toThrow("$.experiments[1].cohorts");
+    expect(() => parseSeedConfig(config, "dynamodb")).toThrow("$.experiments[1].cohorts");
     expect(parseSeedConfig(config).experiments[1]!.cohorts).toHaveLength(33);
   });
+
+  it.each([
+    ["mysql", 191],
+    ["mssql", 255],
+  ] as const)(
+    "validates qualified lengths for %s, including an automatically inserted off",
+    (database, limit) => {
+      const slug = "x".repeat(limit - 4);
+      expect(
+        parseManagedDefinition({ slug, cohorts: ["abc"] }, database).cohorts[0]?.slug,
+      ).toHaveLength(limit);
+      expect(() => parseManagedDefinition({ slug: slug + "z", cohorts: ["x"] }, database)).toThrow(
+        "$.slug",
+      );
+      expect(() => parseManagedDefinition({ slug, cohorts: ["long", "off"] }, database)).toThrow(
+        "$.cohorts[0]",
+      );
+      for (const wider of ["postgres", "mongodb", "dynamodb"] as const)
+        expect(
+          parseManagedDefinition({ slug, cohorts: ["long"] }, wider).cohorts[1]?.slug,
+        ).toHaveLength(limit + 1);
+    },
+  );
 
   it("normalizes opt-in controls, validates host policy and leaves the legacy definition uniform", () => {
     const settings = parseSeedConfig({

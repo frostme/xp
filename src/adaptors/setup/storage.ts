@@ -1,5 +1,7 @@
 import type { ResolvedSetup, SetupDatabase } from "~/interfaces/setup";
 
+import { SQL_SLUG_LENGTH } from "~/interfaces/config";
+
 /** Persistence contract, intentionally separate from the public domain entities. */
 export const STORAGE_VERSION = 3;
 export const STORAGE = {
@@ -193,9 +195,9 @@ export function renderSql(
   const text = database === "mssql" ? "NVARCHAR(MAX)" : "TEXT";
   const slug =
     database === "mysql"
-      ? "VARCHAR(191) COLLATE utf8mb4_0900_bin"
+      ? `VARCHAR(${SQL_SLUG_LENGTH.mysql}) COLLATE utf8mb4_0900_bin`
       : database === "mssql"
-        ? "NVARCHAR(255) COLLATE Latin1_General_100_BIN2"
+        ? `NVARCHAR(${SQL_SLUG_LENGTH.mssql}) COLLATE Latin1_General_100_BIN2`
         : "TEXT";
   const enumType =
     database === "mssql" ? "NVARCHAR(20)" : database === "mysql" ? "VARCHAR(32)" : "TEXT";

@@ -124,6 +124,17 @@ export function registerStartupContract(
       await config([flag, { slug: "off-only", cohorts: ["off"], rollout: "off-first" }]);
       await expect(boot()).rejects.toThrow("$.experiments[1].cohorts");
       expect(await adaptor.experimentDAO.list()).toEqual([]);
+      await config([], { allowCreate: true });
+      const runtime = await boot();
+      const provider = runtime.driverKind === "sequelize" ? runtime.dialect : runtime.driverKind;
+      if (provider === "mysql" || provider === "mssql") {
+        const slug = "a".repeat((provider === "mysql" ? 191 : 255) - 4);
+        const input = { slug, cohorts: ["long"] };
+        await config([flag, { ...input, rollout: "off-first" }]);
+        await expect(boot()).rejects.toThrow("$.experiments[1].cohorts[0]");
+        await expect(runtime.management.create(input)).rejects.toThrow("$.cohorts[0]");
+        expect(await adaptor.experimentDAO.list()).toEqual([]);
+      }
       if ("tableName" in current().startupOptions) {
         await config([
           flag,
