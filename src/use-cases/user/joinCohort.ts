@@ -1,5 +1,6 @@
 import type { UserCohort, ExperimentSlug, CohortSlug, PKey } from "~/entities";
 import type { IUseCase, IUserDAO, IExperimentDAO, ICohortDAO } from "~/interfaces";
+import type { JoinCapture } from "~/use-cases/analytics/capture";
 
 import { DuplicateAssignmentError, ExperimentPausedError, NotFoundError } from "~/errors";
 
@@ -8,6 +9,7 @@ export default class JoinCohort implements IUseCase<UserCohort> {
     protected userDAO: IUserDAO,
     protected experimentDAO: IExperimentDAO,
     protected cohortDAO: ICohortDAO,
+    protected capture?: Pick<JoinCapture, "prepare">,
   ) {}
 
   async call(
@@ -38,7 +40,11 @@ export default class JoinCohort implements IUseCase<UserCohort> {
       throw new DuplicateAssignmentError();
     }
 
-    const userCohort = await this.userDAO.addUserCohort(userId, experiment.id, cohort.id);
-    return userCohort;
+    const deliveries = await this.capture?.prepare(userId, {
+      experimentSlug: experiment.slug,
+      cohortSlug: cohort.slug,
+      source: "manual",
+    });
+    return this.userDAO.addUserCohort(userId, experiment.id, cohort.id, deliveries);
   }
 }

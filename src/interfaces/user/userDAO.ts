@@ -1,3 +1,5 @@
+import type { PendingDelivery } from "~/entities/analytics";
+
 import { User, UserCohort, type PKey } from "~/entities";
 
 export default interface IUserDAO {
@@ -10,6 +12,7 @@ export default interface IUserDAO {
     userId: PKey<"User">,
     experimentId: PKey<"Experiment">,
     cohortId: PKey<"Cohort">,
+    deliveries?: readonly PendingDelivery[],
   ): Promise<UserCohort>;
   removeUserCohort(userId: PKey<"User">, experimentId: PKey<"Experiment">): Promise<void>;
 }

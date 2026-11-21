@@ -60,6 +60,7 @@ xp setup --orm knex --database mysql --user-storage reuse \
 | `--user-storage`                           | `reuse` (default) or explicit minimal `create`                                                            |
 | `--user-id-type`                           | Exact SQL type, including length/unsignedness; `string` or `number` for MongoDB                           |
 | `--user-id-collation`, `--user-id-charset` | Existing character-key settings where applicable                                                          |
+| `--analytics`                              | Generate the optional v1 analytics outbox, binding registry and due-work indexes                          |
 | `--table-name`                             | DynamoDB table name                                                                                       |
 | `--yes`                                    | Accept resolved choices without opening the wizard                                                        |
 | `--non-interactive`                        | Never prompt; writing requires `--yes`                                                                    |
@@ -219,3 +220,15 @@ Use `--island none|react|vue|svelte|solid` with the Astro profile. The wizard of
 | `@astrojs/solid-js` 7.1.6 | Solid 1.9.20 using `@frostme/xp/solid/v1` |
 
 Plain Astro works without an island integration. With several compatible renderers installed, select one explicitly in automation. Switching renderer families in an existing app requires reviewing and removing previous generated wrapper imports before generating a replacement.
+
+## Analytics storage extension
+
+This command previews the additive storage changes for a native PostgreSQL application that reuses a text user ID.
+
+```sh
+bun run xp setup --orm none --database postgres --user-storage reuse --user-id-type TEXT --migrations-dir migrations --analytics --dry-run --yes
+```
+
+Remove `--dry-run` to write the reviewed plan. On an existing installation, run setup from the package containing `.xp/setup.json` and repeat its original storage options. The wizard offers the same analytics choice. Base storage v3 and the analytics v1 extension have separate version fields. When enabling analytics on a v1 or v2 base, apply the generated base upgrade first. Enabling analytics preserves existing users and memberships. Setup verifies hashes of files it owns and leaves migration execution to the host.
+
+Apply generated native or ORM migrations with the tool that owns your schema. Apply base and availability migrations first, then the analytics migration. For Prisma, review the model contribution, deploy the migration and regenerate the client. For Drizzle, review the schema change and generated SQL, journal and snapshot together. MongoDB requires a replica set and the generated analytics indexes. On DynamoDB, apply the generated update-table input after the base table is active and wait for the new GSI to become active. A provisioned-capacity table needs an index throughput setting. Use the generated next steps for the selected profile. [Producer startup check, disabling capture and retiring queued work](analytics.md)

@@ -28,6 +28,7 @@ export function PlanSummary({ plan, width }: { plan: ScopedSetupPlan; width: num
               { key: "Migrations", value: o.migrationsDir ?? "" },
               ...(o.config ? [{ key: "Config", value: o.config }] : []),
               ...(o.schema ? [{ key: "Schema", value: o.schema }] : []),
+              ...(o.analytics ? [{ key: "Analytics", value: "outbox storage v1" }] : []),
               { key: "Models", value: o.models ? (o.modelsDir ?? "") : "not requested" },
               { key: "Language", value: `${o.language}; ${o.moduleFormat}` },
               { key: "Users", value: `${o.userStorage} users.id (${o.userIdType})` },

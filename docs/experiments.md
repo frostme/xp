@@ -82,6 +82,10 @@ Add `rollout: "off-first"` to a declaration to seed a managed experiment. The of
 
 This definition starts enabled and awaiting launch at 100% off. The two treatments start at 0%. The host's create switch defaults to false and is read at initialization. Config seeds can still create missing experiments. When creation is enabled, a trusted host can call `runtime.management.create({ slug, cohorts })` to persist the same off-first definition. A duplicate slug returns a conflict. An empty installation can declare `"experiments": []`. Adding an existing slug to config, removing its declaration, and restarting all preserve the saved database definition.
 
+## Analytics for new cohort memberships
+
+Pass the optional `analytics` configuration to `initializeXp` or the synchronous server constructor to capture new memberships. A stored flag-off assignment generates a join, including when the HTTP response returns a null slug. Returning a pinned winner generates no join. The host controls consent, external identity and the worker. [Analytics guide](analytics.md)
+
 ## Express
 
 In the following examples, `authenticateSession(cookie)` represents your application's existing session verification. It returns an account with a string or numeric `id`, or null for a guest.
