@@ -10,6 +10,7 @@ export default defineConfig({
     "./src/client/vue/index.ts",
     "./src/server/index.ts",
     "./src/server/express/index.ts",
+    "./src/server/fastify/index.ts",
     "./src/server/graphql/index.ts",
   ],
   exitCode: "circular:1",

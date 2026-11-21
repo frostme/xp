@@ -29,6 +29,12 @@ const hosts = [
     sources: ["express.ts"],
     execute: "compiled/express.js",
   },
+  {
+    name: "fastify",
+    peers: ["fastify"],
+    sources: ["fastify.ts"],
+    execute: "compiled/fastify.js",
+  },
   // Compile the xp contract strictly. Yoga's own lru-cache v10 declarations are
   // incompatible with TypeScript 7's Map iterators, so run its host fixture as JS.
   {
@@ -61,6 +67,7 @@ function checkIsolatedPeers(directory, peers) {
     "@aws-sdk/lib-dynamodb",
     "sequelize",
     "express",
+    "fastify",
     "graphql",
     "graphql-yoga",
     "@apollo/server",

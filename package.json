@@ -54,7 +54,8 @@
     "./astro": {
       "types": "./dist/client/astro/index.d.mts",
       "default": "./dist/client/astro/index.mjs"
-    }
+    },
+    "./server/fastify": "./dist/server/fastify/index.js"
   },
   "scripts": {
     "build": "wireit",
@@ -214,6 +215,7 @@
     "eslint-import-resolver-typescript": "^4.4.5",
     "eslint-plugin-import-x": "^4.17.1",
     "express": "^5.3.0",
+    "fastify": "5.12.8",
     "graphql": "^16.15.0",
     "graphql-yoga": "^6.1.0",
     "husky": "^9.1.7",
@@ -245,6 +247,7 @@
     "@solidjs/web": ">=2.0.3 <3",
     "astro": ">=7.4.13 <8",
     "express": "^5.3.0",
+    "fastify": "^5.12.8",
     "graphql": "^16.15.0",
     "graphql-yoga": "^6.1.0",
     "mongodb": "^7.8.0",
@@ -307,6 +310,9 @@
       "optional": true
     },
     "astro": {
+      "optional": true
+    },
+    "fastify": {
       "optional": true
     }
   },
