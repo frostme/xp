@@ -4,11 +4,13 @@ import { randomUUID } from "node:crypto";
 import type { StorageFixture } from "~/__tests__/storage/contract";
 
 import { generatedSql, generatedUpgrade } from "~/__tests__/storage/setup";
+import { renderAnalyticsSql } from "~/adaptors/setup/analyticsStorage";
 import server from "~/server";
 
 import MssqlAdaptor from "..";
 
 export interface MssqlFixture extends StorageFixture {
+  applyAnalytics(): Promise<void>;
   pool: sql.ConnectionPool;
   connectionConfig: sql.config;
 }
@@ -47,6 +49,10 @@ export async function setupMssql(version: 1 | 2 = 2): Promise<MssqlFixture> {
       adaptor: new MssqlAdaptor(pool),
       server: server(pool),
       reopen: () => server(pool),
+      async applyAnalytics() {
+        for (const statement of renderAnalyticsSql("mssql").up)
+          await pool.request().query(statement);
+      },
       async applyUpgrade() {
         for (const sql of generatedUpgrade("mssql")) await pool.request().query(sql);
       },

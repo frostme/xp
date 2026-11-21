@@ -4,6 +4,7 @@ import { Client, Pool, type PoolConfig } from "pg";
 import type { StorageFixture } from "~/__tests__/storage/contract";
 
 import { generatedSql, generatedUpgrade } from "~/__tests__/storage/setup";
+import { renderAnalyticsSql } from "~/adaptors/setup/analyticsStorage";
 import server from "~/server";
 
 import PostgresAdaptor from "..";
@@ -20,6 +21,7 @@ function postgresConnectionConfig(): PoolConfig {
 }
 
 export interface PostgresFixture extends StorageFixture {
+  applyAnalytics(): Promise<void>;
   pool: Pool;
   connectionConfig: PoolConfig;
 }
@@ -41,6 +43,9 @@ export async function setupPostgres(version: 1 | 2 = 2): Promise<PostgresFixture
       adaptor: new PostgresAdaptor(pool),
       server: server(pool),
       reopen: () => server(pool),
+      async applyAnalytics() {
+        for (const statement of renderAnalyticsSql("postgres").up) await pool.query(statement);
+      },
       async applyUpgrade() {
         for (const sql of generatedUpgrade("postgres")) await pool.query(sql);
       },

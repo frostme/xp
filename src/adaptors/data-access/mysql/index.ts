@@ -48,6 +48,7 @@ function session(client: Connection | PoolConnection): SqlSession {
   };
 }
 export default class MysqlAdaptor implements IDataAccessAdaptor {
+  readonly analytics;
   userDAO: IDataAccessAdaptor["userDAO"];
   experimentDAO: IDataAccessAdaptor["experimentDAO"];
   cohortDAO: IDataAccessAdaptor["cohortDAO"];
@@ -86,9 +87,11 @@ export default class MysqlAdaptor implements IDataAccessAdaptor {
       return serializeClient(client, () => execute(client));
     };
     const adaptor = relationalAdaptor({
+      dialect: "mysql",
       read: (work) => run(work, false),
       transaction: (work) => run(work, true),
     });
+    this.analytics = adaptor.analytics;
     this.userDAO = adaptor.userDAO;
     this.experimentDAO = adaptor.experimentDAO;
     this.cohortDAO = adaptor.cohortDAO;

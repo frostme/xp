@@ -72,6 +72,7 @@ function session(
 
 export function sequelizeAdaptor(client: Sequelize, dialect: SequelizeDialect): IDataAccessAdaptor {
   return relationalAdaptor({
+    dialect,
     read: (work) => work(session(client, dialect, null)),
     transaction: (work) =>
       client.transaction((transaction) => work(session(client, dialect, transaction))),
