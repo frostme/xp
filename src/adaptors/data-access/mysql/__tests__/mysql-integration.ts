@@ -11,8 +11,10 @@ import { renderSql } from "~/adaptors/setup/storage";
 import server from "~/server";
 
 import MysqlAdaptor from "..";
+import { registerSqlAnalyticsContract } from "../../__tests__/sqlAnalytics";
 import { setupMysql } from "./fixture";
 
+registerSqlAnalyticsContract(setupMysql);
 registerStorageContract("mysql", setupMysql, () => setupMysql({}, 1));
 
 describe.skipIf(selectedDatabase() !== "mysql")("MySQL connection ownership and JSON", () => {

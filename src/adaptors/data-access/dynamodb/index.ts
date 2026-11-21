@@ -8,9 +8,11 @@ export default class DynamoDBAdaptor implements IDataAccessAdaptor {
   public readonly experimentDAO: IExperimentDAO;
   public readonly cohortDAO: ICohortDAO;
   public readonly userDAO: IUserDAO;
+  public readonly analytics: DynamoDBStore["analytics"];
 
   constructor(client: DynamoDBDocumentClient, tableName: string) {
     const store = new DynamoDBStore(client, tableName);
+    this.analytics = store.analytics;
     this.experimentDAO = {
       getById: (id) => store.getExperiment(id),
       findBySlug: (slug) => store.findExperiment(slug),
@@ -31,8 +33,8 @@ export default class DynamoDBAdaptor implements IDataAccessAdaptor {
     this.userDAO = {
       findById: (id) => store.getUser(id),
       findUserCohort: (userId, experimentId) => store.findMembership(userId, experimentId),
-      addUserCohort: (userId, experimentId, cohortId) =>
-        store.addMembership(userId, experimentId, cohortId),
+      addUserCohort: (userId, experimentId, cohortId, deliveries) =>
+        store.addMembership(userId, experimentId, cohortId, deliveries),
       removeUserCohort: (userId, experimentId) => store.removeMembership(userId, experimentId),
     };
   }

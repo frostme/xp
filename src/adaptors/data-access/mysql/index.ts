@@ -48,6 +48,7 @@ function session(client: Connection | PoolConnection): SqlSession {
   };
 }
 export default class MysqlAdaptor implements IDataAccessAdaptor {
+  readonly analytics;
   userDAO: IDataAccessAdaptor["userDAO"];
   experimentDAO: IDataAccessAdaptor["experimentDAO"];
   cohortDAO: IDataAccessAdaptor["cohortDAO"];
@@ -55,9 +56,14 @@ export default class MysqlAdaptor implements IDataAccessAdaptor {
     const run = async <T>(
       work: (s: SqlSession) => Promise<T>,
       transaction: boolean,
+      isolation?: "READ COMMITTED",
     ): Promise<T> => {
       const execute = async (connection: Connection | PoolConnection): Promise<T> => {
-        if (transaction) await connection.beginTransaction();
+        if (transaction) {
+          // Applies to the next transaction only, preserving the host pool's defaults.
+          if (isolation) await connection.query("SET TRANSACTION ISOLATION LEVEL READ COMMITTED");
+          await connection.beginTransaction();
+        }
         try {
           const result = await work(session(connection));
           if (transaction) await connection.commit();
@@ -86,9 +92,11 @@ export default class MysqlAdaptor implements IDataAccessAdaptor {
       return serializeClient(client, () => execute(client));
     };
     const adaptor = relationalAdaptor({
+      dialect: "mysql",
       read: (work) => run(work, false),
-      transaction: (work) => run(work, true),
+      transaction: (work, isolation) => run(work, true, isolation),
     });
+    this.analytics = adaptor.analytics;
     this.userDAO = adaptor.userDAO;
     this.experimentDAO = adaptor.experimentDAO;
     this.cohortDAO = adaptor.cohortDAO;

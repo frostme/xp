@@ -11,8 +11,10 @@ import { renderSql } from "~/adaptors/setup/storage";
 import server from "~/server";
 
 import PostgresAdaptor from "..";
+import { registerSqlAnalyticsContract } from "../../__tests__/sqlAnalytics";
 import { setupPostgres } from "./fixture";
 
+registerSqlAnalyticsContract(setupPostgres);
 registerStorageContract("postgres", setupPostgres, () => setupPostgres(1));
 
 describe.skipIf(selectedDatabase() !== "postgres")("PostgreSQL connection ownership", () => {
