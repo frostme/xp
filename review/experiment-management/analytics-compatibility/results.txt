@@ -1,0 +1,24 @@
+TypeScript passed.
+
+Startup, weighted assignment and analytics capture
+      Tests  29 passed (29)
+   Start at  16:27:54
+   Duration  3.40s (tests 51%, transform 43%, import 5%)
+ ✓ src/adaptors/data-access/postgres/__tests__/combined-features-integration.ts > fences weighted draws and captures only committed joins on postgres 539ms
+ ✓ src/adaptors/data-access/postgres/__tests__/combined-features-integration.ts > fences weighted draws and captures only committed joins on Sequelize postgres 1033ms
+      Tests  2 passed (2)
+   Start at  16:27:58
+   Duration  5.55s (transform 48%, tests 29%, import 23%)
+ ✓ src/adaptors/data-access/mysql/__tests__/combined-features-integration.ts > fences weighted draws and captures only committed joins on mysql 1575ms
+ ✓ src/adaptors/data-access/mysql/__tests__/combined-features-integration.ts > fences weighted draws and captures only committed joins on Sequelize mysql 1187ms
+      Tests  2 passed (2)
+   Start at  16:28:05
+   Duration  4.82s (tests 60%, import 22%, transform 18%)
+ ✓ src/adaptors/data-access/mongodb/__tests__/combined-features-integration.ts > fences weighted draws and captures only committed joins on mongodb 1720ms
+      Tests  1 passed (1)
+   Start at  16:28:11
+   Duration  3.32s (tests 58%, transform 28%, import 13%)
+ ✓ src/adaptors/data-access/dynamodb/__tests__/combined-features-integration.ts > fences weighted draws and captures only committed joins on dynamodb 3602ms
+      Tests  1 passed (1)
+   Start at  16:28:16
+   Duration  5.54s (tests 68%, transform 20%, import 12%)

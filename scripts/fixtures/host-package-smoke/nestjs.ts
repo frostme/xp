@@ -8,6 +8,8 @@ import { Controller, ForbiddenException, Get, Module, UnauthorizedException } fr
 import { NestFactory } from "@nestjs/core";
 import assert from "node:assert/strict";
 
+import { verifyManagementMount } from "./management.js";
+
 @Controller("health")
 class Health {
   @Get()
@@ -93,6 +95,7 @@ export async function exerciseNest(createAdapter: () => AbstractHttpAdapter) {
         ["checkout_short", "checkout_control"],
       );
       for (const host of [sync, asyncApp]) {
+        await verifyManagementMount(host.origin);
         assert.equal(await host.load(), null);
         await assert.rejects(host.load("Bearer expired"), /HTTP 401/);
         await assert.rejects(host.load("Bearer suspended"), /HTTP 403/);

@@ -1,0 +1,964 @@
+diff --git a/docs/experiments.md b/docs/experiments.md
+index f2b6256..c4f109f 100644
+--- a/docs/experiments.md
++++ b/docs/experiments.md
+@@ -103,6 +103,10 @@ Use `adjust` with the same allocation structure to update the split for future u
+ 
+ Each effective change advances the revision. Retrying a command whose desired state already holds succeeds without advancing it. A different change based on a stale revision fails with a conflict. A managed automatic join checks the sampled revision in the storage write and retries from the current state on conflict, up to five attempts. Direct cohort additions, removals and percentage edits on a managed definition return a conflict; use a whole-split command. The generic server methods continue to support legacy definitions.
+ 
++## Analytics for new cohort memberships
++
++Pass the optional `analytics` configuration to `initializeXp` or the synchronous server constructor to capture new memberships. A stored flag-off assignment generates a join, including when the HTTP response returns a null slug. Returning a pinned winner generates no join. The host controls consent, external identity and the worker. [Analytics guide](analytics.md)
++
+ ## Express
+ 
+ In the following examples, `authenticateSession(cookie)` represents your application's existing session verification. It returns an account with a string or numeric `id`, or null for a guest.
+diff --git a/docs/roadmap.md b/docs/roadmap.md
+index 270ec91..1ebb3a8 100644
+--- a/docs/roadmap.md
++++ b/docs/roadmap.md
+@@ -12,6 +12,8 @@ Hosts can mount `ResolveCohort` with standalone Fastify or NestJS on Express and
+
+ ## Operations and storage
+
++The analytics storage extension captures cohort joins transactionally and supports a host-run delivery worker for Amplitude, Segment, Mixpanel, Fullstory, Heap, PostHog and custom destinations. [Analytics guide](analytics.md)
++
+ A host can mount the operator page on its own authenticated route. It reads current membership counts and supports off-first creation, weighted launch and adjustment, pause, resume and final winner selection. Existing experiments keep their uniform assignment behavior. [Management guide](management.md)
+
+-Analytics connectors are tracked independently. Further ORM runtime adapters, generator/version profiles, migration execution, cross-database migration and external identity storage remain open.
++Further ORM runtime adapters, generator/version profiles, migration execution, cross-database migration and external identity storage remain open.
+diff --git a/knip.ts b/knip.ts
+index d92596f..06c10be 100644
+--- a/knip.ts
++++ b/knip.ts
+@@ -14,6 +14,7 @@ const config: KnipConfig = {
+     "scripts/fixtures/protocol-browser/*.{ts,tsx,mjs}",
+     "scripts/fixtures/soap/*.{ts,js,mjs}",
+     "scripts/fixtures/xp-journey/*.test.mjs",
++    "scripts/fixtures/analytics-journey/{*.test.mjs,worker.mjs}",
+     "scripts/fixtures/management-journey/*.test.mjs",
+     "scripts/fixtures/xp-journey/protocol-page.mjs",
+     "scripts/fixtures/host-package-smoke/*.{ts,tsx,mjs}",
+diff --git a/scripts/setup-generator-smoke.mjs b/scripts/setup-generator-smoke.mjs
+index e10f1a3..0cdea22 100644
+--- a/scripts/setup-generator-smoke.mjs
++++ b/scripts/setup-generator-smoke.mjs
+@@ -118,11 +118,19 @@ try {
+               dialect: database === "postgres" ? "postgres" : database,
+               logging: false,
+             });
+-            const models = (loaded.defineXpModels ?? loaded.default.defineXpModels)(sequelize);
+-            assert.equal(models.XpExperiment.getTableName(), "experiments");
+-            assert.equal(models.XpExperiment.getAttributes().enabled.defaultValue, true);
+-            assert.equal(models.XpExperiment.getAttributes().rollout_phase.allowNull, true);
+-            assert.equal(models.XpExperiment.getAttributes().rollout_revision.defaultValue, 0);
++            const factory = analytics ? "defineXpAnalyticsModels" : "defineXpModels";
++            const models = (loaded[factory] ?? loaded.default[factory])(sequelize);
++            if (analytics) {
++              assert.deepEqual(models.XpAnalyticsDelivery.primaryKeyAttributes, [
++                "event_id",
++                "destination_key",
++              ]);
++            } else {
++              assert.equal(models.XpExperiment.getTableName(), "experiments");
++              assert.equal(models.XpExperiment.getAttributes().enabled.defaultValue, true);
++              assert.equal(models.XpExperiment.getAttributes().rollout_phase.allowNull, true);
++              assert.equal(models.XpExperiment.getAttributes().rollout_revision.defaultValue, 0);
++            }
+             await sequelize.close();
+           }
+           if (file.path.includes("models") && orm === "typeorm") {
+diff --git a/src/__tests__/storage/combined.ts b/src/__tests__/storage/combined.ts
+new file mode 100644
+index 0000000..22de6d6
+--- /dev/null
++++ b/src/__tests__/storage/combined.ts
+@@ -0,0 +1,183 @@
++import { mkdtemp, rm, writeFile } from "node:fs/promises";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { expect, it } from "vitest";
++
++import type { PKey } from "~/entities";
++import type { ClaimedDelivery } from "~/interfaces/analytics";
++
++import { initializeXp } from "~/server";
++
++import type { StorageFixture } from "./contract";
++
++type Fixture = StorageFixture & { applyAnalytics(): Promise<void> };
++
++export function combined(label: string, setup: () => Promise<Fixture>) {
++  it(`fences weighted draws and captures only committed joins on ${label}`, async () => {
++    const f = await setup();
++    const cwd = await mkdtemp(join(tmpdir(), "xp-combined-"));
++    try {
++      await writeFile(
++        join(cwd, "xp.config.json"),
++        JSON.stringify({
++          experiments: [],
++          management: { allowCreate: true },
++        }),
++      );
++      for (const user of ["disabled", "pinned", "manual", "auto", "race", "finalize-race"]) {
++        await f.seedUser(user as PKey<"User">);
++      }
++      const runtime = await initializeXp({ ...f.startupOptions, cwd, random: () => 0.0003 });
++      const x = await runtime.management.create({ slug: "combined", cohorts: ["short", "long"] });
++      const { id, slug } = x;
++      const [off, short, long] = ["combined_off", "combined_short", "combined_long"] as const;
++      const disabledAllocation = [
++        { cohort: off, percentage: 0.03 },
++        { cohort: short, percentage: 99.97 },
++        { cohort: long, percentage: 0 },
++      ];
++      const counts = async () => {
++        const detail = await runtime.management.detail(slug, "view");
++        return Object.fromEntries(detail.cohorts.map((c) => [c.slug, c.memberships]));
++      };
++      const membership = (user: string) =>
++        f.adaptor.userDAO.findUserCohort(user as PKey<"User">, id);
++
++      // The optional analytics schema has not been provisioned yet.
++      expect(await runtime.resolveCohort("pinned", slug)).toEqual({ slug: null });
++      await runtime.management.apply(
++        slug,
++        1,
++        { type: "launch", allocation: disabledAllocation },
++        id,
++      );
++      expect(await runtime.resolveCohort("disabled", slug)).toEqual({ slug: short });
++      expect(await counts()).toEqual({ [off]: 0, [short]: 1, [long]: 0 });
++      await runtime.management.apply(slug, 2, { type: "finalize", cohort: off }, id);
++
++      await f.applyAnalytics();
++      const destination = { key: "cohort-events", provider: "custom:test" };
++      const gates = new Map(
++        ["race", "finalize-race"].map((user) => [
++          user,
++          {
++            started: Promise.withResolvers<void>(),
++            resume: Promise.withResolvers<void>(),
++            waiting: false,
++          },
++        ]),
++      );
++      const mapped: string[] = [];
++      const captured = await initializeXp({
++        ...f.startupOptions,
++        cwd,
++        random: () => 0.2,
++        analytics: {
++          destinations: [destination],
++          mappingTimeoutMs: 15000,
++          async mapIdentity({ userId }) {
++            mapped.push(String(userId));
++            const gate = gates.get(String(userId));
++            if (gate && !gate.waiting) {
++              gate.waiting = true;
++              gate.started.resolve();
++              await gate.resume.promise;
++            }
++            return `subject-${userId}`;
++          },
++        },
++      });
++      const managed = await captured.management.create({
++        slug: "together",
++        cohorts: ["short", "long"],
++      });
++      const base = managed.slug;
++      const offSlug = `${base}_off`,
++        shortSlug = `${base}_short`,
++        longSlug = `${base}_long`;
++      const split = (offWeight: number) => [
++        { cohort: offSlug, percentage: offWeight },
++        { cohort: shortSlug, percentage: 100 - offWeight },
++        { cohort: longSlug, percentage: 0 },
++      ];
++      const decide = (user: string) => captured.resolveCohort(user, base);
++      const current = (user: string) =>
++        f.adaptor.userDAO.findUserCohort(user as PKey<"User">, managed.id);
++      const detailCounts = async () =>
++        Object.fromEntries(
++          (await captured.management.detail(base, "view")).cohorts.map((c) => [
++            c.slug,
++            c.memberships,
++          ]),
++        );
++      const store = f.adaptor.analytics!;
++      expect(await decide("pinned")).toEqual({ slug: null });
++      expect(await current("pinned")).toBeNull();
++      expect((await store.diagnostics(destination.key)).counts.pending).toBe(0);
++      await captured.joinCohort("manual", base, shortSlug);
++      expect(await decide("manual")).toEqual({ slug: null });
++
++      await captured.management.apply(
++        base,
++        1,
++        { type: "launch", allocation: split(21) },
++        managed.id,
++      );
++      expect(await decide("auto")).toEqual({ slug: null });
++      expect(await decide("auto")).toEqual({ slug: null });
++      const offRow = managed.cohorts.find((c) => c.slug === offSlug)!;
++      expect((await current("auto"))?.cohort_id).toBe(offRow.id);
++
++      const race = decide("race");
++      await gates.get("race")!.started.promise;
++      await captured.management.apply(
++        base,
++        2,
++        { type: "adjust", allocation: split(0) },
++        managed.id,
++      );
++      gates.get("race")!.resume.resolve();
++      expect(await race).toEqual({ slug: shortSlug });
++      const shortRow = managed.cohorts.find((c) => c.slug === shortSlug)!;
++      expect((await current("race"))?.cohort_id).toBe(shortRow.id);
++
++      const finalizeRace = decide("finalize-race");
++      await gates.get("finalize-race")!.started.promise;
++      await captured.management.apply(base, 3, { type: "finalize", cohort: offSlug }, managed.id);
++      gates.get("finalize-race")!.resume.resolve();
++      expect(await finalizeRace).toEqual({ slug: null });
++      expect(await current("finalize-race")).toBeNull();
++      expect(mapped).toEqual(["manual", "auto", "race", "race", "finalize-race"]);
++
++      const expectedCounts = { [offSlug]: 1, [shortSlug]: 2, [longSlug]: 0 };
++      expect(await detailCounts()).toEqual(expectedCounts);
++      const claimed: ClaimedDelivery[] = [];
++      await expect
++        .poll(async () => {
++          claimed.push(
++            ...(await store.claim(destination, { now: Date.now(), leaseMs: 30000, limit: 8 })),
++          );
++          return claimed.length;
++        })
++        .toBe(3);
++      const payloads = claimed.map((r) => [r.subjectId, r.event.source, r.event.cohortSlug]);
++      expect(payloads.sort()).toEqual([
++        ["subject-auto", "automatic", offSlug],
++        ["subject-manual", "manual", shortSlug],
++        ["subject-race", "automatic", shortSlug],
++      ]);
++      expect(new Set(claimed.map((r) => r.event.id)).size).toBe(3);
++      expect((await store.diagnostics(destination.key)).counts).toEqual({
++        claimed: 3,
++        delivered: 0,
++        failed: 0,
++        pending: 0,
++      });
++      expect(await detailCounts()).toEqual(expectedCounts);
++      expect(await membership("disabled")).not.toBeNull();
++    } finally {
++      await f.cleanup();
++      await rm(cwd, { recursive: true, force: true });
++    }
++  });
++}
+diff --git a/src/__tests__/storage/rollout.ts b/src/__tests__/storage/rollout.ts
+index 0d10ab5..38926d0 100644
+--- a/src/__tests__/storage/rollout.ts
++++ b/src/__tests__/storage/rollout.ts
+@@ -72,6 +72,7 @@ function interceptInsert(
+     async () => {
+       throw new Error("A managed decision called the legacy bucketer");
+     },
++    undefined,
+     () => draw,
+   );
+ }
+diff --git a/src/adaptors/data-access/dynamodb/__tests__/combined-features-integration.ts b/src/adaptors/data-access/dynamodb/__tests__/combined-features-integration.ts
+new file mode 100644
+index 0000000..74a1b34
+--- /dev/null
++++ b/src/adaptors/data-access/dynamodb/__tests__/combined-features-integration.ts
+@@ -0,0 +1,5 @@
++import { combined } from "~/__tests__/storage/combined";
++
++import { dynamodbFixture } from "./fixture";
++
++combined("dynamodb", dynamodbFixture);
+diff --git a/src/adaptors/data-access/dynamodb/__tests__/storage-integration.ts b/src/adaptors/data-access/dynamodb/__tests__/storage-integration.ts
+index 05f8a96..a572cd3 100644
+--- a/src/adaptors/data-access/dynamodb/__tests__/storage-integration.ts
++++ b/src/adaptors/data-access/dynamodb/__tests__/storage-integration.ts
+@@ -4,6 +4,7 @@ import {
+   TransactWriteCommand,
+   type DynamoDBDocumentClient,
+ } from "@aws-sdk/lib-dynamodb";
++import { randomUUID } from "node:crypto";
+ import { afterEach, beforeEach, describe, expect, it } from "vitest";
+ 
+ import type { CohortSlug, PKey } from "~/entities";
+@@ -32,6 +33,61 @@ describe.skipIf(selectedDatabase() !== "dynamodb")("DynamoDB limits and resumabl
+     await fixture?.cleanup();
+   });
+ 
++  it("captures analytics atomically and fences indexed deliveries", async () => {
++    await analyticsContract(fixture);
++  });
++
++  it("paginates due queries and gives each row to at most one concurrent worker", async () => {
++    await fixture.applyAnalytics();
++    const destination = { key: "sink", provider: "custom:test" };
++    await fixture.adaptor.analytics!.ready([destination]);
++    const experiment = await fixture.adaptor.experimentDAO.create(experimentInput());
++    const cohort = experiment.cohorts[0]!;
++    for (let i = 0; i < 4; i++) {
++      const user = ("worker-race-" + i) as PKey<"User">;
++      await fixture.seedUser(user);
++      const delivery: PendingDelivery = {
++        event: {
++          name: "xp.cohort.joined",
++          version: 1,
++          id: randomUUID(),
++          occurredAt: new Date().toISOString(),
++          experimentSlug: experiment.slug,
++          cohortSlug: cohort.slug,
++          source: "manual",
++        },
++        destinationKey: destination.key,
++        provider: destination.provider,
++        subjectId: "mapped-" + i,
++      };
++      await fixture.adaptor.userDAO.addUserCohort(user, experiment.id, cohort.id, [delivery]);
++    }
++
++    let continuations = 0;
++    const client = {
++      send: (command: any) => {
++        if (command instanceof ScanCommand) throw new Error("Worker issued a table scan");
++        if (command instanceof QueryCommand) {
++          expect(command.input.IndexName).toBe("xp_analytics_due");
++          if (command.input.ExclusiveStartKey) continuations++;
++          return fixture.client.send(new QueryCommand({ ...command.input, Limit: 1 }));
++        }
++        return fixture.client.send(command);
++      },
++    } as DynamoDBDocumentClient;
++    const store = new DynamoDBAdaptor(client, fixture.tableName).analytics;
++    const opts = { now: Date.now() + 100, limit: 4, leaseMs: 60_000 };
++    await expect.poll(async () => (await store.inspect("sink", "pending", 4)).length).toBe(4);
++    const lists = await Promise.all([
++      store.claim(destination, opts),
++      store.claim(destination, opts),
++    ]);
++    const claims = lists.flat();
++    expect(continuations).toBeGreaterThan(0);
++    expect(claims).toHaveLength(4);
++    expect(new Set(claims.map((row) => row.event.id)).size).toBe(4);
++    expect(new Set(claims.map((row) => row.leaseToken)).size).toBe(4);
++  });
+   it("finds an experiment by literal name through sparse physical scan pages", async () => {
+     const input = { ...experimentInput("checkout"), name: "Check [A+B]" };
+     await fixture.adaptor.experimentDAO.create(input);
+diff --git a/src/adaptors/data-access/dynamodb/store.ts b/src/adaptors/data-access/dynamodb/store.ts
+index ae7f10d..a24254c 100644
+--- a/src/adaptors/data-access/dynamodb/store.ts
++++ b/src/adaptors/data-access/dynamodb/store.ts
+@@ -14,6 +14,7 @@ import type {
+   User,
+   UserCohort,
+ } from "~/entities";
++import type { PendingDelivery } from "~/entities/analytics";
+ import type { DirectoryEntry, DirectoryPage, DirectoryQuery } from "~/interfaces/management";
+ 
+ import {
+@@ -758,7 +759,7 @@ export default class DynamoDBStore {
+     userId: PKey<"User">,
+     experimentId: PKey<"Experiment">,
+     cohortId: PKey<"Cohort">,
+-    _deliveries?: undefined,
++    deliveries: readonly PendingDelivery[] = [],
+     expectedRevision?: number,
+   ): Promise<UserCohort> {
+     const membership: UserCohort = {
+diff --git a/src/adaptors/data-access/mongodb/__tests__/combined-features-integration.ts b/src/adaptors/data-access/mongodb/__tests__/combined-features-integration.ts
+new file mode 100644
+index 0000000..f8982eb
+--- /dev/null
++++ b/src/adaptors/data-access/mongodb/__tests__/combined-features-integration.ts
+@@ -0,0 +1,5 @@
++import { combined } from "~/__tests__/storage/combined";
++
++import { mongoFixture } from "./fixture";
++
++combined("mongodb", mongoFixture);
+diff --git a/src/adaptors/data-access/mongodb/userDAO.ts b/src/adaptors/data-access/mongodb/userDAO.ts
+index 18660c7..31510ae 100644
+--- a/src/adaptors/data-access/mongodb/userDAO.ts
++++ b/src/adaptors/data-access/mongodb/userDAO.ts
+@@ -38,7 +38,7 @@ export default class MongoUserDAO implements IUserDAO {
+     userId: PKey<"User">,
+     experimentId: PKey<"Experiment">,
+     cohortId: PKey<"Cohort">,
+-    _deliveries?: undefined,
++    pending: readonly PendingDelivery[] = [],
+     expectedRevision?: number,
+   ): Promise<UserCohort> {
+     const record: UserCohort = {
+@@ -47,29 +47,25 @@ export default class MongoUserDAO implements IUserDAO {
+       experiment_id: experimentId,
+       cohort_id: cohortId,
+     };
+-    try {
+-      await this.store.transaction(async (session) => {
+-        const experiment = await this.store.lockExperiment(experimentId, session);
+-        if (!experiment) {
+-          throw new NotFoundError(`Experiment with id ${experimentId} not found`);
+-        }
+-        if (
+-          expectedRevision !== undefined &&
+-          expectedRevision !== (experiment.rollout_revision ?? 0)
+-        )
+-          throw new RolloutConflictError();
+-        if (experiment.enabled === false) throw new ExperimentPausedError();
+-        if (!(await this.store.users.findOne({ id: userId }, { session }))) {
+-          throw new NotFoundError(`User with id ${userId} not found`);
+-        }
+-        if (
+-          !(await this.store.cohorts.findOne(
+-            { id: cohortId, experiment_id: experimentId },
+-            { session },
+-          ))
+-        ) {
+-          throw new NotFoundError("Cohort does not belong to the experiment");
+-        }
++    await this.store.transaction(async (session) => {
++      const experiment = await this.store.lockExperiment(experimentId, session);
++      if (!experiment) {
++        throw new NotFoundError(`Experiment with id ${experimentId} not found`);
++      }
++      if (expectedRevision !== undefined && (experiment.rollout_revision ?? 0) !== expectedRevision) throw new RolloutConflictError();
++      if (experiment.enabled === false) throw new ExperimentPausedError();
++      if (!(await this.store.users.findOne({ id: userId }, { session }))) {
++        throw new NotFoundError(`User with id ${userId} not found`);
++      }
++      if (
++        !(await this.store.cohorts.findOne(
++          { id: cohortId, experiment_id: experimentId },
++          { session },
++        ))
++      ) {
++        throw new NotFoundError("Cohort does not belong to the experiment");
++      }
++      try {
+         await this.store.memberships.insertOne({ ...record }, { session });
+       } catch (error) {
+         if (
+diff --git a/src/adaptors/data-access/mssql/__tests__/combined-features-integration.ts b/src/adaptors/data-access/mssql/__tests__/combined-features-integration.ts
+new file mode 100644
+index 0000000..3c76ac5
+--- /dev/null
++++ b/src/adaptors/data-access/mssql/__tests__/combined-features-integration.ts
+@@ -0,0 +1,7 @@
++import { combined } from "~/__tests__/storage/combined";
++
++import { setupSequelize } from "../../sequelize/__tests__/fixture";
++import { setupMssql } from "./fixture";
++
++combined("mssql", setupMssql);
++combined("Sequelize mssql", () => setupSequelize("mssql"));
+diff --git a/src/adaptors/data-access/mssql/__tests__/mssql-integration.ts b/src/adaptors/data-access/mssql/__tests__/mssql-integration.ts
+index 62bd429..150364f 100644
+--- a/src/adaptors/data-access/mssql/__tests__/mssql-integration.ts
++++ b/src/adaptors/data-access/mssql/__tests__/mssql-integration.ts
+@@ -11,6 +11,7 @@ import { renderSql } from "~/adaptors/setup/storage";
+ import { registerSqlAnalyticsContract } from "../../__tests__/sqlAnalytics";
+ import { setupMssql } from "./fixture";
+ 
++registerSqlAnalyticsContract(setupMssql);
+ registerStorageContract("mssql", setupMssql, setupMssql);
+ 
+ describe.skipIf(selectedDatabase() !== "mssql")("SQL Server connection ownership", () => {
+diff --git a/src/adaptors/data-access/mysql/__tests__/combined-features-integration.ts b/src/adaptors/data-access/mysql/__tests__/combined-features-integration.ts
+new file mode 100644
+index 0000000..d29c3ad
+--- /dev/null
++++ b/src/adaptors/data-access/mysql/__tests__/combined-features-integration.ts
+@@ -0,0 +1,7 @@
++import { combined } from "~/__tests__/storage/combined";
++
++import { setupSequelize } from "../../sequelize/__tests__/fixture";
++import { setupMysql } from "./fixture";
++
++combined("mysql", setupMysql);
++combined("Sequelize mysql", () => setupSequelize("mysql"));
+diff --git a/src/adaptors/data-access/mysql/__tests__/mysql-integration.ts b/src/adaptors/data-access/mysql/__tests__/mysql-integration.ts
+index 7db5ed9..aede634 100644
+--- a/src/adaptors/data-access/mysql/__tests__/mysql-integration.ts
++++ b/src/adaptors/data-access/mysql/__tests__/mysql-integration.ts
+@@ -14,6 +14,7 @@ import MysqlAdaptor from "..";
+ import { registerSqlAnalyticsContract } from "../../__tests__/sqlAnalytics";
+ import { setupMysql } from "./fixture";
+ 
++registerSqlAnalyticsContract(setupMysql);
+ registerStorageContract("mysql", setupMysql, (version) => setupMysql({}, version));
+ 
+ describe.skipIf(selectedDatabase() !== "mysql")("MySQL connection ownership and JSON", () => {
+diff --git a/src/adaptors/data-access/postgres/__tests__/combined-features-integration.ts b/src/adaptors/data-access/postgres/__tests__/combined-features-integration.ts
+new file mode 100644
+index 0000000..eb723db
+--- /dev/null
++++ b/src/adaptors/data-access/postgres/__tests__/combined-features-integration.ts
+@@ -0,0 +1,7 @@
++import { combined } from "~/__tests__/storage/combined";
++
++import { setupSequelize } from "../../sequelize/__tests__/fixture";
++import { setupPostgres } from "./fixture";
++
++combined("postgres", setupPostgres);
++combined("Sequelize postgres", () => setupSequelize("postgres"));
+diff --git a/src/adaptors/data-access/postgres/__tests__/postgres-integration.ts b/src/adaptors/data-access/postgres/__tests__/postgres-integration.ts
+index c7f2eb3..8eeeec9 100644
+--- a/src/adaptors/data-access/postgres/__tests__/postgres-integration.ts
++++ b/src/adaptors/data-access/postgres/__tests__/postgres-integration.ts
+@@ -14,6 +14,7 @@ import PostgresAdaptor from "..";
+ import { registerSqlAnalyticsContract } from "../../__tests__/sqlAnalytics";
+ import { setupPostgres } from "./fixture";
+ 
++registerSqlAnalyticsContract(setupPostgres);
+ registerStorageContract("postgres", setupPostgres, setupPostgres);
+ 
+ describe.skipIf(selectedDatabase() !== "postgres")("PostgreSQL connection ownership", () => {
+diff --git a/src/adaptors/data-access/relational.ts b/src/adaptors/data-access/relational.ts
+index a9e053f..6f6cbc2 100644
+--- a/src/adaptors/data-access/relational.ts
++++ b/src/adaptors/data-access/relational.ts
+@@ -1,6 +1,8 @@
+ import type { Cohort, Experiment, User, UserCohort, PKey } from "~/entities";
+ import type { RolloutChange } from "~/entities/rollout";
+ import type { IDataAccessAdaptor } from "~/interfaces";
++import type { AnalyticsStore } from "~/interfaces/analytics";
++import type { SequelizeDialect } from "~/interfaces/config";
+ import type { DirectoryEntry, DirectoryPage, DirectoryQuery } from "~/interfaces/management";
+ 
+ import { initialDelivery, rolloutMetadata } from "~/entities/rollout";
+@@ -24,7 +26,7 @@ export interface SqlSession {
+   parameter(index: number): string;
+ }
+ export interface SqlDatabase {
+-  dialect: "postgres" | "mysql" | "mssql";
++  readonly dialect: SequelizeDialect;
+   read<T>(work: (session: SqlSession) => Promise<T>): Promise<T>;
+   transaction<T>(
+     work: (session: SqlSession) => Promise<T>,
+@@ -446,7 +448,7 @@ export function relationalAdaptor(
+           );
+           return rows[0] ? membership(rows[0]) : null;
+         }),
+-      addUserCohort: (userId, experimentId, cohortId, _deliveries, expectedRevision) =>
++      addUserCohort: (userId, experimentId, cohortId, deliveries = [], expectedRevision) =>
+         database.transaction(async (s) => {
+           const experiment = await lockExperiment(s, experimentId);
+           if (
+diff --git a/src/adaptors/setup/generators/__tests__/schema-generators-unit.ts b/src/adaptors/setup/generators/__tests__/schema-generators-unit.ts
+index 368a523..1b466ba 100644
+--- a/src/adaptors/setup/generators/__tests__/schema-generators-unit.ts
++++ b/src/adaptors/setup/generators/__tests__/schema-generators-unit.ts
+@@ -294,6 +294,79 @@ async function saveManifest(options: ResolvedSetup, version: number, entries: [s
+ const sqlModules = process.env["XP_SCHEMA_TOOLS_NODE_MODULES"];
+ const mongoModules = process.env["XP_PRISMA_MONGO_NODE_MODULES"];
+ describe.skipIf(!sqlModules)("pinned schema toolchain compatibility", () => {
++  it.each(["postgres", "mysql"] as const)(
++    "opts an installed Drizzle %s schema into analytics with one new snapshot",
++    async (database) => {
++      const { options } = await fixture(
++        {
++          orm: "drizzle",
++          ormVersion: "0.45.4",
++          database,
++          schema: "schema.ts",
++          migrationsDir: "drizzle",
++          userIdType: database === "postgres" ? "text" : "varchar(191)",
++        },
++        sqlModules,
++      );
++      const manager = new ProjectManager(new SetupGenerators());
++      const base = await manager.planSetup(options);
++      await manager.applySetup(base);
++      const extension = await manager.planSetup({ cwd: options.cwd, analytics: true });
++      const sql = extension.files.find((file) => file.path.endsWith("_xp_analytics_v1.sql"))!;
++      expect(sql.content).toContain("CREATE INDEX xp_analytics_due_idx");
++      expect(sql.content).not.toContain("CREATE TABLE experiments");
++      await manager.applySetup(extension);
++      expect(
++        await runLocal(
++          path.join(sqlModules!, "drizzle-kit/bin.cjs"),
++          ["generate", "--name=verify"],
++          options.cwd,
++        ),
++      ).toContain("No schema changes");
++      expect((await manager.applySetup(await manager.planSetup({ cwd: options.cwd }))).status).toBe(
++        "unchanged",
++      );
++    },
++  );
++
++  it.each(["postgres", "mysql", "mssql"] as const)(
++    "validates fresh and existing Prisma %s analytics schemas",
++    async (database) => {
++      for (const fresh of [true, false]) {
++        const { options } = await fixture(
++          {
++            database,
++            ormVersion: "7.10.1",
++            userIdType:
++              database === "postgres"
++                ? "text"
++                : database === "mysql"
++                  ? "varchar(191)"
++                  : "nvarchar(255)",
++          },
++          sqlModules,
++        );
++        const manager = new ProjectManager(new SetupGenerators());
++        if (!fresh) await manager.applySetup(await manager.planSetup(options));
++        const plan = await manager.planSetup({ ...options, analytics: true });
++        expect(plan.files.find((file) => file.path.endsWith("schema.prisma"))!.content).toContain(
++          "model XpAnalyticsDelivery",
++        );
++        expect(plan.files.some((file) => file.path.endsWith("xp_analytics_v1/migration.sql"))).toBe(
++          true,
++        );
++        await manager.applySetup(plan);
++        expect(
++          (await manager.applySetup(await manager.planSetup({ cwd: options.cwd }))).status,
++        ).toBe("unchanged");
++      }
++    },
++  );
++
++  it.each(["postgres", "mysql"] as const)(
++    "upgrades v1 Drizzle %s with its generated config and preserves the applied migration and snapshot",
++    async (database) => {
++
+   it.each([
+     ["postgres", 1],
+     ["mysql", 1],
+diff --git a/src/adaptors/setup/generators/common.ts b/src/adaptors/setup/generators/common.ts
+index dbf2be7..86967ab 100644
+--- a/src/adaptors/setup/generators/common.ts
++++ b/src/adaptors/setup/generators/common.ts
+@@ -4,7 +4,8 @@ import type { ProjectDetection, ResolvedSetup } from "~/interfaces/setup";
+ 
+ export const generatedHeader = "// Generated by xp setup (storage v3). Review before applying.\n";
+ export const sqlHeader = "-- Generated by xp setup (storage v3). Review before applying.\n";
+-export const migrationStamp = () => new Date().toISOString().replace(/\D/g, "").slice(0, 14);
++export const migrationStamp = (date = new Date()) =>
++  date.toISOString().replace(/\D/g, "").slice(0, 14);
+ export const outputPath = (directory: string, filename: string) =>
+   posix.join(directory.replaceAll("\\", "/"), filename);
+ export function codeExtension(options: ResolvedSetup): string {
+diff --git a/src/adaptors/setup/generators/drizzle.ts b/src/adaptors/setup/generators/drizzle.ts
+index bfe0d7b..d2b69d1 100644
+--- a/src/adaptors/setup/generators/drizzle.ts
++++ b/src/adaptors/setup/generators/drizzle.ts
+@@ -5,7 +5,9 @@ import path from "node:path";
+ 
+ import type { GeneratedArtifacts, ProjectDetection, ResolvedSetup } from "~/interfaces/setup";
+ 
++import { analyticsTables, renderAnalyticsSql } from "../analyticsStorage";
+ import { renderStorageUpgrade, renderSql, STORAGE_VERSION, userIdSql } from "../storage";
++import { analyticsDrizzleModels } from "./analytics-models";
+ import { shellQuote } from "./common";
+ import { command, localPackage, projectPath, readInput, runLocal } from "./schema-utils";
+ 
+@@ -38,7 +40,7 @@ function renderSchema(options: ResolvedSetup, output: string, user: UserExport |
+   const json = pg
+     ? "jsonb(\"value\").notNull().default(sql`'null'::jsonb`)"
+     : 'json("value").notNull()';
+-  const imports = `${table}, ${pg ? "serial, integer, doublePrecision, jsonb, varchar" : "int, double, json, varchar"}, boolean, text, unique, index, check, foreignKey, primaryKey, customType`;
++  const imports = `${options.analytics ? "bigint, " : ""}${table}, ${pg ? "serial, integer, doublePrecision, jsonb, varchar" : "int, double, json, varchar"}, boolean, text, unique, index, check, foreignKey, primaryKey, customType`;
+   const preamble = cjs
+     ? `const { ${imports} } = require("drizzle-orm/${dialect}-core");\nconst { sql } = require("drizzle-orm");\n`
+     : `import { ${imports} } from "drizzle-orm/${dialect}-core";\nimport { sql } from "drizzle-orm";\n`;
+@@ -62,6 +64,7 @@ function renderSchema(options: ResolvedSetup, output: string, user: UserExport |
+   const slug = (name: string) => (pg ? `text("${name}")` : `xpSlug("${name}")`);
+   const enumType = pg ? 'text("type")' : 'varchar("type", { length: 32 })';
+   source += `\n${exp} xpExperiments = ${table}("experiments", {\n  id: ${id},\n  name: text("name").notNull(),\n  slug: ${slug("slug")}.notNull().unique("experiments_slug_key"),\n  type: ${enumType}.notNull(),\n  description: text("description").notNull(),\n  winner: ${slug("winner")},\n  enabled: boolean("enabled").notNull().default(true),\n  rolloutPhase: varchar("rollout_phase", {length: 20}),\n  rolloutRevision: ${integer}("rollout_revision").notNull().default(0),\n}, (table) => [\n  primaryKey({columns: [table.id], name: "experiments_pkey"}),\n  check("experiments_rollout_phase_check", sql\`\${table.rolloutPhase} in ('awaiting-launch', 'allocating', 'winner-selected')\`),\n  check("experiments_rollout_revision_check", sql\`\${table.rolloutRevision} >= 0\`),\n  check("experiments_type_check", sql\`\${table.type} in ('flag', 'simple', 'multivariate', 'dynamic')\`),\n]);\n\n${exp} xpCohorts = ${table}("cohorts", {\n  id: ${id},\n  experimentId: ${integer}("experiment_id").notNull(),\n  slug: ${slug("slug")}.notNull().unique("cohorts_slug_key"),\n  type: ${enumType}.notNull(),\n  description: text("description").notNull(),\n  percentage: ${percentage}("percentage").notNull(),\n  value: ${json},\n}, (table) => [\n  primaryKey({columns: [table.id], name: "cohorts_pkey"}),\n  foreignKey({name: "cohorts_experiment_id_fkey", columns: [table.experimentId], foreignColumns: [xpExperiments.id]}).onDelete("no action").onUpdate("no action"),\n  unique("cohorts_id_experiment_id_key").on(table.id, table.experimentId),\n  index("cohorts_experiment_id_idx").on(table.experimentId),\n  check("cohorts_type_check", sql\`\${table.type} in ('control', 'treatment')\`),\n  check("cohorts_percentage_check", sql\`\${table.percentage} >= 0 and \${table.percentage} <= 100\`),\n]);\n\n${exp} xpUserCohorts = ${table}("user_cohorts", {\n  id: ${id},\n  userId: xpUserKey("user_id").notNull(),\n  experimentId: ${integer}("experiment_id").notNull(),\n  cohortId: ${integer}("cohort_id").notNull(),\n}, (table) => [\n  primaryKey({columns: [table.id], name: "user_cohorts_pkey"}),\n  foreignKey({name: "user_cohorts_user_id_fkey", columns: [table.userId], foreignColumns: [${userReference}]}).onDelete("no action").onUpdate("no action"),\n  foreignKey({name: "user_cohorts_experiment_id_fkey", columns: [table.experimentId], foreignColumns: [xpExperiments.id]}).onDelete("no action").onUpdate("no action"),\n  unique("user_cohorts_user_id_experiment_id_key").on(table.userId, table.experimentId),\n  foreignKey({name: "user_cohorts_cohort_id_experiment_id_fkey", columns: [table.cohortId, table.experimentId], foreignColumns: [xpCohorts.id, xpCohorts.experimentId]}).onDelete("no action").onUpdate("no action"),\n  index("user_cohorts_experiment_id_idx").on(table.experimentId),\n  index("user_cohorts_cohort_id_idx").on(table.cohortId),\n]);\n`;
++  if (options.analytics) source += analyticsDrizzleModels(options, exp);
+   if (cjs)
+     source += `\nmodule.exports = {${user ? "" : "xpUsers, "}xpExperiments, xpCohorts, xpUserCohorts${options.analytics ? ", " + analyticsTables.map((table) => table.model).join(", ") : ""}};\n`;
+   return source;
+@@ -591,7 +594,16 @@ export async function generateDrizzle(
+     await configure([...new Set([...roots.map((source) => source.path), output])]);
+     const generationOutput = await runLocal(
+       kit.bin,
+-      ["generate", "--config", config, upgradeSchema ? "--name=xp_storage_v3" : "--name=xp_setup"],
++      [
++        "generate",
++        "--config",
++        config,
++        upgradeSchema
++          ? options.analytics
++            ? "--name=xp_analytics_v1"
++            : "--name=xp_storage_v3"
++          : "--name=xp_setup",
++      ],
+       stage,
+       {},
+       project.signal,
+@@ -610,8 +622,14 @@ export async function generateDrizzle(
+         `Drizzle did not produce exactly one new xp migration; generation requires manual review. ${generationOutput.slice(-1200)}`,
+       );
+     const delta = generated.get(sqlFiles[0]!)!;
+-    if (upgrade) validateUpgradeDelta(delta, upgrade.fromVersion);
+-    else validateDelta(delta, options.userStorage === "create");
++    const parts = delta.replaceAll("--> statement-breakpoint", "").split(";").filter(s => s.trim());
++    const baseUpgrade = upgrade && upgrade.fromVersion < STORAGE_VERSION;
++    const rolloutOperations = parts.filter(s => /alter table ["`]experiments["`]/i.test(s));
++    if (baseUpgrade) validateUpgradeDelta(rolloutOperations.join(";"), upgrade.fromVersion);
++    const remaining = parts.filter(s => !baseUpgrade || !rolloutOperations.includes(s)).join(";");
++    const tables = [...(upgrade ? [] : ["experiments","cohorts","user_cohorts", ...(options.userStorage === "create" ? ["users"] : [])]), ...(options.analytics && !beforeOutput?.includes("xp_analytics_deliveries") ? analyticsTables.map(t => t.name) : [])];
++    if (tables.length) validateDelta(remaining, tables);
++    else if (remaining.trim()) throw new Error("Unexpected Drizzle changes.");
+     if (user) {
+       const snapshotFile = [...generated.keys()].find(
+         (file) => file.endsWith("_snapshot.json") && !history.has(file),
+@@ -645,7 +663,7 @@ export async function generateDrizzle(
+     }
+     generated.set(
+       sqlFiles[0]!,
+-      `-- xp storage schema v${STORAGE_VERSION}\n${(upgrade ? renderStorageUpgrade(options, upgrade.fromVersion) : renderSql(options)).up.join("\n--> statement-breakpoint\n")}\n`,
++      `-- xp storage schema v${STORAGE_VERSION}\n${[...(upgrade ? (baseUpgrade ? renderStorageUpgrade(options, upgrade.fromVersion).up : []) : renderSql(options).up), ...(tables.includes("xp_analytics_deliveries") ? renderAnalyticsSql(options.database).up : [])].join("\n--> statement-breakpoint\n")}\n`,
+     );
+     for (const [file, content] of generated)
+       if (history.get(file) !== content)
+diff --git a/src/adaptors/setup/generators/sql.ts b/src/adaptors/setup/generators/sql.ts
+index d95cace..1e0f8af 100644
+--- a/src/adaptors/setup/generators/sql.ts
++++ b/src/adaptors/setup/generators/sql.ts
+@@ -1,5 +1,6 @@
+ import type { GeneratedArtifacts, ProjectDetection, ResolvedSetup } from "~/interfaces/setup";
+ 
++import { analyticsTables, renderAnalyticsSql } from "../analyticsStorage";
+ import { renderSql, renderStorageUpgrade } from "../storage";
+ import {
+   codeExtension,
+@@ -15,12 +16,19 @@ import {
+ export function generateSql(
+   options: ResolvedSetup,
+   project: ProjectDetection,
+-  fromVersion?: number,
++  migration: "initial" | number | "analytics" = "initial",
+ ): GeneratedArtifacts {
+-  const upgrade = fromVersion !== undefined;
+-  const { up, down } = upgrade ? renderStorageUpgrade(options, fromVersion) : renderSql(options);
+-  const label = upgrade ? "xp_storage_v3" : "xp_setup";
+-  const stamp = migrationStamp();
++  const analytics = migration === "analytics";
++  const upgrade = typeof migration === "number";
++  const { up, down } = analytics
++    ? renderAnalyticsSql(options.database)
++    : upgrade
++      ? renderStorageUpgrade(options, migration)
++      : renderSql(options);
++  const label = analytics ? "xp_analytics_v1" : upgrade ? "xp_storage_v3" : "xp_setup";
++  // Keep separate migrations generated by a single invocation in application order.
++  const date = new Date(Date.now() + (analytics ? 1000 : 0));
++  const stamp = migrationStamp(date);
+   const result: GeneratedArtifacts = { files: [], warnings: [], prerequisites: [], nextSteps: [] };
+   const directory = options.migrationsDir;
+   const typed = options.language === "typescript";
+@@ -33,15 +41,21 @@ export function generateSql(
+       {
+         path: upPath,
+         content: sqlHeader + up.join("\n\n") + "\n",
+-        purpose: upgrade ? "Upgrade xp experiment storage to v3" : "Create xp storage",
++        purpose: analytics
++          ? "Create analytics outbox v1"
++          : upgrade
++            ? "Upgrade experiment storage to v3"
++            : "Create xp storage",
+       },
+       {
+         path: outputPath(directory, `${stamp}_${label}.down.sql`),
+         content:
+           sqlHeader + "-- Application users are deliberately preserved.\n" + down.join("\n") + "\n",
+-        purpose: upgrade
+-          ? "Restore the previous experiment columns"
+-          : "Remove xp-owned storage; preserve users",
++        purpose: analytics
++          ? "Remove analytics outbox v1"
++          : upgrade
++            ? "Remove the experiment availability column"
++            : "Remove xp-owned storage; preserve users",
+       },
+     );
+     result.nextSteps.push(
+@@ -60,9 +74,10 @@ export function generateSql(
+       `${command(project, "sequelize-cli")} db:migrate --migrations-path ${shellQuote(directory)}${options.config ? ` --config ${shellQuote(options.config)}` : ""}`,
+     );
+   } else if (options.orm === "typeorm") {
+-    const timestamp = Date.now();
+-    const className = `${upgrade ? "XpStorageV3" : "XpSetup"}${timestamp}`;
+-    name = `${timestamp}-${upgrade ? "XpStorageV3" : "XpSetup"}.${codeExtension(options)}`;
++    const timestamp = date.valueOf();
++    const prefix = analytics ? "XpAnalyticsV1" : upgrade ? "XpStorageV3" : "XpSetup";
++    const className = `${prefix}${timestamp}`;
++    name = `${timestamp}-${prefix}.${codeExtension(options)}`;
+     code =
+       (typed ? `import type { MigrationInterface, QueryRunner } from "typeorm";\n\n` : "") +
+       `${esm ? "export " : ""}class ${className}${typed ? " implements MigrationInterface" : ""} {\n  name = ${JSON.stringify(className)};\n  async up(queryRunner${typed ? ": QueryRunner" : ""})${typed ? ": Promise<void>" : ""} {\n${up.map((sql) => `    await queryRunner.query(${JSON.stringify(sql)});`).join("\n")}\n  }\n  async down(queryRunner${typed ? ": QueryRunner" : ""})${typed ? ": Promise<void>" : ""} {\n${down.map((sql) => `    await queryRunner.query(${JSON.stringify(sql)});`).join("\n")}\n  }\n}\n${esm ? "" : `module.exports = { ${className} };\n`}`;
+diff --git a/src/adaptors/setup/projectManager.ts b/src/adaptors/setup/projectManager.ts
+index 47faef2..99f497c 100644
+--- a/src/adaptors/setup/projectManager.ts
++++ b/src/adaptors/setup/projectManager.ts
+@@ -274,7 +274,7 @@ export default class ProjectManager implements IProjectManager {
+           content === null ||
+           currentHash === null ||
+           (currentHash !== entry.hash &&
+-            (previous.schemaVersion === STORAGE_VERSION ||
++            ((previous.schemaVersion === STORAGE_VERSION && !installAnalytics) ||
+               !canUpgradeEditedFile(previous, entry, content)))
+         )
+           throw new Error(
+@@ -316,9 +316,13 @@ export default class ProjectManager implements IProjectManager {
+         };
+       }
+     }
+-    const generated = previous
+-      ? await generateUpgrade(settings, project, existingFiles, previous.schemaVersion)
+-      : await this.generator.generate(settings, project);
++    const generated = !previous
++      ? await this.generator.generate(settings, project)
++      : previous.schemaVersion < STORAGE_VERSION || settings.orm === "drizzle"
++        ? await generateUpgrade(settings, project, existingFiles, previous.schemaVersion)
++        : { files: [], warnings: [], prerequisites: [], nextSteps: strings(previous.nextSteps) };
++    if (installAnalytics)
++      await addAnalytics(settings, project, generated, previous ? existingFiles : undefined);
+     const files: FileChange[] = [];
+     const seen = new Set<string>();
+     for (const entry of generated.files) {
+diff --git a/src/interfaces/user/userDAO.ts b/src/interfaces/user/userDAO.ts
+index f4be36e..1016227 100644
+--- a/src/interfaces/user/userDAO.ts
++++ b/src/interfaces/user/userDAO.ts
+@@ -12,8 +12,7 @@ export default interface IUserDAO {
+     userId: PKey<"User">,
+     experimentId: PKey<"Experiment">,
+     cohortId: PKey<"Cohort">,
+-    /** Reserved for the optional analytics delivery extension. */
+-    deliveries?: undefined,
++    deliveries?: readonly PendingDelivery[],
+     expectedRevision?: number,
+   ): Promise<UserCohort>;
+   removeUserCohort(userId: PKey<"User">, experimentId: PKey<"Experiment">): Promise<void>;
+diff --git a/src/server/detectClient.ts b/src/server/detectClient.ts
+index 45633c4..7b141d4 100644
+--- a/src/server/detectClient.ts
++++ b/src/server/detectClient.ts
+@@ -7,6 +7,7 @@ import { supportedDialect } from "~/adaptors/data-access/sequelize";
+ import config from "~/config";
+ 
+ export interface ServerOptions {
++  analytics?: AnalyticsCaptureOptions;
+   /** Uniform draw in [0, 1) for managed allocations. */
+   random?: () => number;
+   databaseName?: string;
+diff --git a/src/server/index.ts b/src/server/index.ts
+index f2178a2..f746c9b 100644
+--- a/src/server/index.ts
++++ b/src/server/index.ts
+@@ -14,6 +14,8 @@ import {
+   RemoveCohort,
+   SetExperimentAvailability,
+ } from "~/use-cases";
++import { JoinCapture, type AnalyticsCaptureOptions } from "~/use-cases/analytics/capture";
++import { storageReadiness } from "~/use-cases/analytics/readiness";
+ import { createExperimentManagement } from "~/use-cases/experiment/management";
+ import { seedExperiments } from "~/use-cases/experiment/seed";
+ 
+@@ -37,14 +39,26 @@ function storageDatabase(config: ReturnType<typeof detectClient>) {
+ 
+ function createServer(
+   serverConfig: ReturnType<typeof detectClient>,
++  analytics?: AnalyticsCaptureOptions,
+   allowCreate = false,
+   random?: () => number,
+ ) {
++  const capture = analytics === undefined ? undefined : new JoinCapture(analytics);
++  const checkAnalyticsStorage = capture
++    ? storageReadiness(serverConfig.dao.analytics, capture.destinations)
++    : () => Promise.resolve();
++  const verifiedCapture = capture && {
++    async prepare(...args: Parameters<JoinCapture["prepare"]>) {
++      await checkAnalyticsStorage();
++      return capture.prepare(...args);
++    },
++  };
+   const groupUseCase = new GetGroup(
+     serverConfig.dao.userDAO,
+     serverConfig.dao.experimentDAO,
+     serverConfig.dao.cohortDAO,
+     serverConfig.bucketer,
++    verifiedCapture,
+     random,
+   );
+ 
+@@ -107,6 +121,7 @@ function createServer(
+     new SetExperimentAvailability(serverConfig.dao.experimentDAO),
+   );
+   return Object.assign(framework, {
++    checkAnalyticsStorage,
+     management: createExperimentManagement(serverConfig.dao.experimentDAO, allowCreate, (input) =>
+       parseManagedDefinition(input, storageDatabase(serverConfig)),
+     ),
+@@ -118,7 +133,7 @@ function createServer(
+ 
+ export { ExperimentPausedError, NotFoundError } from "~/errors";
+ export default function server(client: unknown, options: ServerOptions = {}) {
+-  return createServer(detectClient(client, options), false, options.random);
++  return createServer(detectClient(client, options), options.analytics, false, options.random);
+ }
+ 
+ export async function initializeXp({ connection, cwd, configPath, ...options }: InitializeOptions) {
+@@ -128,6 +143,8 @@ export async function initializeXp({ connection, cwd, configPath, ...options }:
+     configPath,
+     storageDatabase(config),
+   );
++  const runtime = createServer(config, options.analytics, allowCreate, options.random);
++  await runtime.checkAnalyticsStorage();
+   const seedReport = await seedExperiments(experiments, config.dao.experimentDAO);
+-  return Object.assign(createServer(config, allowCreate, options.random), { seedReport });
++  return Object.assign(runtime, { seedReport });
+ }
+diff --git a/src/use-cases/user/getGroup.ts b/src/use-cases/user/getGroup.ts
+index a984d2b..dd1e29a 100644
+--- a/src/use-cases/user/getGroup.ts
++++ b/src/use-cases/user/getGroup.ts
+@@ -22,6 +22,7 @@ export default class GetGroup implements IUseCase<CohortSlug | null> {
+     protected experimentDAO: IExperimentDAO,
+     protected cohortDAO: ICohortDAO,
+     protected bucketer: IBucketer,
++    protected capture?: Pick<JoinCapture, "prepare">,
+     private readonly random: () => number = Math.random,
+   ) {}
+ 
+@@ -102,17 +103,12 @@ export default class GetGroup implements IUseCase<CohortSlug | null> {
+ 
+     if (cohort) {
+       try {
+-        if (experiment.rolloutPhase) {
+-          await this.userDAO.addUserCohort(
+-            userId,
+-            experiment.id,
+-            cohort.id,
+-            undefined,
+-            experiment.revision!,
+-          );
+-        } else {
+-          await this.userDAO.addUserCohort(userId, experiment.id, cohort.id);
+-        }
++        const deliveries = await this.capture?.prepare(userId, {
++          experimentSlug: experiment.slug,
++          cohortSlug: cohort.slug,
++          source: "automatic",
++        });
++        await this.userDAO.addUserCohort(userId, experiment.id, cohort.id, deliveries, experiment.rolloutPhase ? experiment.revision : undefined);
+       } catch (error) {
+         if (error instanceof ExperimentPausedError) return null;
+         if (!(error instanceof DuplicateAssignmentError)) throw error;

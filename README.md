@@ -119,8 +119,13 @@ Run both PostgreSQL journeys to check React over Express/Yoga/Apollo and all sev
 docker compose -f docker-compose.test.yml up -d --wait postgres
 bun run test:journey
 bun run test:protocol-journey
+bun run test:management-journey
 docker compose -f docker-compose.test.yml down -v
 ```
+
+## Experiment management
+
+Mount the operator page under an authenticated host path to inspect current memberships, create off-first experiments and change a rollout. The packed management journey drives Chromium against a clean Express consumer, restarts the host and checks individual PostgreSQL memberships. See the [mounting guide](docs/management.md) and [installed acceptance record](review/experiment-management/acceptance/README.md).
 
 ## PostgreSQL compatibility changes
 

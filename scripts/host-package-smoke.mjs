@@ -26,13 +26,13 @@ const hosts = [
   {
     name: "express",
     peers: ["express", "@types/express"],
-    sources: ["express.ts"],
+    sources: ["express.ts", "management.ts"],
     execute: "compiled/express.js",
   },
   {
     name: "fastify",
     peers: ["fastify"],
-    sources: ["fastify.ts"],
+    sources: ["fastify.ts", "management.ts", "management-fastify.ts"],
     execute: "compiled/fastify.js",
   },
   ...["express", "fastify"].map((platform) => ({
@@ -45,7 +45,12 @@ const hosts = [
       "rxjs",
       ...(platform === "express" ? ["express", "@types/express"] : ["fastify"]),
     ],
-    sources: ["nestjs.ts", `nest-${platform}.ts`],
+    sources: [
+      "nestjs.ts",
+      `nest-${platform}.ts`,
+      "management.ts",
+      ...(platform === "fastify" ? ["management-fastify.ts"] : []),
+    ],
     execute: `compiled/nest-${platform}.js`,
   })),
   {

@@ -5,7 +5,6 @@ export function weightedCohort(cohorts: readonly Cohort[], random: () => number)
   const draw = random();
   if (!(draw >= 0 && draw < 1))
     throw new RangeError("Random source must return a number in [0, 1).");
-  const position = Math.floor(draw * 10_000);
   const ordered = [...cohorts].sort((a, b) => {
     if (a.type !== b.type) return a.type === "control" ? -1 : 1;
     return a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0;
@@ -13,7 +12,8 @@ export function weightedCohort(cohorts: readonly Cohort[], random: () => number)
   let end = 0;
   for (const cohort of ordered) {
     end += Math.round(cohort.percentage * 100);
-    if (position < end) return cohort;
+    // Compare in the draw's domain: multiplying 0.0003 by 10,000 rounds below 3.
+    if (draw < end / 10_000) return cohort;
   }
   throw new Error("The saved allocation does not cover the full rollout.");
 }
