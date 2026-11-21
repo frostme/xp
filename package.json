@@ -96,7 +96,8 @@
     "generate:proto": "node scripts/generate-proto.mjs",
     "test:proto": "node scripts/generate-proto.mjs --check",
     "test:protocol-browser": "node scripts/test-protocol-browser.mjs && bun run test:soap-browser",
-    "test:soap-browser": "node scripts/test-soap-browser.mjs"
+    "test:soap-browser": "node scripts/test-soap-browser.mjs",
+    "test:protocol-journey": "node scripts/test-installed-journey.mjs --protocols"
   },
   "wireit": {
     "build": {

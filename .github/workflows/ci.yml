@@ -130,6 +130,9 @@ jobs:
         with:
           name: frontend-db-traces
           path: frontend-db-traces/
+      - name: Installed protocol parity and browser session journeys on PostgreSQL
+        if: matrix.database == 'postgres'
+        run: bun run test:protocol-journey
       - if: always()
         run: docker compose -f docker-compose.test.yml logs
       - if: always()

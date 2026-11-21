@@ -1,6 +1,6 @@
 # Serving experiments to frontends
 
-Install `@frostme/xp` and the frontend runtime for your application. On the server, install your database driver and host framework. These examples use Express 5, GraphQL Yoga 6, or Apollo Server 5 with GraphQL 16. The application authenticates each request and owns its database connection.
+Install `@frostme/xp` and the frontend runtime for your application. On the server, install your database driver and host framework.
 
 ## Choose a frontend
 
@@ -15,6 +15,21 @@ Run `xp setup --scope frontend --frontend <profile> --dry-run` in the applicatio
 | `solid`, `solidstart` | `@frostme/xp/solid` for Solid 2 or `@frostme/xp/solid/v1` for 1.9 | [Solid components and SSR](#solid-components-and-ssr)                          |
 | `astro`               | `@frostme/xp/astro`                                               | [Request-local Astro pages](#astro-on-demand-pages)                            |
 | Custom                | `@frostme/xp/client`                                              | [Sessions and request preloads](#request-local-decisions-and-custom-frontends) |
+
+## Choose a server host
+
+The installed consumers exercise the following versions.
+
+| Mount       | Packages exercised                                                                                                   |
+| ----------- | -------------------------------------------------------------------------------------------------------------------- |
+| REST        | Express 5.3.0 or Fastify 5.12.8                                                                                      |
+| NestJS      | `@nestjs/common`, `core` and the Express or Fastify platform adapter 12.6.0, `reflect-metadata` 0.2.2 and RxJS 7.8.2 |
+| GraphQL     | GraphQL 16.15.0 with Yoga 6.1.0 or Apollo Server 5.5.2                                                               |
+| Native gRPC | `@grpc/grpc-js` 1.14.7 and `@grpc/proto-loader` 0.8.1                                                                |
+| gRPC-Web    | Envoy 1.37.4 to native gRPC, or `@connectrpc/connect-node` 2.3.0 in the HTTP host                                    |
+| SOAP        | `soap` 1.14.1                                                                                                        |
+
+For example, a SOAP host using PostgreSQL can run `npm install @frostme/xp pg soap@1.14.1`. For a Fastify host use `npm install @frostme/xp pg fastify@5`. A Nest app needs `@nestjs/common`, `@nestjs/core`, `reflect-metadata`, `rxjs` and its chosen `@nestjs/platform-*` package. Browser applications can import either browser loader from xp and add React for the provider shortcuts. Each application authenticates its requests and owns its database connection.
 
 ## Initialize before accepting requests
 
@@ -99,6 +114,241 @@ const load = createRestLoader({
   },
 });
 ```
+
+## Fastify
+
+Register the plugin in the scope where the host authenticates requests. With a prefix of `/api`, the default route is `POST /api/xp`. A hook can admit guests, attach an account ID (including numeric zero) or send a denial before the decision runs.
+
+```ts
+import { xpFastifyPlugin } from "@frostme/xp/server/fastify";
+import Fastify from "fastify";
+
+const app = Fastify();
+app.addHook("preHandler", async (request, reply) => {
+  const cookie = request.headers.cookie;
+  const account = await authenticateSession(cookie);
+  if (cookie && !account) return reply.code(401).send({ error: "Invalid session" });
+  Object.assign(request, { userId: account?.id });
+});
+app.register(xpFastifyPlugin, { runtime: xp, prefix: "/api" });
+await app.listen({ port: 3000 });
+```
+
+Both Fastify and Nest support `route`, `userId`, `header` and `resolveBody`. The identity callback has first priority, followed by the configured trusted header, then the request's `userId`. An empty selected source yields a guest. Have the authenticating host strip or replace any incoming copy of a trusted header. Use the REST loader's `decode` with a custom response body. [Packed Fastify consumer](../scripts/fixtures/host-package-smoke/fastify.ts)
+
+## NestJS on Express or Fastify
+
+Import the dynamic module into the application. A global prefix applies on either platform. The following example uses the runtime initialized above. With Express, pass `new ExpressAdapter()` from `@nestjs/platform-express` in place of the Fastify adapter.
+
+```ts
+import "reflect-metadata";
+import { XpModule } from "@frostme/xp/server/nestjs";
+import { Module, UnauthorizedException, type ExecutionContext } from "@nestjs/common";
+import { NestFactory } from "@nestjs/core";
+import { FastifyAdapter } from "@nestjs/platform-fastify";
+
+@Module({ imports: [XpModule.register({ runtime: xp, route: "/xp" })] })
+class ShopModule {}
+
+const app = await NestFactory.create(ShopModule, new FastifyAdapter());
+app.setGlobalPrefix("api");
+app.useGlobalGuards({
+  async canActivate(context: ExecutionContext) {
+    const request = context.switchToHttp().getRequest();
+    const account = await authenticateSession(request.headers.cookie);
+    if (request.headers.cookie && !account) throw new UnauthorizedException();
+    request.userId = account?.id;
+    return true;
+  },
+});
+await app.listen(3000);
+```
+
+For dependency injection, export the runtime's provider from a host module. Set the route when declaring the module and resolve request options in the factory. The packed consumer demonstrates both registrations, a sibling controller and 401/403 responses on each platform. [Nest consumer](../scripts/fixtures/host-package-smoke/nestjs.ts)
+
+```ts
+import type { CohortRuntime } from "@frostme/xp/server";
+
+import { XpModule } from "@frostme/xp/server/nestjs";
+import { Module } from "@nestjs/common";
+
+const xpRuntime = Symbol("shop.xp");
+@Module({ providers: [{ provide: xpRuntime, useValue: xp }], exports: [xpRuntime] })
+class StorageModule {}
+
+@Module({
+  imports: [
+    XpModule.registerAsync({
+      route: "/decision",
+      imports: [StorageModule],
+      inject: [xpRuntime],
+      useFactory: async (runtime: CohortRuntime) => ({
+        runtime,
+        userId: (request) => request.userId,
+      }),
+    }),
+  ],
+})
+class ShopModule {}
+```
+
+## Native gRPC and the Envoy bridge
+
+Register the unary method on an existing grpc-js server. The versioned proto lives at `@frostme/xp/proto/xp/v1/cohort.proto`. A host interceptor can verify credentials and supply an identity in metadata. In this example `verifyBearer` is the application's verifier for a supplied token. It returns the verified account or null for an invalid token. Missing credentials are allowed as a guest.
+
+```ts
+import { registerXpGrpc } from "@frostme/xp/server/grpc";
+import * as grpc from "@grpc/grpc-js";
+
+const authenticate: grpc.ServerInterceptor = (_method, call) =>
+  new grpc.ServerInterceptingCall(call, {
+    start(next) {
+      next({
+        onReceiveMetadata(metadata, accept) {
+          const token = metadata.get("authorization")[0];
+          metadata.remove("x-verified-user");
+          if (token !== undefined) {
+            const account = verifyBearer(token);
+            if (!account) {
+              call.sendStatus({ code: grpc.status.UNAUTHENTICATED, details: "Invalid session" });
+              return;
+            }
+            metadata.set("x-verified-user", String(account.id));
+          }
+          accept(metadata);
+        },
+      });
+    },
+  });
+
+const rpc = new grpc.Server({ interceptors: [authenticate] });
+registerXpGrpc(rpc, { runtime: xp, header: "x-verified-user" });
+rpc.bindAsync("127.0.0.1:18183", grpc.ServerCredentials.createInsecure(), (error) => {
+  if (error) throw error;
+});
+```
+
+Use the published schema when constructing a native client. Keep proto-loader's default field-presence behavior. An absent response `slug` means null. A present value must be a qualified cohort slug for the requested experiment. The packed example loads the method definition from the installed file and sends a real unary call with metadata. [Native client and server](../scripts/fixtures/host-package-smoke/grpc.ts)
+
+To expose this loopback server to a browser, run the fixture's pinned Envoy on a Linux Docker host.
+
+```sh
+docker compose -f scripts/fixtures/protocol-browser/compose.yml up -d
+# After the session
+docker compose -f scripts/fixtures/protocol-browser/compose.yml down
+```
+
+The fixture listens on `127.0.0.1:18182`, accepts a page from `http://127.0.0.1:18180` and routes `/api/xp.v1.CohortService/ResolveCohort` to the canonical native method on port 18183. Envoy removes the mount prefix, translates binary gRPC-Web to gRPC over HTTP/2 and forwards authentication material and status. Keep caches disabled on this route. Set the allowed origin, upstream and TLS for your deployment. [Envoy route and CORS configuration](../scripts/fixtures/protocol-browser/envoy.yaml)
+
+## Direct Node gRPC-Web
+
+The Node handler serves the same browser method on a caller-owned HTTP server. A Connect interceptor can authorize the call and replace a client-supplied identity header. `requestPathPrefix` preserves the mount path. The host handles other routes through `fallback`.
+
+```ts
+import { Code, ConnectError, type Interceptor } from "@connectrpc/connect";
+import { createXpGrpcWebHandler } from "@frostme/xp/server/grpc-web";
+import { createServer } from "node:http";
+
+const authenticate: Interceptor = (next) => async (request) => {
+  const token = request.header.get("authorization");
+  request.header.delete("x-verified-user");
+  if (token !== null) {
+    const account = verifyBearer(token);
+    if (!account) throw new ConnectError("Invalid session", Code.Unauthenticated);
+    request.header.set("x-verified-user", String(account.id));
+  }
+  return next(request);
+};
+const grpcWeb = createXpGrpcWebHandler({
+  runtime: xp,
+  requestPathPrefix: "/api",
+  interceptors: [authenticate],
+  header: "x-verified-user",
+  fallback: (_request, response) => response.writeHead(404).end(),
+});
+createServer(grpcWeb).listen(3000);
+```
+
+For hosts that already attach an identity to the Node request, `userId(request)` receives that original request. An interceptor can return `Code.PermissionDenied` for an authenticated account without access.
+
+## SOAP 1.1
+
+Construct the handler once. `path` selects the path received by Node. `publicEndpoint` is the external URL advertised in the WSDL, including any proxy prefix. Authenticate in front of the XML dispatch on the listener that actually receives the POST. Here the host exposes its health route and accepts anonymous reads of the WSDL.
+
+```ts
+import { createXpSoapHandler } from "@frostme/xp/server/soap";
+import { createServer } from "node:http";
+
+const path = "/api/xp/soap";
+const handleSoap = await createXpSoapHandler({
+  runtime: xp,
+  path,
+  publicEndpoint: "http://localhost:3000/api/xp/soap",
+});
+createServer(async (request, response) => {
+  if (request.url === "/health") {
+    response.writeHead(200).end("ok");
+    return;
+  }
+  if (request.method === "POST" && new URL(request.url!, "http://localhost").pathname === path) {
+    const cookie = request.headers.cookie;
+    const account = await authenticateSession(cookie);
+    if (cookie && !account) {
+      response.writeHead(401, { "Cache-Control": "private, no-store" }).end();
+      return;
+    }
+    Object.assign(request, { userId: account?.id });
+  }
+  if (!(await handleSoap(request, response))) response.writeHead(404).end();
+}).listen(3000);
+```
+
+The default path is `/xp/soap`. GET the mounted path with `?wsdl` or resolve the static asset `@frostme/xp/wsdl/xp/v1/cohort.wsdl`. The binding uses SOAP 1.1 document/literal messages with action `urn:frostme:xp:v1:ResolveCohort`. XML requests have a 16 KiB streaming limit. Oversized requests return HTTP 413. DTDs are rejected.
+
+A WSDL-driven client discovers the operation and endpoint. Set `handleNilAsNull` to decode the response's required, nillable `slug`.
+
+```ts
+import { createClientAsync } from "soap";
+
+const client = await createClientAsync("http://localhost:3000/api/xp/soap?wsdl", {
+  handleNilAsNull: true,
+});
+const [decision] = await client.ResolveCohortAsync({ slug: "delivery-copy" });
+console.log(decision.slug);
+```
+
+## Browser protocol loaders
+
+A relative `experimentHost` selects a same-origin mount. An absolute base selects another origin. A complete `endpoint` takes precedence. For gRPC-Web the endpoint must end in `/xp.v1.CohortService/ResolveCohort`. For SOAP, the default suffix is `/xp/soap`. Changing the gRPC-Web base switches between direct Node and Envoy.
+
+```ts
+import { createGrpcWebLoader } from "@frostme/xp/client/grpc-web";
+import { createSoapLoader } from "@frostme/xp/client/soap";
+
+const direct = createGrpcWebLoader({ experimentHost: "/api" });
+const proxy = createGrpcWebLoader({
+  experimentHost: "http://127.0.0.1:18182/api",
+  credentials: "include",
+});
+const soap = createSoapLoader({ endpoint: "/api/xp/soap" });
+
+export function loadDecisions(signal: AbortSignal) {
+  return Promise.all([direct, proxy, soap].map((load) => load("delivery-copy", { signal })));
+}
+```
+
+Each loader accepts `fetch`, `headers` and `credentials`. Credentials default to `same-origin`. For credentialed cross-origin use, the host must answer OPTIONS for the explicit allowed origin before authenticating the POST, allow credentials and the request headers in use (including `authorization`, `content-type`, gRPC-Web headers and SOAP's `SOAPAction`). Expose `grpc-status` and `grpc-message` to JavaScript, including on trailers-only denials. For cookies, configure the cookie's domain, SameSite and Secure attributes for the deployment.
+
+| Decision                               | REST                | gRPC or gRPC-Web                     | SOAP 1.1                                       |
+| -------------------------------------- | ------------------- | ------------------------------------ | ---------------------------------------------- |
+| Assigned or winner                     | 200, qualified slug | OK, slug present                     | 200, qualified slug element                    |
+| Guest, absent user, paused or flag off | 200, null           | OK, slug absent                      | 200, slug with `xsi:nil="true"`                |
+| Malformed slug                         | 400                 | INVALID_ARGUMENT                     | 500, Client fault with INVALID_ARGUMENT detail |
+| Known user's missing experiment        | 404                 | NOT_FOUND                            | 500, Client fault with NOT_FOUND detail        |
+| Unexpected failure                     | 500                 | INTERNAL                             | 500, Server fault with INTERNAL detail         |
+| Host rejects or denies access          | 401 or 403          | UNAUTHENTICATED or PERMISSION_DENIED | Host HTTP 401 or 403 before XML dispatch       |
+
+The browser loaders return a qualified slug or null, and reject transport errors and malformed responses. gRPC-Web checks final RPC status even on HTTP 200. The SOAP loader exposes an application's `XpFault` detail through `XpSoapFault.code`. A plain HTTP denial rejects the load.
 
 ## GraphQL Yoga and Apollo Server
 
@@ -185,7 +435,31 @@ function DeliveryCopy() {
 
 `useCohort()` uses the nearest enclosing experiment. Local names and defaults belong inside that experiment. A standalone gate requires a qualified slug. All matching gates render, including multiple defaults. A resolved treatment with no matching gate renders none. Pending gates show the experiment's optional loading node. Errors reveal the default and expose the failure on the hook.
 
-REST defaults to `/xp` and GraphQL defaults to `/graphql`. `experimentHost` adds a host or mount prefix. An explicit `endpoint` selects the complete URL. To use GraphQL, set `loader="graphql"`. For custom authentication or decoding, supply a stable loader function such as the configured `load` above.
+REST defaults to `/xp` and GraphQL defaults to `/graphql`. `experimentHost` adds a host or mount prefix. An explicit `endpoint` selects the complete URL. To use GraphQL, set `loader="graphql"`. Set `loader="grpc-web"` or `loader="soap"` to load the associated browser implementation on demand. For custom authentication or decoding, supply a stable loader function such as a configured factory above.
+
+```tsx
+import type { ReactNode } from "react";
+
+import { XPProvider } from "@frostme/xp/react";
+
+type Props = { sessionKey: string; children: ReactNode };
+export function RpcExperiments({ sessionKey, children }: Props) {
+  return (
+    <XPProvider loader="grpc-web" experimentHost="/api" sessionKey={sessionKey}>
+      {children}
+    </XPProvider>
+  );
+}
+export function SoapExperiments({ sessionKey, children }: Props) {
+  return (
+    <XPProvider loader="soap" endpoint="/api/xp/soap" sessionKey={sessionKey}>
+      {children}
+    </XPProvider>
+  );
+}
+```
+
+An admitted guest reaches `useCohort().status === "ready"` with a null slug. A rejected session reaches `"error"` and exposes the error and `refresh()` for retry. Both can render the default cohort. Route the retry through the host's authentication flow when a session needs renewal.
 
 A provider shares subscriptions, in-flight requests and decisions within the current session. Change `sessionKey` when an account logs in, logs out, or switches. A loader or endpoint change also starts a new cache. Await `refresh()` to request a fresh decision after a pause, resume, or failure. Open pages keep the last decision until refresh or a new session.
 
