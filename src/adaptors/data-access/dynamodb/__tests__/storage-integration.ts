@@ -8,6 +8,8 @@ import {
   registerStorageContract,
   selectedDatabase,
 } from "~/__tests__/storage/contract";
+import { parseManagedDefinition } from "~/adaptors/validation/zod/seed";
+import { RolloutConflictError } from "~/errors/rolloutConflictError";
 
 import DynamoDBAdaptor from "..";
 import { dynamodbFixture } from "./fixture";
@@ -21,6 +23,44 @@ describe.skipIf(selectedDatabase() !== "dynamodb")("DynamoDB limits and resumabl
   });
   afterEach(async () => {
     await fixture?.cleanup();
+  });
+
+  it("rolls back all 32 weights and the parent when a child write loses its condition", async () => {
+    const dao = fixture.adaptor.experimentDAO;
+    const names = Array.from({ length: 31 }, (_, i) => `treatment-${i}`);
+    const created = await dao.create(
+      parseManagedDefinition({ slug: "allocation", cohorts: names }, 32),
+    );
+    const weights = created.cohorts.map((c) => ({
+      id: c.id,
+      basisPoints: c.slug === "allocation_treatment-0" ? 10000 : 0,
+    }));
+    const change = {
+      id: created.id,
+      expectedRevision: 1,
+      enabled: true,
+      phase: "allocating",
+      winner: null,
+      weights,
+    } as const;
+    await expect(
+      dao.commitRollout({
+        ...change,
+        weights: [...weights.slice(0, -1), { id: "missing" as PKey<"Cohort">, basisPoints: 0 }],
+      }),
+    ).rejects.toBeInstanceOf(RolloutConflictError);
+    const pinned = await dao.getById(created.id);
+    expect(pinned).toMatchObject({
+      revision: 1,
+      rolloutPhase: "awaiting-launch",
+      winner: "allocation_off",
+    });
+    expect(pinned.cohorts.find((c) => c.slug === "allocation_off")?.percentage).toBe(100);
+    expect(pinned.cohorts.find((c) => c.slug === "allocation_treatment-0")?.percentage).toBe(0);
+    await dao.commitRollout(change);
+    const launched = await dao.getById(created.id);
+    expect(launched).toMatchObject({ revision: 2, rolloutPhase: "allocating", winner: null });
+    expect(launched.cohorts.find((c) => c.slug === "allocation_treatment-0")?.percentage).toBe(100);
   });
 
   it("creates 32 initial cohorts atomically, rejects 33, and can add more later", async () => {

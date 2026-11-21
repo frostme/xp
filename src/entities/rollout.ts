@@ -27,3 +27,12 @@ export function rolloutMetadata(phase: unknown, revision: unknown) {
     throw new Error("Invalid stored rollout state");
   return { rolloutPhase: phase as RolloutPhase, revision: Number(revision) };
 }
+
+export interface RolloutChange {
+  id: Experiment["id"];
+  expectedRevision: number;
+  enabled: boolean;
+  phase: RolloutPhase | null;
+  winner: CohortSlug | null;
+  weights?: readonly { id: Experiment["cohorts"][number]["id"]; basisPoints: number }[];
+}

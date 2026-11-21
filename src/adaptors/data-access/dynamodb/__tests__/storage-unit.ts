@@ -69,6 +69,24 @@ describe("DynamoDB request boundaries", () => {
     expect(send.mock.calls[2]![0].input.ExclusiveStartKey).toEqual({ pk: root.pk, sk: first.sk });
   });
 
+  it("repeats the cohort read if the allocation changed during its query", async () => {
+    const previous = { ...root, rollout_revision: 1, rollout_phase: "allocating" };
+    const committed = { ...previous, rollout_revision: 2 };
+    const cohort = { ...root.cohorts[0], id: "off", experiment_id: experimentId, state: "active" };
+    const send = vi
+      .fn()
+      .mockResolvedValueOnce({ Item: previous })
+      .mockResolvedValueOnce({ Items: [{ ...cohort, percentage: 90 }] })
+      .mockResolvedValueOnce({ Item: committed })
+      .mockResolvedValueOnce({ Items: [{ ...cohort, percentage: 0 }] })
+      .mockResolvedValueOnce({ Item: committed });
+    const result = await new DynamoDBAdaptor(fakeClient(send), "xp").experimentDAO.getById(
+      experimentId,
+    );
+    expect(result.revision).toBe(2);
+    expect(result.cohorts.map((row) => row.percentage)).toEqual([0]);
+  });
+
   it("continues scanning after an empty filtered page", async () => {
     const send = vi
       .fn()

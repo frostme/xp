@@ -20,6 +20,7 @@ import {
   rolloutMetadata,
   type ExperimentDefinition,
   type RolloutPhase,
+  type RolloutChange,
 } from "~/entities/rollout";
 import {
   DuplicateAssignmentError,
@@ -28,6 +29,7 @@ import {
   NotFoundError,
   ValidationError,
 } from "~/errors";
+import { RolloutConflictError } from "~/errors/rolloutConflictError";
 
 import { loadDriver } from "../optionalDriver";
 import {
@@ -76,6 +78,19 @@ function transactionConflict(error: unknown): boolean {
     name === "TransactionInProgressException" ||
     cancellationReasons(error)?.some((reason) => reason.Code === "TransactionConflict") === true
   );
+}
+
+function revisionCondition(expectedRevision: number) {
+  return expectedRevision === 0
+    ? "(attribute_not_exists(rollout_revision) OR rollout_revision = :expected)"
+    : "rollout_revision = :expected";
+}
+
+function guardManagedDefinition(parent: StoredExperiment | null) {
+  if (parent?.rollout_phase)
+    throw new RolloutConflictError(
+      "Use rollout commands to change a managed experiment's cohorts or winner.",
+    );
 }
 
 function cohortValue(row: StoredCohort): Cohort & { experiment_id: PKey<"Experiment"> } {
@@ -222,25 +237,31 @@ export default class DynamoDBStore {
   }
 
   async getExperiment(id: PKey<"Experiment">): Promise<Experiment> {
-    const row = await this.get<StoredExperiment>(experimentKey(id));
-    if (row?.state !== "active") throw new NotFoundError(`Experiment with id ${id} not found`);
-    const cohorts = await this.getCohorts(id);
-    // A concurrent cascade may have fenced the parent while the cohort query was in flight.
-    const current = await this.get<StoredExperiment>(experimentKey(id));
-    if (current?.state !== "active") {
-      throw new NotFoundError(`Experiment with id ${id} not found`);
+    const key = experimentKey(id);
+    let row = await this.get<StoredExperiment>(key);
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      if (row?.state !== "active") throw new NotFoundError(`Experiment with id ${id} not found`);
+      const cohorts = await this.query<StoredCohort>(key.pk, "C#");
+      const current = await this.get<StoredExperiment>(key);
+      if (current?.state !== "active")
+        throw new NotFoundError(`Experiment with id ${id} not found`);
+      // A Query covers multiple items/pages. Accept its weights only between equal parent revisions.
+      if ((current.rollout_revision ?? 0) === (row.rollout_revision ?? 0)) {
+        return {
+          id: current.id,
+          name: current.name,
+          slug: current.slug,
+          type: current.type,
+          description: current.description,
+          enabled: current.enabled ?? true,
+          winner: current.winner,
+          ...rolloutMetadata(current.rollout_phase, current.rollout_revision),
+          cohorts: cohorts.filter((cohort) => cohort.state === "active").map(cohortValue),
+        };
+      }
+      row = current;
     }
-    return {
-      id: current.id,
-      name: current.name,
-      slug: current.slug,
-      type: current.type,
-      description: current.description,
-      enabled: current.enabled ?? true,
-      winner: current.winner,
-      ...rolloutMetadata(current.rollout_phase, current.rollout_revision),
-      cohorts,
-    };
+    throw new RolloutConflictError("The definition changed during the read. Refresh and retry.");
   }
 
   async findExperiment(slug: ExperimentSlug): Promise<Experiment | null> {
@@ -338,40 +359,122 @@ export default class DynamoDBStore {
     };
   }
 
-  private updateAction(key: Key, updates: Item): Action | null {
+  private updateAction(
+    key: Key,
+    updates: Item,
+    options: {
+      advanceRevision?: boolean;
+      expectedRevision?: number;
+      state?: State;
+      legacyOnly?: boolean;
+    } = {},
+  ): Action {
     const fields = Object.entries(updates).filter(([, value]) => value !== undefined);
-    if (!fields.length) return null;
     const names: Record<string, string> = { "#state": "state" };
-    const values: Item = { ":active": "active" };
+    const values: Item = { ":state": options.state ?? "active" };
+    const conditions = ["#state = :state"];
     const assignments = fields.map(([name, value], index) => {
       names[`#f${index}`] = name;
       values[`:v${index}`] = value;
       return `#f${index} = :v${index}`;
     });
+    const operations: string[] = [];
+    if (assignments.length) operations.push("SET " + assignments.join(", "));
+    if (options.advanceRevision) {
+      operations.push("ADD rollout_revision :one");
+      values[":one"] = 1;
+    }
+    if (options.expectedRevision !== undefined) {
+      conditions.push(revisionCondition(options.expectedRevision));
+      values[":expected"] = options.expectedRevision;
+    }
+    if (options.legacyOnly) {
+      conditions.push("(attribute_not_exists(rollout_phase) OR rollout_phase = :null)");
+      values[":null"] = null;
+    }
     return {
       Update: {
         TableName: this.tableName,
         Key: key,
-        UpdateExpression: `SET ${assignments.join(", ")}`,
-        ConditionExpression: "#state = :active",
+        UpdateExpression: operations.join(" "),
+        ConditionExpression: conditions.join(" AND "),
         ExpressionAttributeNames: names,
         ExpressionAttributeValues: values,
       },
     };
   }
 
+  async commitRollout(change: RolloutChange): Promise<void> {
+    const actions = [
+      this.updateAction(
+        experimentKey(change.id),
+        {
+          enabled: change.enabled,
+          rollout_phase: change.phase ?? undefined,
+          winner: change.winner,
+        },
+        {
+          advanceRevision: true,
+          expectedRevision: change.expectedRevision,
+          legacyOnly: change.phase === null,
+        },
+      ),
+    ];
+    const weights = change.weights ?? [];
+    for (const weight of weights) {
+      actions.push(
+        this.updateAction(cohortKey(change.id, weight.id), {
+          percentage: weight.basisPoints / 100,
+        }),
+      );
+    }
+    if (change.winner !== null) {
+      const claim = await this.get<{
+        cohort_id: PKey<"Cohort">;
+        experiment_id: PKey<"Experiment">;
+      }>(cohortClaim(change.winner));
+      if (claim?.experiment_id !== change.id)
+        throw new RolloutConflictError("The selected winner is no longer available.");
+      if (!weights.some((weight) => weight.id === claim.cohort_id))
+        actions.push(this.active(cohortKey(change.id, claim.cohort_id)));
+    }
+    try {
+      await this.write(actions);
+    } catch (error) {
+      if (conditionalFailure(error) || transactionConflict(error)) throw new RolloutConflictError();
+      throw error;
+    }
+  }
+
   async setEnabled(slug: ExperimentSlug, enabled: boolean): Promise<void> {
     const claim = await this.get<{ experiment_id: PKey<"Experiment"> } & Item>(
       experimentClaim(slug),
     );
-    if (!claim) throw new NotFoundError(`Experiment with slug ${slug} not found`);
-    try {
-      await this.write([this.updateAction(experimentKey(claim.experiment_id), { enabled })!]);
-    } catch (error) {
-      if (conditionalFailure(error))
-        throw new NotFoundError(`Experiment with slug ${slug} not found`, { cause: error });
-      throw error;
+    if (claim) {
+      const key = experimentKey(claim.experiment_id);
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        const parent = await this.get<StoredExperiment>(key);
+        if (parent?.state !== "active") break;
+        if ((parent.enabled ?? true) === enabled) return;
+        try {
+          await this.write([
+            this.updateAction(
+              key,
+              { enabled },
+              {
+                advanceRevision: true,
+                expectedRevision: parent.rollout_revision ?? 0,
+              },
+            ),
+          ]);
+          return;
+        } catch (error) {
+          if (!conditionalFailure(error)) throw error;
+          if (attempt === attempts - 1) throw new RolloutConflictError();
+        }
+      }
     }
+    throw new NotFoundError(`Experiment with slug ${slug} not found`);
   }
 
   async updateExperiment(
@@ -379,13 +482,24 @@ export default class DynamoDBStore {
     updates: Partial<Pick<Experiment, "name" | "description" | "winner">>,
     winnerCohortId?: PKey<"Cohort">,
   ): Promise<void> {
-    const action = this.updateAction(experimentKey(id), {
-      name: updates.name,
-      description: updates.description,
-      winner: updates.winner,
-    });
-    if (!action) return;
-    if ((await this.get<StoredExperiment>(experimentKey(id)))?.state !== "active") return;
+    if (
+      updates.winner === undefined &&
+      updates.description === undefined &&
+      updates.name === undefined
+    )
+      return;
+    const parent = await this.get<StoredExperiment>(experimentKey(id));
+    if (parent?.state !== "active") return;
+    if (updates.winner !== undefined) guardManagedDefinition(parent);
+    const action = this.updateAction(
+      experimentKey(id),
+      {
+        name: updates.name,
+        description: updates.description,
+        winner: updates.winner,
+      },
+      { advanceRevision: true, legacyOnly: updates.winner !== undefined },
+    );
     const actions: Action[] = [action];
     if (updates.winner != null) {
       const cohort = await this.findCohort(updates.winner);
@@ -423,10 +537,12 @@ export default class DynamoDBStore {
   }
 
   async getCohorts(id: PKey<"Experiment">): Promise<Cohort[]> {
-    if ((await this.get<StoredExperiment>(experimentKey(id)))?.state !== "active") return [];
-    const rows = await this.query<StoredCohort>(experimentKey(id).pk, "C#");
-    if ((await this.get<StoredExperiment>(experimentKey(id)))?.state !== "active") return [];
-    return rows.filter((row) => row.state === "active").map(cohortValue);
+    try {
+      return (await this.getExperiment(id)).cohorts;
+    } catch (error) {
+      if (error instanceof NotFoundError) return [];
+      throw error;
+    }
   }
 
   async createCohort(
@@ -443,15 +559,19 @@ export default class DynamoDBStore {
     };
     try {
       await this.write([
-        this.active(experimentKey(input.experiment_id)),
+        this.updateAction(
+          experimentKey(input.experiment_id),
+          {},
+          { advanceRevision: true, legacyOnly: true },
+        ),
         ...this.cohortItems(cohort).map((item) => this.put(item)),
       ]);
     } catch (error) {
-      if (
-        conditionalFailure(error) &&
-        (await this.get<StoredExperiment>(experimentKey(input.experiment_id)))?.state !== "active"
-      ) {
-        throw new NotFoundError("Experiment not found", { cause: error });
+      if (conditionalFailure(error)) {
+        const parent = await this.get<StoredExperiment>(experimentKey(input.experiment_id));
+        if (parent?.state !== "active")
+          throw new NotFoundError("Experiment not found", { cause: error });
+        guardManagedDefinition(parent);
       }
       throw error;
     }
@@ -462,17 +582,33 @@ export default class DynamoDBStore {
     id: PKey<"Cohort">,
     updates: Partial<Pick<Cohort, "description" | "percentage">>,
   ): Promise<void> {
+    if (updates.description === undefined && updates.percentage === undefined) return;
     const row = await this.visibleCohort(id);
     if (!row) return;
     const action = this.updateAction(cohortKey(row.experiment_id, id), {
       description: updates.description,
       percentage: updates.percentage,
     });
-    if (!action) return;
     try {
-      await this.write([action, this.active(experimentKey(row.experiment_id))]);
+      await this.write([
+        action,
+        this.updateAction(
+          experimentKey(row.experiment_id),
+          {},
+          {
+            advanceRevision: true,
+            legacyOnly: updates.percentage !== undefined,
+          },
+        ),
+      ]);
     } catch (error) {
-      if (conditionalFailure(error)) return;
+      if (conditionalFailure(error)) {
+        if (updates.percentage !== undefined)
+          guardManagedDefinition(
+            await this.get<StoredExperiment>(experimentKey(row.experiment_id)),
+          );
+        return;
+      }
       throw error;
     }
   }
@@ -508,6 +644,8 @@ export default class DynamoDBStore {
     userId: PKey<"User">,
     experimentId: PKey<"Experiment">,
     cohortId: PKey<"Cohort">,
+    _deliveries?: undefined,
+    expectedRevision?: number,
   ): Promise<UserCohort> {
     const membership: UserCohort = {
       id: randomUUID() as PKey<"UserCohort">,
@@ -524,9 +662,14 @@ export default class DynamoDBStore {
             TableName: this.tableName,
             Key: experimentKey(experimentId),
             ConditionExpression:
-              "#state = :active AND (attribute_not_exists(#enabled) OR #enabled = :enabled)",
+              "#state = :active AND (attribute_not_exists(#enabled) OR #enabled = :enabled)" +
+              (expectedRevision === undefined ? "" : " AND " + revisionCondition(expectedRevision)),
             ExpressionAttributeNames: { "#state": "state", "#enabled": "enabled" },
-            ExpressionAttributeValues: { ":active": "active", ":enabled": true },
+            ExpressionAttributeValues: {
+              ":active": "active",
+              ":enabled": true,
+              ...(expectedRevision === undefined ? {} : { ":expected": expectedRevision }),
+            },
             ReturnValuesOnConditionCheckFailure: "ALL_OLD",
           },
         },
@@ -540,16 +683,24 @@ export default class DynamoDBStore {
         },
       ]);
     } catch (error) {
+      if (expectedRevision !== undefined && transactionConflict(error))
+        throw new RolloutConflictError();
       if (conditionalFailure(error)) {
         // The SDK exposes cancellation reason items as DynamoDB AttributeValues.
         // Use the condition's snapshot even if a subsequent resume has already committed.
-        const parent = cancellationReasons(error)?.[2]?.Item;
+        const reason = cancellationReasons(error)?.[2];
+        if (expectedRevision !== undefined && reason?.Code === "ConditionalCheckFailed") {
+          throw new RolloutConflictError();
+        }
+        const parent = reason?.Item;
         if (parent?.["state"]?.S === "active" && parent["enabled"]?.BOOL === false) {
           throw new ExperimentPausedError({ cause: error });
         }
         const experiment = await this.get<StoredExperiment>(experimentKey(experimentId));
         if (experiment?.state !== "active")
           throw new NotFoundError(`Experiment with id ${experimentId} not found`, { cause: error });
+        if (expectedRevision !== undefined && experiment.rollout_revision !== expectedRevision)
+          throw new RolloutConflictError();
         if (experiment.enabled === false) throw new ExperimentPausedError({ cause: error });
         if (await this.findMembership(userId, experimentId))
           throw new DuplicateAssignmentError({ cause: error });
@@ -630,26 +781,18 @@ export default class DynamoDBStore {
           ExpressionAttributeValues: { ":active": "active", ":deleting": "deleting" },
         },
       };
-      const winnerAction: Action =
-        parent.winner === row.slug
-          ? {
-              Update: {
-                TableName: this.tableName,
-                Key: experimentKey(row.experiment_id),
-                UpdateExpression: "SET winner = :null",
-                ConditionExpression: "attribute_exists(pk) AND winner = :slug",
-                ExpressionAttributeValues: { ":null": null, ":slug": row.slug },
-              },
-            }
-          : {
-              ConditionCheck: {
-                TableName: this.tableName,
-                Key: experimentKey(row.experiment_id),
-                ConditionExpression:
-                  "attribute_exists(pk) AND (attribute_not_exists(winner) OR winner <> :slug)",
-                ExpressionAttributeValues: { ":slug": row.slug },
-              },
-            };
+      // Whole-experiment cleanup drains managed cohorts only after the parent has been fenced.
+      if (parent.state === "active") guardManagedDefinition(parent);
+      const winnerAction = this.updateAction(
+        experimentKey(row.experiment_id),
+        parent.winner === row.slug ? { winner: null } : {},
+        {
+          state: parent.state,
+          advanceRevision: true,
+          expectedRevision: parent.rollout_revision ?? 0,
+          legacyOnly: parent.state === "active",
+        },
+      );
       try {
         await this.write([cohortUpdate, winnerAction]);
         return { ...row, state: "deleting" };
