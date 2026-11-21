@@ -1,6 +1,7 @@
 import type { Cohort, Experiment, User, UserCohort, PKey } from "~/entities";
 import type { IDataAccessAdaptor } from "~/interfaces";
 
+import { initialDelivery, rolloutMetadata } from "~/entities/rollout";
 import {
   DuplicateAssignmentError,
   ExperimentPausedError,
@@ -62,6 +63,7 @@ async function hydrate(s: SqlSession, row: Row): Promise<Experiment> {
     type: row["type"],
     enabled: isEnabled(row),
     winner: row["winner"] ?? null,
+    ...rolloutMetadata(row["rollout_phase"], row["rollout_revision"]),
     cohorts: rows.map(cohort),
   } as Experiment;
 }
@@ -123,7 +125,7 @@ export function relationalAdaptor(database: SqlDatabase): IDataAccessAdaptor {
                 slug: input.slug,
                 type: input.type,
                 description: input.description,
-                winner: null,
+                ...initialDelivery(input),
               })
               .catch((error: unknown) => {
                 parentInsertFailure = error;
