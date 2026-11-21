@@ -8,8 +8,10 @@ import {
 import { setupOptions } from "~/__tests__/storage/setup";
 import { renderSql } from "~/adaptors/setup/storage";
 
+import { registerSqlAnalyticsContract } from "../../__tests__/sqlAnalytics";
 import { setupMssql } from "./fixture";
 
+registerSqlAnalyticsContract(setupMssql);
 registerStorageContract("mssql", setupMssql, setupMssql);
 
 describe.skipIf(selectedDatabase() !== "mssql")("SQL Server connection ownership", () => {

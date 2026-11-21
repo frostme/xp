@@ -9,6 +9,7 @@ import { dirname, join } from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL, URL } from "node:url";
 
+import { addAnalytics } from "../dist/adaptors/setup/generators/analytics.js";
 import { generateStandard } from "../dist/adaptors/setup/generators/standard.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -83,6 +84,7 @@ try {
         database,
         orm,
         models: true,
+        analytics: true,
         modelsDir: `${directory}/models`,
         migrationsDir: `${directory}/migrations`,
         language,
@@ -99,6 +101,7 @@ try {
         tableName: "xp-smoke",
       };
       const artifacts = await generateStandard(options, project);
+      await addAnalytics(options, project, artifacts);
       const typeFiles = [];
       for (const file of artifacts.files) {
         const path = join(temporary, file.path);
@@ -107,6 +110,7 @@ try {
         if (path.endsWith(".ts")) typeFiles.push(path);
         else if (/\.(cjs|mjs|js)$/.test(path)) {
           const loaded = await import(pathToFileURL(path).href);
+          const analytics = file.path.includes("xp-analytics-models.");
           assert.ok(Object.keys(loaded).length > 0, `No exports in ${file.path}`);
           if (file.path.includes("models") && orm === "sequelize") {
             const { Sequelize } = req("sequelize");
@@ -114,11 +118,19 @@ try {
               dialect: database === "postgres" ? "postgres" : database,
               logging: false,
             });
-            const models = (loaded.defineXpModels ?? loaded.default.defineXpModels)(sequelize);
-            assert.equal(models.XpExperiment.getTableName(), "experiments");
-            assert.equal(models.XpExperiment.getAttributes().enabled.defaultValue, true);
-            assert.equal(models.XpExperiment.getAttributes().rollout_phase.allowNull, true);
-            assert.equal(models.XpExperiment.getAttributes().rollout_revision.defaultValue, 0);
+            const factory = analytics ? "defineXpAnalyticsModels" : "defineXpModels";
+            const models = (loaded[factory] ?? loaded.default[factory])(sequelize);
+            if (analytics) {
+              assert.deepEqual(models.XpAnalyticsDelivery.primaryKeyAttributes, [
+                "event_id",
+                "destination_key",
+              ]);
+            } else {
+              assert.equal(models.XpExperiment.getTableName(), "experiments");
+              assert.equal(models.XpExperiment.getAttributes().enabled.defaultValue, true);
+              assert.equal(models.XpExperiment.getAttributes().rollout_phase.allowNull, true);
+              assert.equal(models.XpExperiment.getAttributes().rollout_revision.defaultValue, 0);
+            }
             await sequelize.close();
           }
           if (file.path.includes("models") && orm === "typeorm") {
@@ -132,6 +144,14 @@ try {
               synchronize: false,
             });
             await source.buildMetadatas();
+            if (analytics) {
+              assert.equal(source.entityMetadatas.length, 2);
+              assert.equal(
+                source.getMetadata("XpAnalyticsDelivery").tableName,
+                "xp_analytics_deliveries",
+              );
+              continue;
+            }
             assert.equal(source.entityMetadatas.length, 3);
             const experiment = source.getMetadata("XpExperiment");
             assert.equal(experiment.tableName, "experiments");
@@ -154,6 +174,14 @@ try {
               entities: Object.values(loaded.default ?? loaded),
               connect: false,
             });
+            if (analytics) {
+              assert.equal(
+                ormInstance.getMetadata().get("XpAnalyticsDelivery").tableName,
+                "xp_analytics_deliveries",
+              );
+              await ormInstance.close(true);
+              continue;
+            }
             assert.equal(
               ormInstance.getMetadata().get("XpExperiment").properties.enabled.default,
               true,
@@ -169,7 +197,14 @@ try {
           if (file.path.includes("models") && orm === "mongoose") {
             const mongoose = req("mongoose");
             const connection = mongoose.createConnection();
-            const models = (loaded.defineXpModels ?? loaded.default.defineXpModels)(connection);
+            const factory = analytics ? "defineXpAnalyticsModels" : "defineXpModels";
+            const models = (loaded[factory] ?? loaded.default[factory])(connection);
+            if (analytics) {
+              assert.equal(models.XpAnalyticsDelivery.collection.name, "xp_analytics_deliveries");
+              assert.equal(models.XpAnalyticsDelivery.schema.options.autoIndex, false);
+              await connection.close();
+              continue;
+            }
             assert.equal(models.XpExperiment.collection.name, "experiments");
             assert.equal(models.XpExperiment.schema.path("enabled").defaultValue, true);
             assert.equal(models.XpExperiment.schema.path("rollout_revision").defaultValue, 0);

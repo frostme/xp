@@ -28,6 +28,7 @@ function session(client: Client | PoolClient): SqlSession {
   };
 }
 export default class PostgresAdaptor implements IDataAccessAdaptor {
+  readonly analytics;
   userDAO: IDataAccessAdaptor["userDAO"];
   experimentDAO: IDataAccessAdaptor["experimentDAO"];
   cohortDAO: IDataAccessAdaptor["cohortDAO"];
@@ -70,6 +71,7 @@ export default class PostgresAdaptor implements IDataAccessAdaptor {
       read: (work) => run(work, false),
       transaction: (work) => run(work, true),
     });
+    this.analytics = adaptor.analytics;
     this.userDAO = adaptor.userDAO;
     this.experimentDAO = adaptor.experimentDAO;
     this.cohortDAO = adaptor.cohortDAO;

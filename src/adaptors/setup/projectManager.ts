@@ -15,15 +15,18 @@ import type {
   SetupResult,
 } from "~/interfaces/setup";
 
+import { ANALYTICS_VERSION } from "./analyticsStorage";
 import { detectProject, storedOptions } from "./discovery";
 import { checkOutputPath, fingerprint, readText, relativePath, resolveOutput } from "./filesystem";
 import { detectScoped, frontendPlan, requestedScope } from "./frontend/plan";
+import { addAnalytics } from "./generators/analytics";
 import { generateUpgrade } from "./generators/upgrade";
 import { validateProfile } from "./registry";
 import { STORAGE_VERSION } from "./storage";
 const MANIFEST = ".xp/setup.json";
 interface SetupManifest {
   schemaVersion: number;
+  extensions?: Record<string, number>;
   options: SetupOptions;
   files: { path: string; hash: string; purpose: string }[];
   warnings: string[];
@@ -50,7 +53,10 @@ function equivalent(settings: SetupOptions, manifest: SetupManifest): boolean {
     )
   )
     saved.config = settings.config;
-  return JSON.stringify(storedOptions(settings)) === JSON.stringify(storedOptions(saved));
+  const current = storedOptions(settings);
+  delete current.analytics;
+  delete saved.analytics;
+  return JSON.stringify(current) === JSON.stringify(storedOptions(saved));
 }
 /** These host-owned files are retained verbatim or receive a targeted schema edit. */
 function canUpgradeEditedFile(
@@ -233,6 +239,14 @@ export default class ProjectManager implements IProjectManager {
     const profilePrerequisites = validateProfile(settings, project.versions);
     const state = await readText(path.join(project.cwd, MANIFEST));
     const previous: SetupManifest | null = state ? JSON.parse(state) : null;
+    if (
+      previous?.extensions?.["analytics"] !== undefined &&
+      previous.extensions["analytics"] !== ANALYTICS_VERSION
+    )
+      throw new Error("The analytics storage extension has an unsupported version.");
+    const installed = previous?.extensions?.["analytics"] === ANALYTICS_VERSION;
+    if (installed) settings.analytics = true;
+    const installAnalytics = settings.analytics === true && !installed;
     const existingFiles: FileChange[] = [];
     if (state && previous) {
       if (
@@ -260,7 +274,7 @@ export default class ProjectManager implements IProjectManager {
           content === null ||
           currentHash === null ||
           (currentHash !== entry.hash &&
-            (previous.schemaVersion === STORAGE_VERSION ||
+            ((previous.schemaVersion === STORAGE_VERSION && !installAnalytics) ||
               !canUpgradeEditedFile(previous, entry, content)))
         )
           throw new Error(
@@ -278,7 +292,7 @@ export default class ProjectManager implements IProjectManager {
           throw new Error(`Project changed during generation: ${file}. Run setup again.`);
         project.inputs[file] = currentHash;
       }
-      if (previous.schemaVersion === STORAGE_VERSION) {
+      if (previous.schemaVersion === STORAGE_VERSION && !installAnalytics) {
         files.push({
           path: MANIFEST,
           content: state,
@@ -302,9 +316,13 @@ export default class ProjectManager implements IProjectManager {
         };
       }
     }
-    const generated = previous
-      ? await generateUpgrade(settings, project, existingFiles, previous.schemaVersion)
-      : await this.generator.generate(settings, project);
+    const generated = !previous
+      ? await this.generator.generate(settings, project)
+      : previous.schemaVersion < STORAGE_VERSION || settings.orm === "drizzle"
+        ? await generateUpgrade(settings, project, existingFiles, previous.schemaVersion)
+        : { files: [], warnings: [], prerequisites: [], nextSteps: strings(previous.nextSteps) };
+    if (installAnalytics)
+      await addAnalytics(settings, project, generated, previous ? existingFiles : undefined);
     const files: FileChange[] = [];
     const seen = new Set<string>();
     for (const entry of generated.files) {
@@ -346,6 +364,14 @@ export default class ProjectManager implements IProjectManager {
     ];
     const manifest: SetupManifest = {
       schemaVersion: STORAGE_VERSION,
+      ...(installAnalytics || previous?.extensions
+        ? {
+            extensions: {
+              ...previous?.extensions,
+              ...(installAnalytics ? { analytics: ANALYTICS_VERSION } : {}),
+            },
+          }
+        : {}),
       options: storedOptions(settings),
       files: files.map((file) => ({
         path: file.path,

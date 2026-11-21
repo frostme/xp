@@ -103,6 +103,10 @@ Use `adjust` with the same allocation structure to update the split for future u
 
 Each effective change advances the revision. Retrying a command whose desired state already holds succeeds without advancing it. A different change based on a stale revision fails with a conflict. A managed automatic join checks the sampled revision in the storage write and retries from the current state on conflict, up to five attempts. Direct cohort additions, removals and percentage edits on a managed definition return a conflict; use a whole-split command. The generic server methods continue to support legacy definitions.
 
+## Analytics for new cohort memberships
+
+Pass the optional `analytics` configuration to `initializeXp` or the synchronous server constructor to capture new memberships. A stored flag-off assignment generates a join, including when the HTTP response returns a null slug. Returning a pinned winner generates no join. The host controls consent, external identity and the worker. [Analytics guide](analytics.md)
+
 ## Express
 
 In the following examples, `authenticateSession(cookie)` represents your application's existing session verification. It returns an account with a string or numeric `id`, or null for a guest.

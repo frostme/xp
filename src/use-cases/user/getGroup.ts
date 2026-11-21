@@ -1,6 +1,7 @@
 import type { Experiment, ExperimentSlug, CohortSlug, PKey } from "~/entities";
 import type { IUseCase, IUserDAO, IExperimentDAO, ICohortDAO, IBucketer } from "~/interfaces";
 import type { CohortDecision, UserIdentity } from "~/interfaces/runtime";
+import type { JoinCapture } from "~/use-cases/analytics/capture";
 
 import { normalizeIdentity } from "~/entities/identity";
 import { DuplicateAssignmentError, ExperimentPausedError, NotFoundError } from "~/errors";
@@ -21,6 +22,7 @@ export default class GetGroup implements IUseCase<CohortSlug | null> {
     protected experimentDAO: IExperimentDAO,
     protected cohortDAO: ICohortDAO,
     protected bucketer: IBucketer,
+    protected capture?: Pick<JoinCapture, "prepare">,
     private readonly random: () => number = Math.random,
   ) {}
 
@@ -101,17 +103,18 @@ export default class GetGroup implements IUseCase<CohortSlug | null> {
 
     if (cohort) {
       try {
-        if (experiment.rolloutPhase) {
-          await this.userDAO.addUserCohort(
-            userId,
-            experiment.id,
-            cohort.id,
-            undefined,
-            experiment.revision!,
-          );
-        } else {
-          await this.userDAO.addUserCohort(userId, experiment.id, cohort.id);
-        }
+        const deliveries = await this.capture?.prepare(userId, {
+          experimentSlug: experiment.slug,
+          cohortSlug: cohort.slug,
+          source: "automatic",
+        });
+        await this.userDAO.addUserCohort(
+          userId,
+          experiment.id,
+          cohort.id,
+          deliveries,
+          experiment.rolloutPhase ? experiment.revision : undefined,
+        );
       } catch (error) {
         if (error instanceof ExperimentPausedError) return null;
         if (!(error instanceof DuplicateAssignmentError)) throw error;
