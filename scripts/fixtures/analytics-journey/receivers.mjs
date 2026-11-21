@@ -111,14 +111,7 @@ function eventFields(provider, { body, headers, url }) {
       );
       assert.equal(body.length, 1);
       const { event, properties } = body[0];
-      const time = properties.time;
-      return [
-        event,
-        properties.distinct_id,
-        properties.$insert_id,
-        time < 10 ** 12 ? time * 1000 : time,
-        properties,
-      ];
+      return [event, properties.distinct_id, properties.$insert_id, properties.time, properties];
     }
     case "fullstory":
       assert.equal(headers.authorization, "Basic fullstory-fixture");
@@ -163,10 +156,7 @@ export function checkReceipts(attempts, id, occurredAt, cohort) {
       assert.equal(name, "xp.cohort.joined");
       assert.equal(subject, "external-" + provider + "-shop");
       assert.equal(uuid, id);
-      assert.equal(
-        time,
-        provider === "mixpanel" && time % 1000 === 0 ? Math.floor(stamp / 1000) * 1000 : stamp,
-      );
+      assert.equal(time, stamp);
       assert.equal(props.xp_experiment_slug, "delivery-copy");
       assert.equal(props.xp_cohort_slug, cohort);
       assert.equal(props.xp_assignment_source, "automatic");
@@ -177,7 +167,7 @@ export function checkReceipts(attempts, id, occurredAt, cohort) {
       }
     }
   }
-  for (const provider of ["amplitude", "fullstory"]) {
+  for (const provider of Object.keys(attempts)) {
     assert.equal(
       attempts[provider][1].raw,
       attempts[provider][0].raw,

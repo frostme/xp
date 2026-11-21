@@ -5,7 +5,7 @@ import pg from "pg";
 import { startWorker } from "./consumer.ts";
 
 // The parent hands this process the search_path of its disposable database schema.
-const { connection, origins, only, action, suspendAfterAcceptance } = await new Promise((resolve) =>
+const { connection, origins, only, action, crashAfterAcceptance } = await new Promise((resolve) =>
   process.once("message", resolve),
 );
 const pool = new pg.Pool(connection);
@@ -25,9 +25,9 @@ try {
         body: await request.arrayBuffer(),
         signal: request.signal,
       });
-      if (suspendAfterAcceptance && response.ok) {
+      if (crashAfterAcceptance && response.ok) {
         // The remote response arrived, but the adaptor has not returned to the worker's fenced ack.
-        process.send({ type: "accepted" });
+        process.kill(process.pid, "SIGKILL");
         await new Promise(() => {});
       }
       return response;

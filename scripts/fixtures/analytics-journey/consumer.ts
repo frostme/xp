@@ -1,6 +1,6 @@
 import type pg from "pg";
 
-import { createAnalyticsWorker } from "@frostme/xp/analytics";
+import { createAnalyticsWorker, type AnalyticsAdaptor } from "@frostme/xp/analytics";
 import { createAmplitudeAdaptor } from "@frostme/xp/analytics/amplitude";
 import { createFullstoryAdaptor } from "@frostme/xp/analytics/fullstory";
 import { createHeapAdaptor } from "@frostme/xp/analytics/heap";
@@ -59,11 +59,27 @@ export function startWorker(
     adaptors: only ? { [only + "-shop"]: adaptors[`${only}-shop`] } : adaptors,
     batchSize: 6,
     parallelism: 6,
-    leaseMs: 2_000,
-    requestTimeoutMs: 500,
+    // The killed worker leaves a short lease. Healthy workers have enough time for cold HTTP and database connections.
+    leaseMs: only ? 6_000 : 15_000,
+    requestTimeoutMs: 4_000,
     baseDelayMs: 50,
     maxDelayMs: 2_000,
     maxAttempts: 6,
     pollMs: 25,
   });
+}
+
+/** A host-owned table keyed by the original occurrence UUID makes replay idempotent. */
+export function createWarehouseAdaptor(connection: pg.Pool): AnalyticsAdaptor {
+  return {
+    provider: "custom:warehouse",
+    async deliver({ event, subjectId }, signal) {
+      signal.throwIfAborted();
+      await connection.query(
+        "INSERT INTO warehouse_joins (event_id, subject_id, event) VALUES ($1, $2, $3) ON CONFLICT (event_id) DO NOTHING",
+        [event.id, subjectId, event],
+      );
+      return { status: "accepted" };
+    },
+  };
 }
