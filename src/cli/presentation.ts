@@ -10,6 +10,7 @@ export function describePlan(plan: ScopedSetupPlan): string {
           `Project: ${o.cwd}`,
           `Migrations: ${o.migrationsDir}`,
           ...(o.schema ? [`Schema: ${o.schema}`] : []),
+          ...(o.analytics ? ["Analytics outbox storage v1"] : []),
           `Models: ${o.models ? o.modelsDir : "not requested"}`,
           `Language: ${o.language}; modules: ${o.moduleFormat}`,
           `Users: ${o.userStorage} users.id (${o.userIdType}${o.userIdCollation ? `, ${o.userIdCollation}` : ""})`,

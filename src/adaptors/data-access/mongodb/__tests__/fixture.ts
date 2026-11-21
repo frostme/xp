@@ -9,7 +9,7 @@ import server from "~/server";
 import MongoDBAdaptor from "..";
 
 export async function mongoFixture(): Promise<
-  StorageFixture & { client: MongoClient; databaseName: string }
+  StorageFixture & { client: MongoClient; databaseName: string; applyAnalytics(): Promise<void> }
 > {
   const client = new MongoClient(
     process.env.XP_MONGODB_URL ?? "mongodb://127.0.0.1:27018/?directConnection=true&replicaSet=rs0",
@@ -29,6 +29,7 @@ export async function mongoFixture(): Promise<
       reopen: () => server(client, { databaseName }),
       // Version 1 experiments omit enabled and require no storage alteration.
       applyUpgrade: () => Promise.resolve(),
+      applyAnalytics: () => generatedMongo(db, true),
       async seedUser(id) {
         await db.collection("users").updateOne({ id }, { $setOnInsert: { id } }, { upsert: true });
       },

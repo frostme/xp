@@ -41,3 +41,42 @@ export function generateDynamo(options: ResolvedSetup): GeneratedArtifacts {
     ],
   };
 }
+
+/** The sparse index contains analytics items only. The host owns the table lifecycle. */
+export function generateAnalyticsIndex(options: ResolvedSetup): GeneratedArtifacts {
+  const path = outputPath(options.migrationsDir, "xp-analytics-v1.update-table.json");
+  const index = {
+    IndexName: "xp_analytics_due",
+    KeySchema: [
+      { AttributeName: "analytics_pk", KeyType: "HASH" },
+      { AttributeName: "analytics_sk", KeyType: "RANGE" },
+    ],
+    Projection: { ProjectionType: "ALL" },
+  };
+  return {
+    files: [
+      {
+        path,
+        content:
+          JSON.stringify(
+            {
+              TableName: options.tableName,
+              AttributeDefinitions: index.KeySchema.map(({ AttributeName }) => ({
+                AttributeName,
+                AttributeType: "S",
+              })),
+              GlobalSecondaryIndexUpdates: [{ Create: index }],
+            },
+            null,
+            2,
+          ) + "\n",
+        purpose: "Add DynamoDB analytics due-work index",
+      },
+    ],
+    warnings: [],
+    prerequisites: [],
+    nextSteps: [
+      `After the base table is ACTIVE, apply aws dynamodb update-table --cli-input-json ${shellQuote(`file://${path}`)}. Wait until the xp_analytics_due index reports ACTIVE before enabling capture. For provisioned-capacity tables, set the index throughput in your infrastructure workflow.`,
+    ],
+  };
+}

@@ -1,11 +1,13 @@
 import type { IConfig } from "~/interfaces";
 import type { SequelizeDialect } from "~/interfaces/config";
+import type { AnalyticsCaptureOptions } from "~/use-cases/analytics/capture";
 
 import { optionalDriver } from "~/adaptors/data-access/optionalDriver";
 import { supportedDialect } from "~/adaptors/data-access/sequelize";
 import config from "~/config";
 
 export interface ServerOptions {
+  analytics?: AnalyticsCaptureOptions;
   /** Uniform draw in [0, 1) for managed allocations. */
   random?: () => number;
   databaseName?: string;

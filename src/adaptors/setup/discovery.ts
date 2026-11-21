@@ -17,6 +17,7 @@ const OPTION_KEYS = [
   "config",
   "schema",
   "migrationsDir",
+  "analytics",
   "models",
   "modelsDir",
   "language",
@@ -35,7 +36,8 @@ export function storedOptions(value: unknown): SetupOptions {
     const option = (value as Record<string, unknown>)[key];
     if (
       option !== undefined &&
-      (typeof option === "string" || (key === "models" && typeof option === "boolean"))
+      (typeof option === "string" ||
+        ((key === "models" || key === "analytics") && typeof option === "boolean"))
     )
       clean[key] = option;
   }

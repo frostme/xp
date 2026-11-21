@@ -10,11 +10,13 @@ import { randomUUID } from "node:crypto";
 import type { StorageFixture } from "~/__tests__/storage/contract";
 
 import { generatedSql, generatedUpgrade } from "~/__tests__/storage/setup";
+import { renderAnalyticsSql } from "~/adaptors/setup/analyticsStorage";
 import server from "~/server";
 
 import MysqlAdaptor from "..";
 
 export interface MysqlFixture extends StorageFixture {
+  applyAnalytics(): Promise<void>;
   pool: Pool;
   connectionConfig: ConnectionOptions;
 }
@@ -54,6 +56,9 @@ export async function setupMysql(
       adaptor: new MysqlAdaptor(pool),
       server: server(pool),
       reopen: () => server(pool),
+      async applyAnalytics() {
+        for (const statement of renderAnalyticsSql("mysql").up) await pool.query(statement);
+      },
       async applyUpgrade() {
         for (const sql of generatedUpgrade("mysql", version)) await pool.query(sql);
       },
