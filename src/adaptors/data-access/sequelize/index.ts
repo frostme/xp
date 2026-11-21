@@ -72,8 +72,12 @@ function session(
 
 export function sequelizeAdaptor(client: Sequelize, dialect: SequelizeDialect): IDataAccessAdaptor {
   return relationalAdaptor({
+    dialect,
     read: (work) => work(session(client, dialect, null)),
-    transaction: (work) =>
-      client.transaction((transaction) => work(session(client, dialect, transaction))),
+    transaction: (work, isolation) =>
+      client.transaction(
+        isolation ? { isolationLevel: isolation as Transaction.ISOLATION_LEVELS } : {},
+        (transaction) => work(session(client, dialect, transaction)),
+      ),
   });
 }

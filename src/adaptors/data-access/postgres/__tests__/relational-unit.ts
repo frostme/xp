@@ -16,6 +16,7 @@ test("a stale cohort removal cannot clear a replacement cohort's winner", async 
       .mockResolvedValueOnce([]),
   };
   const adaptor = relationalAdaptor({
+    dialect: "postgres",
     read: (work) => work(session),
     transaction: (work) => work(session),
   });

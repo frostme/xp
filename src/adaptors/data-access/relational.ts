@@ -1,5 +1,7 @@
 import type { Cohort, Experiment, User, UserCohort, PKey } from "~/entities";
 import type { IDataAccessAdaptor } from "~/interfaces";
+import type { AnalyticsStore } from "~/interfaces/analytics";
+import type { SequelizeDialect } from "~/interfaces/config";
 
 import {
   DuplicateAssignmentError,
@@ -9,6 +11,7 @@ import {
 } from "~/errors";
 
 import { isExperimentSlugConflict } from "./experimentSlugConflict";
+import { SqlAnalyticsStore, insertDeliveries } from "./relationalAnalytics";
 
 export type Row = Record<string, unknown>;
 export interface SqlSession {
@@ -18,8 +21,12 @@ export interface SqlSession {
   parameter(index: number): string;
 }
 export interface SqlDatabase {
+  readonly dialect: SequelizeDialect;
   read<T>(work: (session: SqlSession) => Promise<T>): Promise<T>;
-  transaction<T>(work: (session: SqlSession) => Promise<T>): Promise<T>;
+  transaction<T>(
+    work: (session: SqlSession) => Promise<T>,
+    isolation?: "READ COMMITTED",
+  ): Promise<T>;
 }
 function required(rows: Row[], entity: string): Row {
   const row = rows[0];
@@ -78,8 +85,11 @@ async function lockExperiment(s: SqlSession, id: unknown): Promise<Row> {
 }
 
 // All mutations lock the experiment first, including membership and winner changes.
-export function relationalAdaptor(database: SqlDatabase): IDataAccessAdaptor {
+export function relationalAdaptor(
+  database: SqlDatabase,
+): IDataAccessAdaptor & { analytics: AnalyticsStore } {
   return {
+    analytics: new SqlAnalyticsStore(database),
     experimentDAO: {
       getById: (id) =>
         database.read(async (s) =>
@@ -267,7 +277,7 @@ export function relationalAdaptor(database: SqlDatabase): IDataAccessAdaptor {
           );
           return rows[0] ? membership(rows[0]) : null;
         }),
-      addUserCohort: (userId, experimentId, cohortId) =>
+      addUserCohort: (userId, experimentId, cohortId, deliveries = []) =>
         database.transaction(async (s) => {
           const experiment = await lockExperiment(s, experimentId);
           if (!isEnabled(experiment)) throw new ExperimentPausedError();
@@ -291,13 +301,13 @@ export function relationalAdaptor(database: SqlDatabase): IDataAccessAdaptor {
             ).length
           )
             throw new DuplicateAssignmentError();
-          return membership(
-            await s.insert("user_cohorts", {
-              user_id: userId,
-              experiment_id: experimentId,
-              cohort_id: cohortId,
-            }),
-          );
+          const row = await s.insert("user_cohorts", {
+            user_id: userId,
+            experiment_id: experimentId,
+            cohort_id: cohortId,
+          });
+          if (deliveries.length) await insertDeliveries(s, deliveries);
+          return membership(row);
         }),
       removeUserCohort: (userId, experimentId) =>
         database.transaction(async (s) => {

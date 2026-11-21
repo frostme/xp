@@ -4,10 +4,12 @@ import type { SequelizeDialect } from "~/interfaces/config";
 
 import { experimentInput, registerStorageContract } from "~/__tests__/storage/contract";
 
+import { registerSqlAnalyticsContract } from "../../__tests__/sqlAnalytics";
 import { setupSequelize } from "./fixture";
 
 export function registerSequelizeContract(dialect: SequelizeDialect) {
   describe(`Sequelize 6 with ${dialect}`, () => {
+    registerSqlAnalyticsContract(() => setupSequelize(dialect));
     registerStorageContract(
       dialect,
       () => setupSequelize(dialect),
