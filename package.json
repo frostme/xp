@@ -26,6 +26,7 @@
   "exports": {
     ".": "./dist/index.js",
     "./cli": "./dist/cli/index.js",
+    "./analytics": "./dist/analytics/index.js",
     "./server": "./dist/server/index.js",
     "./client": "./dist/client/index.js",
     "./server/express": "./dist/server/express/index.js",
