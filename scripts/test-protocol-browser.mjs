@@ -19,6 +19,11 @@ try {
     "@connectrpc/connect-node",
     "@types/node",
     "playwright",
+    "react",
+    "react-dom",
+    "@types/react",
+    "@types/react-dom",
+    "soap",
   ]) {
     dependencies[name] = JSON.parse(
       await readFile(join(root, "node_modules", name, "package.json")),
@@ -39,9 +44,20 @@ try {
     "--module",
     "nodenext",
     "--noEmit",
+    "--jsx",
+    "react-jsx",
     "types.ts",
+    "react.tsx",
   ]);
-  run("bun", ["build", "page.ts", "--outdir=web", "--target=browser", "--minify"]);
+  run("bun", [
+    "build",
+    "page.ts",
+    "react.tsx",
+    "--outdir=web",
+    "--target=browser",
+    "--production",
+    "--splitting",
+  ]);
   run("node", ["journey.mjs"]);
 } finally {
   await rm(stage, { recursive: true, force: true });

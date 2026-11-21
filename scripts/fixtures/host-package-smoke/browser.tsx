@@ -13,7 +13,7 @@ function Decision() {
 
 export function App() {
   return (
-    <XPProvider loader={loaders.graphql} initialAssignments={{ checkout: "checkout_on" }}>
+    <XPProvider loader="rest" initialAssignments={{ checkout: "checkout_on" }}>
       <Experiment slug="checkout">
         <Cohort slug="on">
           <Decision />

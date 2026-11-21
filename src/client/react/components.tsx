@@ -9,11 +9,13 @@ import {
 
 import { isSlugPart } from "~/entities/slug";
 
+import type { CohortLoader, LoaderOptions } from "../loaders/shared";
 import type { XpPreload } from "../preload";
 
 import { parseGate, matchesGate } from "../gates";
 import {
   createXpSession,
+  type AssignmentLoader,
   type XpSession,
   type XpSessionOptions,
   type CohortResult,
@@ -22,9 +24,27 @@ import {
 const SessionContext = createContext<XpSession | null>(null);
 const ExperimentContext = createContext<string | undefined>(undefined);
 
-export interface XPProviderProps extends XpSessionOptions {
+export interface XPProviderProps extends Omit<XpSessionOptions, "loader"> {
+  loader?: NonNullable<XpSessionOptions["loader"]> | "grpc-web" | "soap";
   children?: ReactNode;
   sessionKey?: string | number;
+}
+
+function protocolLoader(loader: "grpc-web" | "soap", options: LoaderOptions): AssignmentLoader {
+  // Start the import on the first subscription. Server renders and preloaded
+  // sessions never need the protocol implementation.
+  let ready: Promise<CohortLoader> | undefined;
+  return async (slug, { signal }) => {
+    ready ??=
+      loader === "grpc-web"
+        ? import("../grpc-web/index").then(({ createGrpcWebLoader }) =>
+            createGrpcWebLoader(options),
+          )
+        : import("../soap/index").then(({ createSoapLoader }) => createSoapLoader(options));
+    const load = await ready;
+    signal.throwIfAborted();
+    return load(slug, { signal });
+  };
 }
 
 export function XPProvider({
@@ -41,7 +61,12 @@ export function XPProvider({
       endpoint,
       experimentHost,
       sessionKey,
-      assignments: createXpSession({ ...options, ...preload }),
+      assignments: createXpSession({
+        ...options,
+        ...preload,
+        loader:
+          loader === "grpc-web" || loader === "soap" ? protocolLoader(loader, options) : loader,
+      }),
     };
   }
   const [session, setSession] = useState(() =>
