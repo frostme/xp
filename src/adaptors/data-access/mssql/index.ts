@@ -17,7 +17,9 @@ function session(connection: ConnectionPool | Transaction, sql: Driver): SqlSess
         const type =
           Number.isInteger(value) && value >= -2_147_483_648 && value <= 2_147_483_647
             ? sql.Int
-            : sql.Float;
+            : Number.isSafeInteger(value)
+              ? sql.BigInt
+              : sql.Float;
         request.input(name, type, value);
       } else if (typeof value === "boolean") {
         request.input(name, sql.Bit, value);
@@ -45,6 +47,7 @@ function session(connection: ConnectionPool | Transaction, sql: Driver): SqlSess
 }
 
 export default class MssqlAdaptor implements IDataAccessAdaptor {
+  readonly analytics;
   userDAO: IDataAccessAdaptor["userDAO"];
   experimentDAO: IDataAccessAdaptor["experimentDAO"];
   cohortDAO: IDataAccessAdaptor["cohortDAO"];
@@ -79,6 +82,7 @@ export default class MssqlAdaptor implements IDataAccessAdaptor {
         }
       },
     });
+    this.analytics = adaptor.analytics;
     this.userDAO = adaptor.userDAO;
     this.experimentDAO = adaptor.experimentDAO;
     this.cohortDAO = adaptor.cohortDAO;

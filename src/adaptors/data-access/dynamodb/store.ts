@@ -14,6 +14,7 @@ import type {
   User,
   UserCohort,
 } from "~/entities";
+import type { PendingDelivery } from "~/entities/analytics";
 import type { DirectoryEntry, DirectoryPage, DirectoryQuery } from "~/interfaces/management";
 
 import {
@@ -33,6 +34,7 @@ import {
 import { RolloutConflictError } from "~/errors/rolloutConflictError";
 
 import { loadDriver } from "../optionalDriver";
+import DynamoAnalyticsStore from "./analytics";
 import {
   cohortClaim,
   cohortKey,
@@ -151,6 +153,7 @@ function membershipValue(row: StoredMembership): UserCohort {
 
 /** All related records live in the base table so read-after-write and cleanup do not depend on a GSI. */
 export default class DynamoDBStore {
+  readonly analytics: DynamoAnalyticsStore;
   private readonly sdk =
     loadDriver<typeof import("@aws-sdk/lib-dynamodb")>("@aws-sdk/lib-dynamodb");
 
@@ -159,6 +162,7 @@ export default class DynamoDBStore {
     private readonly tableName: string,
   ) {
     if (!tableName.trim()) throw new ValidationError("DynamoDB tableName is required");
+    this.analytics = new DynamoAnalyticsStore(client, tableName, (actions) => this.write(actions));
   }
 
   private async get<T extends Item>(key: Key): Promise<T | null> {
@@ -755,7 +759,7 @@ export default class DynamoDBStore {
     userId: PKey<"User">,
     experimentId: PKey<"Experiment">,
     cohortId: PKey<"Cohort">,
-    _deliveries?: undefined,
+    deliveries: readonly PendingDelivery[] = [],
     expectedRevision?: number,
   ): Promise<UserCohort> {
     const membership: UserCohort = {
@@ -792,11 +796,16 @@ export default class DynamoDBStore {
             ConditionExpression: "attribute_exists(pk)",
           },
         },
+        ...this.analytics.membershipActions(deliveries),
       ]);
     } catch (error) {
       if (expectedRevision !== undefined && transactionConflict(error))
         throw new RolloutConflictError();
       if (conditionalFailure(error)) {
+        // Outbox uniqueness and binding failures must never masquerade as a duplicate membership.
+        const reasons = cancellationReasons(error);
+        if (reasons?.slice(5).some((reason) => reason.Code === "ConditionalCheckFailed"))
+          throw error;
         // The SDK exposes cancellation reason items as DynamoDB AttributeValues.
         // Use the condition's snapshot even if a subsequent resume has already committed.
         const reason = cancellationReasons(error)?.[2];
@@ -813,7 +822,10 @@ export default class DynamoDBStore {
         if (expectedRevision !== undefined && experiment.rollout_revision !== expectedRevision)
           throw new RolloutConflictError();
         if (experiment.enabled === false) throw new ExperimentPausedError({ cause: error });
-        if (await this.findMembership(userId, experimentId))
+        if (
+          reasons?.[0]?.Code === "ConditionalCheckFailed" ||
+          (!reasons && (await this.findMembership(userId, experimentId)))
+        )
           throw new DuplicateAssignmentError({ cause: error });
         await this.getUser(userId);
         const cohort = await this.getCohort(cohortId);

@@ -118,6 +118,9 @@ jobs:
       - name: Installed React journey over Express, Yoga and Apollo
         if: matrix.database == 'postgres'
         run: bun run build && bun run test:journey
+      - name: Installed analytics capture, HTTP delivery and worker crash recovery
+        if: matrix.database == 'postgres'
+        run: bun run test:analytics-journey
       - name: Installed frontend journeys in Chromium and PostgreSQL
         if: matrix.database == 'postgres'
         env:

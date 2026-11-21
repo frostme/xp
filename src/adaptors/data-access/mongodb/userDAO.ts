@@ -1,15 +1,21 @@
 import { randomUUID } from "node:crypto";
 
 import type { PKey, User, UserCohort } from "~/entities";
+import type { PendingDelivery } from "~/entities/analytics";
 import type { IUserDAO } from "~/interfaces";
 
 import { DuplicateAssignmentError, ExperimentPausedError, NotFoundError } from "~/errors";
 import { RolloutConflictError } from "~/errors/rolloutConflictError";
 
+import type MongoAnalyticsStore from "./analytics";
+
 import MongoStore, { isDuplicateKey, mapMembership } from "./store";
 
 export default class MongoUserDAO implements IUserDAO {
-  constructor(private readonly store: MongoStore) {}
+  constructor(
+    private readonly store: MongoStore,
+    private readonly analytics: MongoAnalyticsStore,
+  ) {}
 
   async findById(id: PKey<"User">): Promise<User> {
     const record = await this.store.users.findOne({ id }, { readPreference: "primary" });
@@ -32,7 +38,7 @@ export default class MongoUserDAO implements IUserDAO {
     userId: PKey<"User">,
     experimentId: PKey<"Experiment">,
     cohortId: PKey<"Cohort">,
-    _deliveries?: undefined,
+    pending: readonly PendingDelivery[] = [],
     expectedRevision?: number,
   ): Promise<UserCohort> {
     const record: UserCohort = {
@@ -41,35 +47,41 @@ export default class MongoUserDAO implements IUserDAO {
       experiment_id: experimentId,
       cohort_id: cohortId,
     };
-    try {
-      await this.store.transaction(async (session) => {
-        const experiment = await this.store.lockExperiment(experimentId, session);
-        if (!experiment) {
-          throw new NotFoundError(`Experiment with id ${experimentId} not found`);
-        }
-        if (
-          expectedRevision !== undefined &&
-          expectedRevision !== (experiment.rollout_revision ?? 0)
-        )
-          throw new RolloutConflictError();
-        if (experiment.enabled === false) throw new ExperimentPausedError();
-        if (!(await this.store.users.findOne({ id: userId }, { session }))) {
-          throw new NotFoundError(`User with id ${userId} not found`);
-        }
-        if (
-          !(await this.store.cohorts.findOne(
-            { id: cohortId, experiment_id: experimentId },
-            { session },
-          ))
-        ) {
-          throw new NotFoundError("Cohort does not belong to the experiment");
-        }
+    await this.store.transaction(async (session) => {
+      const experiment = await this.store.lockExperiment(experimentId, session);
+      if (!experiment) {
+        throw new NotFoundError(`Experiment with id ${experimentId} not found`);
+      }
+      if (expectedRevision !== undefined && (experiment.rollout_revision ?? 0) !== expectedRevision)
+        throw new RolloutConflictError();
+      if (experiment.enabled === false) throw new ExperimentPausedError();
+      if (!(await this.store.users.findOne({ id: userId }, { session }))) {
+        throw new NotFoundError(`User with id ${userId} not found`);
+      }
+      if (
+        !(await this.store.cohorts.findOne(
+          { id: cohortId, experiment_id: experimentId },
+          { session },
+        ))
+      ) {
+        throw new NotFoundError("Cohort does not belong to the experiment");
+      }
+      try {
         await this.store.memberships.insertOne({ ...record }, { session });
-      });
-    } catch (error) {
-      if (isDuplicateKey(error)) throw new DuplicateAssignmentError({ cause: error });
-      throw error;
-    }
+      } catch (error) {
+        if (
+          isDuplicateKey(error) &&
+          "keyPattern" in error &&
+          typeof error.keyPattern === "object" &&
+          error.keyPattern !== null &&
+          "user_id" in error.keyPattern &&
+          "experiment_id" in error.keyPattern
+        )
+          throw new DuplicateAssignmentError({ cause: error });
+        throw error;
+      }
+      await this.analytics.insert(pending, session);
+    });
     return mapMembership(record);
   }
 
