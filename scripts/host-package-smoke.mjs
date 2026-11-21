@@ -35,6 +35,19 @@ const hosts = [
     sources: ["fastify.ts"],
     execute: "compiled/fastify.js",
   },
+  ...["express", "fastify"].map((platform) => ({
+    name: `nest-${platform}`,
+    peers: [
+      "@nestjs/common",
+      "@nestjs/core",
+      `@nestjs/platform-${platform}`,
+      "reflect-metadata",
+      "rxjs",
+      ...(platform === "express" ? ["express", "@types/express"] : ["fastify"]),
+    ],
+    sources: ["nestjs.ts", `nest-${platform}.ts`],
+    execute: `compiled/nest-${platform}.js`,
+  })),
   // Compile the xp contract strictly. Yoga's own lru-cache v10 declarations are
   // incompatible with TypeScript 7's Map iterators, so run its host fixture as JS.
   {
@@ -78,6 +91,10 @@ function checkIsolatedPeers(directory, peers) {
     "solid-js",
     "@solidjs/web",
     "astro",
+    "@nestjs/common",
+    "@nestjs/core",
+    "@nestjs/platform-fastify",
+    "@nestjs/platform-express",
   ]) {
     if (!peers.includes(name)) {
       assert.throws(
@@ -157,6 +174,7 @@ try {
         "nodenext",
         "--moduleResolution",
         "nodenext",
+        "--experimentalDecorators",
         "--jsx",
         "react-jsx",
         "--outDir",

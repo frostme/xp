@@ -12,6 +12,7 @@ export default defineConfig({
     "./src/server/express/index.ts",
     "./src/server/fastify/index.ts",
     "./src/server/graphql/index.ts",
+    "./src/server/nestjs/index.ts",
   ],
   exitCode: "circular:1",
   transform: true,
