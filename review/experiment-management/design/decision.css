@@ -1,0 +1,371 @@
+:root {
+  --paper: #fffefa;
+  --ink: #202522;
+  --muted: #52594f;
+  --line: #c4c7b5;
+  --panel: #f1f2e7;
+  --accent: #26523c;
+  --focus: #234fa6;
+  --error: #8d261d;
+  font:
+    100%/1.5 system-ui,
+    sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  color-scheme: light;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+.skip {
+  position: absolute;
+  left: 1rem;
+  top: -6rem;
+  background: var(--paper);
+  z-index: 2;
+}
+.skip:focus {
+  top: 0;
+}
+a {
+  color: var(--accent);
+  text-underline-offset: 0.22em;
+}
+a,
+button,
+input,
+select {
+  touch-action: manipulation;
+}
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 4px;
+}
+nav {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--line);
+  padding: 0.75rem max(1rem, calc((100vw - 70rem)/2));
+  background: var(--panel);
+  overflow-wrap: anywhere;
+}
+nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  white-space: nowrap;
+}
+nav strong {
+  font:
+    italic 700 1.5rem Georgia,
+    serif;
+  color: var(--ink);
+}
+nav #access {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+main {
+  max-width: 74rem;
+  margin: auto;
+  padding: 3rem 2rem 5rem;
+}
+h1,
+h2,
+p {
+  margin: 0;
+}
+h1,
+h2 {
+  font-family: Georgia, serif;
+  font-weight: normal;
+  line-height: 1.16;
+}
+h1 {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+}
+h2 {
+  font-size: 1.65rem;
+}
+h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+code,
+.number {
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 1rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--ink);
+  padding-bottom: 1.5rem;
+}
+.meta code {
+  display: block;
+  color: var(--muted);
+  margin-top: 0.25rem;
+}
+.state {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.serving,
+.members {
+  margin-top: 2.25rem;
+}
+.rowtitle {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 0.85rem;
+}
+.outcomes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--panel);
+  padding: 1rem 1.2rem;
+  gap: 1rem;
+  border-left: 4px solid var(--accent);
+}
+.outcomes p {
+  color: var(--ink);
+  max-width: 36rem;
+}
+.pair {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(15rem, 1fr);
+  gap: 3rem;
+}
+aside {
+  border-left: 1px solid var(--line);
+  padding-left: 2rem;
+  margin-top: 2.25rem;
+}
+.actions {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+aside .actions {
+  align-items: start;
+  flex-direction: column;
+}
+button,
+input,
+select {
+  font: inherit;
+  color: var(--ink);
+  padding: 0.6rem 0.85rem;
+  border: 1px solid #737b70;
+  border-radius: 3px;
+  background: var(--paper);
+  min-height: 44px;
+}
+button {
+  font-weight: 600;
+  cursor: pointer;
+}
+button:hover {
+  background: var(--panel);
+}
+button.primary {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+button:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+th,
+td {
+  text-align: left;
+  padding: 0.7rem 0.35rem;
+  border-bottom: 1px solid var(--line);
+}
+thead th {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+th:first-child,
+td:first-child {
+  padding-left: 0;
+}
+td.num,
+th.num {
+  text-align: right;
+}
+.role {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: normal;
+}
+.field {
+  display: grid;
+  gap: 0.35rem;
+  margin: 1.2rem 0;
+  max-width: 36rem;
+}
+.field span {
+  font-size: 0.87rem;
+  color: var(--muted);
+}
+.entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.entry code,
+.entry small {
+  display: block;
+}
+.entry .state {
+  text-align: right;
+}
+dialog {
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  border-radius: 3px;
+  padding: 1.5rem;
+  width: min(38rem, calc(100% - 2rem));
+  max-height: 87vh;
+  overflow: auto;
+}
+dialog::backdrop {
+  background: #18221f70;
+}
+dialog .outcomes {
+  margin: 1rem 0;
+  grid-template-columns: 1fr;
+}
+dialog h2 {
+  margin-bottom: 0.4rem;
+}
+input.weight {
+  width: 6rem;
+  text-align: right;
+}
+.alert,
+#problem {
+  color: var(--error);
+}
+.alert:not(:empty) {
+  border-left: 3px solid var(--error);
+  padding-left: 0.6rem;
+  margin: 0.6rem 0;
+}
+#status:not(:empty) {
+  margin: -3rem auto 2rem;
+  max-width: 70rem;
+  color: var(--accent);
+  padding-inline: 1rem;
+}
+@media (max-width: 50rem) {
+  .pair {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  aside {
+    border: 0;
+    padding: 0;
+  }
+  aside .actions {
+    flex-direction: row;
+  }
+  main {
+    padding: 1.5rem 1rem 4rem;
+  }
+  .meta {
+    align-items: start;
+    flex-direction: column;
+  }
+  .outcomes {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 30rem) {
+  nav #crumb {
+    display: none;
+  }
+  .entry {
+    align-items: start;
+    flex-direction: column;
+  }
+  .entry .state {
+    text-align: left;
+  }
+  .members td,
+  .members th {
+    padding-inline: 0.2rem;
+  }
+}
+@media (forced-colors: active) {
+  button {
+    border: 1px solid ButtonText;
+  }
+  :focus-visible {
+    outline-color: Highlight;
+  }
+  .outcomes {
+    border: 1px solid CanvasText;
+  }
+}
+.meta:has(.state) {
+  justify-content: start;
+  align-items: center;
+  column-gap: 2rem;
+}
+.meta .state {
+  border-left: 1px solid #737b70;
+  padding: 0.25rem 1rem;
+}
+@media (max-width: 50rem) {
+  .meta:has(.state) {
+    align-items: start;
+    gap: 0.5rem;
+  }
+  .meta .state {
+    padding: 0;
+    border: 0;
+  }
+}
+@media (max-width: 30rem) {
+  .members thead th {
+    vertical-align: bottom;
+  }
+  .members th:last-child {
+    max-width: 6.6rem;
+  }
+  .members th:nth-child(2) {
+    max-width: 5.6rem;
+  }
+  .members th,
+  .members td {
+    overflow-wrap: anywhere;
+  }
+}

@@ -1,0 +1,757 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Experiments · xp wireframe</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #18221f;
+        --quiet: #52605a;
+        --line: #b5bdb7;
+        --tint: #eef1ed;
+        --focus: #146450;
+        font:
+          100%/1.5 system-ui,
+          sans-serif;
+        color: var(--ink);
+        background: #fafbf9;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+      }
+      main {
+        max-width: 68rem;
+        margin: 0 auto;
+        padding: 3rem clamp(1.1rem, 5vw, 4rem) 4rem;
+      }
+      nav {
+        border-bottom: 1px solid var(--line);
+        padding: 0.8rem max(1.1rem, calc((100vw - 60rem) / 2));
+        background: white;
+        display: flex;
+        align-items: center;
+        gap: 0.9rem;
+        white-space: nowrap;
+      }
+      nav b {
+        border: 1px solid var(--ink);
+        padding: 0 0.35rem;
+        font-family: monospace;
+      }
+      nav span {
+        color: var(--quiet);
+        font-size: 0.85rem;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      h1 {
+        font-size: clamp(1.8rem, 4vw, 2.65rem);
+        line-height: 1.14;
+        font-weight: 640;
+        letter-spacing: -0.035em;
+      }
+      h2 {
+        font-size: 1.25rem;
+        margin: 1.85rem 0 0.65rem;
+      }
+      h3 {
+        font-size: 1rem;
+      }
+      .head,
+      .controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.7rem;
+        flex-wrap: wrap;
+      }
+      .head {
+        margin: 0.8rem 0 0.25rem;
+      }
+      .controls {
+        justify-content: flex-start;
+        margin-top: 1.1rem;
+      }
+      .sub,
+      small {
+        color: var(--quiet);
+      }
+      .slug,
+      code,
+      .num {
+        font:
+          0.9rem/1.5 ui-monospace,
+          monospace;
+        overflow-wrap: anywhere;
+      }
+      a {
+        color: var(--ink);
+        text-underline-offset: 3px;
+      }
+      a:hover {
+        text-decoration-thickness: 2px;
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+        color: inherit;
+        background: #fff;
+        border: 1px solid #738279;
+        border-radius: 3px;
+        padding: 0.46rem 0.75rem;
+      }
+      button,
+      a {
+        cursor: pointer;
+      }
+      button {
+        min-height: 2.65rem;
+        font-weight: 560;
+      }
+      .primary {
+        background: var(--ink);
+        border-color: var(--ink);
+        color: white;
+      }
+      button:hover {
+        background: #e1e7e2;
+      }
+      .primary:hover {
+        background: #374a41;
+      }
+      :focus-visible {
+        outline: 3px solid var(--focus);
+        outline-offset: 3px;
+      }
+      header {
+        margin-bottom: 1.35rem;
+      }
+      .search {
+        display: grid;
+        gap: 0.3rem;
+        max-width: 26rem;
+        margin: 1.6rem 0 0.8rem;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+        border-top: 2px solid var(--ink);
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 0.8rem 0.75rem;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      th {
+        font-weight: 580;
+        font-size: 0.87rem;
+        background: var(--tint);
+      }
+      td small {
+        display: block;
+      }
+      .status {
+        display: flex;
+        gap: 0.6rem;
+        align-items: center;
+        font-size: 0.92rem;
+        color: var(--quiet);
+        margin-top: 0.6rem;
+      }
+      .status span + span {
+        border-left: 1px solid var(--line);
+        padding-left: 0.6rem;
+      }
+      .serving {
+        background: var(--tint);
+        border-left: 3px solid var(--ink);
+        padding: 0.9rem 1rem;
+        display: grid;
+        gap: 0.25rem;
+        margin: 1.2rem 0;
+      }
+      .alert {
+        background: #fff9ed;
+        border: 1px solid #947436;
+        padding: 0.75rem;
+        margin: 0.8rem 0;
+      }
+      .error {
+        color: #822d29;
+      }
+      .missing {
+        font-weight: 600;
+      }
+      .field {
+        display: grid;
+        gap: 0.3rem;
+        margin: 0.8rem 0 1.1rem;
+        max-width: 31rem;
+      }
+      .field span,
+      .search span {
+        font-weight: 600;
+      }
+      .keys {
+        display: grid;
+        grid-template-columns: minmax(10rem, 1.2fr) minmax(7rem, 0.55fr) minmax(7rem, 0.5fr);
+        border-bottom: 1px solid var(--line);
+        padding: 0.6rem 0;
+        align-items: center;
+        gap: 0.7rem;
+      }
+      .keys input {
+        max-width: 7rem;
+        width: 100%;
+        font-variant-numeric: tabular-nums;
+      }
+      fieldset {
+        margin: 0;
+        border: 0;
+        padding: 0;
+      }
+      fieldset legend {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 0.3rem;
+      }
+      .review {
+        display: grid;
+        gap: 0.5rem;
+        margin: 1rem 0;
+      }
+      .review p {
+        display: grid;
+        grid-template-columns: 8rem 1fr;
+        gap: 0.8rem;
+      }
+      .review strong {
+        font-weight: 600;
+      }
+      dialog {
+        border: 1px solid var(--ink);
+        border-radius: 4px;
+        padding: 1.5rem;
+        width: min(35rem, calc(100vw - 2rem));
+        color: inherit;
+      }
+      dialog::backdrop {
+        background: #19241c55;
+      }
+      dialog h2 {
+        margin: 0 0 0.3rem;
+      }
+      dialog p {
+        margin: 0.4rem 0;
+      }
+      @media (max-width: 600px) {
+        main {
+          padding-top: 1.35rem;
+        }
+        nav {
+          gap: 0.55rem;
+        }
+        h1 {
+          font-size: 2rem;
+        }
+        .directory thead {
+          display: none;
+        }
+        .directory tbody,
+        .directory tr,
+        .directory td {
+          display: block;
+        }
+        .directory tr {
+          padding: 0.6rem 0;
+          border-bottom: 1px solid var(--line);
+        }
+        .directory td {
+          padding: 0.1rem 0.6rem;
+          border: 0;
+        }
+        .directory td[data-label]::before {
+          content: attr(data-label) " · ";
+          color: var(--quiet);
+          font-size: 0.87rem;
+        }
+        .cohorts th,
+        .cohorts td {
+          padding: 0.55rem 0.25rem;
+        }
+        .cohorts th:first-child {
+          width: 44%;
+        }
+        .keys {
+          grid-template-columns: minmax(0, 1.25fr) 3.5rem 5.3rem;
+        }
+        .keys input {
+          padding: 0.4rem;
+        }
+        .review p {
+          display: block;
+        }
+        .review strong {
+          display: block;
+        }
+        .controls button {
+          flex: 1;
+        }
+        .head {
+          align-items: flex-start;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <nav aria-label="Breadcrumb"><b>xp</b><a href="#">Experiments</a><span id="crumb"></span></nav>
+    <main id="main"></main>
+    <dialog id="confirm"></dialog>
+    <script>
+      const state = (slug, phase, enabled, cohorts, split, counts, winner = null) => ({
+        slug,
+        phase,
+        enabled,
+        cohorts,
+        split,
+        counts,
+        winner,
+        revision: 1,
+      });
+      const fixtures = [
+        state("existing-banner", "Legacy uniform", true, ["control", "short"], [50, 50], [14, 21]),
+        state(
+          "delivery-promise",
+          "Awaiting launch",
+          true,
+          ["off", "next-day-delivery-with-order-tracking"],
+          [100, 0],
+          [0, 0],
+          "off",
+        ),
+        state(
+          "checkout-copy",
+          "Allocating",
+          true,
+          ["off", "short", "detailed"],
+          [90, 5, 5],
+          [84, 11, 5],
+        ),
+        state("address-hint", "Allocating", false, ["off", "compact"], [75, 25], [23, 7]),
+        state("cart-recap", "Winner selected", true, ["off", "compact"], [50, 50], [36, 28], "off"),
+      ];
+      const params = new URLSearchParams(location.search),
+        store = params.has("empty") ? [] : structuredClone(fixtures);
+      const manage = params.get("access") !== "view",
+        canCreate = manage && !params.has("disable-create");
+      const main = document.querySelector("main"),
+        modal = document.querySelector("dialog");
+      let err = params.get("error"),
+        query = "",
+        offset = 0,
+        focusReturn,
+        pending;
+      const esc = (x) =>
+        String(x).replace(
+          /[&<>"']/g,
+          (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+        );
+      const name = (x) => x.replaceAll("-", " ").replace(/^./, (c) => c.toUpperCase());
+      const textNow = (x) =>
+        !x.enabled
+          ? "Application default"
+          : x.winner
+            ? x.winner === "off"
+              ? "Application default"
+              : "Winner · " + x.winner
+            : x.phase === "Legacy uniform"
+              ? "Sticky, then uniform"
+              : "Sticky, then weighted";
+      const explanation = (x) =>
+        !x.enabled
+          ? "Serving is paused. Existing assignments and the saved phase are retained."
+          : x.phase === "Awaiting launch"
+            ? "The off control is pinned. Automatic decisions create zero memberships."
+            : x.winner
+              ? "The selected winner overrides previous assignments. Stored memberships are retained."
+              : "Returning members keep their cohort. New members " +
+                (x.phase === "Legacy uniform"
+                  ? "have equal chances across cohorts."
+                  : "receive the split shown below.");
+      const btn = (label, action, primary = false) =>
+        '<button type="button" data-action="' +
+        action +
+        '" class="' +
+        (primary ? "primary" : "") +
+        '">' +
+        label +
+        "</button>";
+      const identify = (x) => '<div class="slug">' + esc(x.slug) + "</div>";
+      const enabled = (x) => (x.enabled ? "Enabled" : "Paused");
+      function directory() {
+        document.querySelector("#crumb").textContent = manage ? "Manage" : "View only";
+        main.innerHTML =
+          '<header><div class="head"><h1>Experiments</h1>' +
+          (canCreate ? btn("Create experiment", "create", true) : "") +
+          '</div></header><label class="search"><span>Find an experiment</span><input type="search" id="search" placeholder="Name or slug" value="' +
+          esc(query) +
+          '"></label><div id="rows"></div>';
+        function rows() {
+          const all = store.filter((x) =>
+            (x.slug + " " + name(x.slug)).toLowerCase().includes(query.toLowerCase()),
+          );
+          document.querySelector("#rows").innerHTML = all.length
+            ? '<table class="directory"><thead><tr><th>Experiment</th><th>Availability</th><th>Phase</th><th>Serving now</th></tr></thead><tbody>' +
+              all
+                .slice(offset, offset + 4)
+                .map(
+                  (x) =>
+                    '<tr><td><a href="#' +
+                    esc(x.slug) +
+                    '"><strong>' +
+                    esc(name(x.slug)) +
+                    "</strong></a>" +
+                    identify(x) +
+                    '</td><td data-label="Availability">' +
+                    enabled(x) +
+                    '</td><td data-label="Phase">' +
+                    esc(x.phase) +
+                    '</td><td data-label="Serving">' +
+                    esc(textNow(x)) +
+                    "</td></tr>",
+                )
+                .join("") +
+              '</tbody></table><div class="controls"><small>' +
+              (offset + 1) +
+              "–" +
+              Math.min(offset + 4, all.length) +
+              " of " +
+              all.length +
+              "</small>" +
+              (offset ? btn("Previous", "prev") : "") +
+              (offset + 4 < all.length ? btn("Next", "next") : "") +
+              "</div>"
+            : store.length
+              ? "No matching experiments."
+              : "This installation has no experiments.";
+        }
+        rows();
+        document.querySelector("#search").oninput = (e) => {
+          query = e.target.value;
+          offset = 0;
+          rows();
+        };
+      }
+      function detail(x) {
+        document.querySelector("#crumb").textContent = " / " + x.slug;
+        const canSplit = manage && x.enabled && ["Awaiting launch", "Allocating"].includes(x.phase);
+        const canWin =
+          manage && x.enabled && !x.winner && ["Allocating", "Legacy uniform"].includes(x.phase);
+        main.innerHTML =
+          '<a href="#">All experiments</a><header><div class="head"><h1>' +
+          esc(name(x.slug)) +
+          "</h1></div>" +
+          identify(x) +
+          '<div class="status"><span>' +
+          enabled(x) +
+          "</span><span>" +
+          x.phase +
+          "</span><span>Revision " +
+          x.revision +
+          '</span></div></header><section class="serving"><small>Serving now</small><h3>' +
+          esc(textNow(x)) +
+          "</h3><p>" +
+          esc(explanation(x)) +
+          "</p></section><h2>Cohorts</h2>" +
+          (err === "counts"
+            ? '<div class="alert" role="alert">Membership counts are unavailable. ' +
+              btn("Retry counts", "counts") +
+              "</div>"
+            : "") +
+          '<table class="cohorts"><thead><tr><th>Cohort</th><th>' +
+          (x.winner || !x.enabled ? "Saved split" : "New assignment share") +
+          "</th><th>Current memberships</th></tr></thead><tbody>" +
+          x.cohorts
+            .map(
+              (c, i) =>
+                "<tr><td><strong>" +
+                esc(c) +
+                '</strong><small class="slug">' +
+                esc(x.slug + "_" + c) +
+                '</small></td><td class="num">' +
+                (x.phase === "Legacy uniform" ? "Uniform" : x.split[i] + "%") +
+                '</td><td class="num">' +
+                (err === "counts" ? "Unavailable" : x.counts[i]) +
+                "</td></tr>",
+            )
+            .join("") +
+          '</tbody></table><div class="controls">' +
+          (canSplit
+            ? btn(x.phase === "Awaiting launch" ? "Launch rollout" : "Adjust split", "split", true)
+            : "") +
+          (manage ? btn(x.enabled ? "Pause" : "Resume", x.enabled ? "pause" : "resume") : "") +
+          (canWin ? btn("Select winner", "winner") : "") +
+          "</div>";
+      }
+      function create() {
+        document.querySelector("#crumb").textContent = " / Create experiment";
+        main.innerHTML =
+          '<a href="#">All experiments</a><header><div class="head"><h1>Create experiment</h1></div></header><form id="creation"><label class="field"><span>Experiment slug</span><input name="slug" placeholder="checkout-copy" required></label><label class="field"><span>Treatment slugs</span><input name="treatments" placeholder="short, detailed" required><small>Separate treatments with commas.</small></label><p class="serving">xp adds the off control and pins it at 100%. Visitors receive the application default until launch.</p><p class="error" role="alert"></p><div class="controls"><button class="primary">Create experiment</button><a href="#">Cancel</a></div></form>';
+        document.querySelector("#creation").onsubmit = (e) => {
+          e.preventDefault();
+          const f = new FormData(e.target),
+            slug = f.get("slug").trim(),
+            t = f
+              .get("treatments")
+              .split(",")
+              .map((i) => i.trim());
+          const valid = (x) => /^[a-z0-9]+(-[a-z0-9]+)*$/.test(x);
+          const error = !valid(slug)
+            ? "Enter a lowercase kebab-case slug."
+            : store.some((x) => x.slug === slug)
+              ? "An experiment already uses this slug."
+              : !t.every(valid) || t.includes("off") || new Set(t).size !== t.length
+                ? "Enter distinct treatment names. The off control is included automatically."
+                : "";
+          if (error) {
+            e.target.querySelector(".error").textContent = error;
+            return;
+          }
+          store.push(
+            state(
+              slug,
+              "Awaiting launch",
+              true,
+              ["off", ...t],
+              [100, ...t.map(() => 0)],
+              Array(t.length + 1).fill(0),
+              "off",
+            ),
+          );
+          location.hash = slug;
+        };
+      }
+      function split(x) {
+        main.innerHTML =
+          '<a href="#' +
+          esc(x.slug) +
+          '">Back to ' +
+          esc(name(x.slug)) +
+          '</a><header><div class="head"><h1>' +
+          (x.phase === "Awaiting launch" ? "Launch rollout" : "Adjust split") +
+          "</h1></div>" +
+          identify(x) +
+          '</header><form id="allocation"><fieldset><legend>Future assignments</legend><div class="keys"><strong>Cohort</strong><strong>Saved</strong><strong>Proposed %</strong></div>' +
+          x.cohorts
+            .map(
+              (c, i) =>
+                '<label class="keys"><span class="slug">' +
+                esc(c) +
+                "</span><span>" +
+                x.split[i] +
+                '%</span><input name="weight" aria-label="Proposed percentage for ' +
+                esc(c) +
+                '" inputmode="decimal" value="' +
+                x.split[i] +
+                '"></label>',
+            )
+            .join("") +
+          '</fieldset><div class="keys"><strong>Total</strong><span>100%</span><output></output></div><p class="error" role="alert"></p><div class="controls"><button class="primary">Review split</button><a href="#' +
+          esc(x.slug) +
+          '">Cancel</a></div></form>';
+        const form = document.querySelector("#allocation"),
+          inputs = [...form.querySelectorAll("input")],
+          basis = () =>
+            inputs.map((i) =>
+              /^\d+(\.\d{1,2})?$/.test(i.value) && Number(i.value) <= 100
+                ? Math.round(Number(i.value) * 100)
+                : NaN,
+            );
+        function total() {
+          const sum = basis().reduce((a, b) => a + b, 0);
+          form.querySelector("output").textContent = Number.isFinite(sum)
+            ? sum / 100 + "%"
+            : "Incomplete";
+          return sum;
+        }
+        total();
+        form.oninput = total;
+        form.onsubmit = (e) => {
+          e.preventDefault();
+          if (total() !== 10000) {
+            form.querySelector(".error").textContent =
+              "Enter 0–100% per cohort, with up to two decimals, totaling 100%.";
+            return;
+          }
+          openReview(
+            x,
+            x.phase === "Awaiting launch" ? "Launch rollout" : "Save split",
+            basis().map((v) => v / 100),
+          );
+        };
+      }
+      function openReview(x, action, values) {
+        focusReturn = document.activeElement;
+        pending = { x, action, values };
+        const split = Array.isArray(values),
+          winner = action === "Select winner";
+        const change = () =>
+          winner
+            ? modal.querySelector("select").value === "off"
+              ? "Application default"
+              : "The selected cohort"
+            : action === "Pause"
+              ? "Application default"
+              : action === "Resume"
+                ? "The saved serving behavior"
+                : "Their stored cohort";
+        modal.innerHTML =
+          "<h2>" +
+          action +
+          "</h2>" +
+          identify(x) +
+          (winner
+            ? '<label class="field"><span>Winning cohort</span><select>' +
+              x.cohorts.map((c) => "<option>" + esc(c) + "</option>").join("") +
+              "</select></label>"
+            : "") +
+          (split
+            ? '<div class="review">' +
+              x.cohorts
+                .map(
+                  (c, i) =>
+                    '<p><strong class="slug">' +
+                    esc(c) +
+                    "</strong><span>" +
+                    x.split[i] +
+                    "% → " +
+                    values[i] +
+                    "%</span></p>",
+                )
+                .join("") +
+              "</div>"
+            : "") +
+          '<div class="review"><p><strong>Existing members</strong><span id="old"></span></p><p><strong>New visitors</strong><span id="new"></span></p><p><strong>Memberships</strong><span>Stored counts are retained.</span></p></div><div role="alert" id="problem"></div><div class="controls">' +
+          btn("Cancel", "cancel") +
+          btn(action, "commit", true) +
+          "</div>";
+        modal.setAttribute("aria-label", action);
+        function effects() {
+          modal.querySelector("#old").textContent = change();
+          modal.querySelector("#new").textContent = split
+            ? "Assigned using the proposed split"
+            : winner
+              ? change()
+              : action === "Pause"
+                ? "Application default"
+                : "Resume the saved serving behavior";
+        }
+        effects();
+        if (winner) modal.querySelector("select").onchange = effects;
+        modal.showModal();
+        modal.querySelector('[data-action="cancel"]').focus();
+      }
+      const current = () => store.find((x) => x.slug === location.hash.slice(1).split("/")[0]);
+      function render() {
+        const x = current(),
+          route = location.hash.slice(1);
+        if (!route) directory();
+        else if (route === "!create" && canCreate) create();
+        else if (!x) {
+          main.innerHTML = '<h1>Experiment unavailable</h1><a href="#">Back to directory</a>';
+        } else if (
+          route.endsWith("/split") &&
+          manage &&
+          x.enabled &&
+          ["Awaiting launch", "Allocating"].includes(x.phase)
+        )
+          split(x);
+        else detail(x);
+      }
+      document.addEventListener("click", (e) => {
+        const action = e.target.closest("button")?.dataset.action;
+        if (!action) return;
+        const x = current();
+        if (action === "next" || action === "prev") {
+          offset += action === "next" ? 4 : -4;
+          directory();
+          return;
+        }
+        if (action === "create") {
+          location.hash = "!create";
+          return;
+        }
+        if (action === "counts") {
+          err = null;
+          detail(x);
+          return;
+        }
+        if (action === "split") {
+          location.hash = x.slug + "/split";
+          return;
+        }
+        if (action === "cancel") {
+          modal.close();
+          focusReturn?.focus();
+          return;
+        }
+        if (action === "reload") {
+          modal.close();
+          err = null;
+          return;
+        }
+        if (action === "commit") {
+          if (err === "stale") {
+            x.revision++;
+            modal.querySelector("#problem").innerHTML =
+              '<p class="alert">This experiment changed. Revision ' +
+              x.revision +
+              " is current. Review the saved values alongside your draft.</p>" +
+              btn("Review current revision", "reload");
+            modal.querySelector('[data-action="commit"]').disabled = true;
+            return;
+          }
+          if (err === "save") {
+            err = null;
+            modal.querySelector("#problem").innerHTML =
+              '<p class="alert">Save failed. Your inputs are preserved. Try again.</p>';
+            return;
+          }
+          const { action: command, values } = pending;
+          if (Array.isArray(values)) {
+            x.phase = "Allocating";
+            x.split = values;
+            x.winner = null;
+          } else if (command === "Select winner") {
+            x.phase = "Winner selected";
+            x.winner = modal.querySelector("select").value;
+          } else x.enabled = command === "Resume";
+          x.revision++;
+          modal.close();
+          location.hash = x.slug;
+          detail(x);
+          main.querySelector("h1").tabIndex = -1;
+          main.querySelector("h1").focus();
+          return;
+        }
+        if (["winner", "pause", "resume"].includes(action))
+          openReview(x, { winner: "Select winner", pause: "Pause", resume: "Resume" }[action]);
+      });
+      window.onhashchange = render;
+      render();
+    </script>
+  </body>
+</html>

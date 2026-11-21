@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>xp · Figma prototype</title>
+  <style>
+    body {
+      margin: 0;
+      background: #f9fbf9;
+      color: #18292e;
+      font: 14px/1.5 system-ui;
+    }
+    main {
+      max-width: 1040px;
+      margin: auto;
+    }
+    section {
+      display: none;
+      position: relative;
+    }
+    section:target,
+    body:not(:has(section:target)) #directory {
+      display: block;
+    }
+    section img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+    }
+    section a {
+      position: absolute;
+      border-radius: 4px;
+    }
+    section a:focus-visible {
+      outline: 4px solid #385cf0;
+      outline-offset: 3px;
+    }
+    nav {
+      margin: auto;
+      padding: 14px 20px;
+      max-width: 1000px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 22px;
+      align-items: center;
+      border-bottom: 1px solid #c9d4d4;
+    }
+    nav a {
+      color: inherit;
+    }
+  </style>
+  <nav aria-label="Prototype navigation">
+    <a href="#directory">Directory</a><a href="#serving">Checkout copy</a
+    ><a href="#allocation-review">Allocation review</a><a href="mobile-review.png">Mobile frame</a>
+  </nav>
+  <main>
+    <section id="create" aria-label="create">
+      <img alt="Figma frame · create" src="create.png" width="1040" height="509" />
+      <a
+        href="#created"
+        aria-label="Create experiment"
+        style="left: 4.615%; top: 84.283%; width: 16.25%; height: 7.859%"
+      ></a>
+    </section>
+    <section id="created" aria-label="created">
+      <img alt="Figma frame · created" src="created.png" width="1040" height="484" />
+      <a
+        href="#directory"
+        aria-label="View directory"
+        style="left: 4.615%; top: 70.041%; width: 13.462%; height: 8.264%"
+      ></a>
+      <a
+        href="#launch"
+        aria-label="Launch rollout"
+        style="left: 4.615%; top: 83.471%; width: 13.173%; height: 8.264%"
+      ></a>
+    </section>
+    <section id="launch" aria-label="launch">
+      <img alt="Figma frame · launch" src="launch.png" width="1040" height="402" />
+      <a
+        href="#launched"
+        aria-label="Launch rollout"
+        style="left: 4.615%; top: 80.1%; width: 13.173%; height: 9.95%"
+      ></a>
+    </section>
+    <section id="launched" aria-label="launched">
+      <img alt="Figma frame · launched" src="launched.png" width="1040" height="402" />
+      <a
+        href="#directory"
+        aria-label="View directory"
+        style="left: 4.615%; top: 80.1%; width: 13.462%; height: 9.95%"
+      ></a>
+    </section>
+    <section id="pause" aria-label="pause">
+      <img alt="Figma frame · pause" src="pause.png" width="1040" height="405" />
+      <a
+        href="#paused"
+        aria-label="Pause serving"
+        style="left: 4.615%; top: 80.247%; width: 13.077%; height: 9.877%"
+      ></a>
+    </section>
+    <section id="paused" aria-label="paused">
+      <img alt="Figma frame · paused" src="paused.png" width="1040" height="364" />
+      <a
+        href="#serving"
+        aria-label="Resume serving"
+        style="left: 4.615%; top: 78.022%; width: 14.327%; height: 10.989%"
+      ></a>
+    </section>
+    <section id="directory" aria-label="directory">
+      <img alt="Figma frame · directory" src="directory.png" width="1040" height="772" />
+      <a
+        href="#serving"
+        aria-label="Checkout copy"
+        style="left: 4.615%; top: 57.642%; width: 12.596%; height: 5.181%"
+      ></a>
+      <a
+        href="#create"
+        aria-label="Create experiment"
+        style="left: 4.615%; top: 89.637%; width: 16.25%; height: 5.181%"
+      ></a>
+    </section>
+    <section id="serving" aria-label="serving">
+      <img alt="Figma frame · serving" src="serving.png" width="1040" height="787" />
+      <a
+        href="#allocation-review"
+        aria-label="Adjust split"
+        style="left: 4.615%; top: 73.316%; width: 11.154%; height: 5.083%"
+      ></a>
+      <a
+        href="#pause"
+        aria-label="Pause serving"
+        style="left: 4.615%; top: 81.576%; width: 13.077%; height: 5.083%"
+      ></a>
+      <a
+        href="#winner"
+        aria-label="Select winner"
+        style="left: 4.615%; top: 89.835%; width: 12.788%; height: 5.083%"
+      ></a>
+    </section>
+    <section id="allocation-review" aria-label="allocation-review">
+      <img
+        alt="Figma frame · allocation-review"
+        src="allocation-review.png"
+        width="1040"
+        height="603"
+      />
+      <a
+        href="#applied"
+        aria-label="Apply allocation"
+        style="left: 4.615%; top: 86.733%; width: 14.519%; height: 6.633%"
+      ></a>
+    </section>
+    <section id="applied" aria-label="applied">
+      <img alt="Figma frame · applied" src="applied.png" width="1040" height="505" />
+      <a
+        href="#directory"
+        aria-label="View directory"
+        style="left: 4.615%; top: 58.416%; width: 13.462%; height: 7.921%"
+      ></a>
+      <a
+        href="#pause"
+        aria-label="Pause serving"
+        style="left: 4.615%; top: 71.287%; width: 13.077%; height: 7.921%"
+      ></a>
+      <a
+        href="#winner"
+        aria-label="Select winner"
+        style="left: 4.615%; top: 84.158%; width: 12.788%; height: 7.921%"
+      ></a>
+    </section>
+    <section id="winner" aria-label="winner">
+      <img alt="Figma frame · winner" src="winner.png" width="1040" height="405" />
+      <a
+        href="#finalized"
+        aria-label="Select off as winner"
+        style="left: 4.615%; top: 80.247%; width: 17.115%; height: 9.877%"
+      ></a>
+    </section>
+    <section id="finalized" aria-label="finalized">
+      <img alt="Figma frame · finalized" src="finalized.png" width="1040" height="446" />
+      <a
+        href="#directory"
+        aria-label="View directory"
+        style="left: 4.615%; top: 82.063%; width: 13.462%; height: 8.969%"
+      ></a>
+    </section>
+  </main>
+</html>

@@ -1,0 +1,375 @@
+{
+  "status": "ok",
+  "direction": "LR",
+  "nodes": [
+    {
+      "id": "start",
+      "label": "Operator Directory Home"
+    },
+    {
+      "id": "search",
+      "label": "Search Filter"
+    },
+    {
+      "id": "results",
+      "label": "Experiment List View"
+    },
+    {
+      "id": "empty_state",
+      "label": "Empty Directory View"
+    },
+    {
+      "id": "item_row",
+      "label": "Experiment Row"
+    },
+    {
+      "id": "serving_now",
+      "label": "Serving Now"
+    },
+    {
+      "id": "enabled_tag",
+      "label": "Enabled"
+    },
+    {
+      "id": "allocating_tag",
+      "label": "Allocating"
+    },
+    {
+      "id": "detail_view",
+      "label": "Checkout Copy Detail"
+    },
+    {
+      "id": "viewer_mode",
+      "label": "Viewer View"
+    },
+    {
+      "id": "editor_mode",
+      "label": "Management View"
+    },
+    {
+      "id": "action_menu",
+      "label": "Actions"
+    },
+    {
+      "id": "pause_flow",
+      "label": "Pause Experiment"
+    },
+    {
+      "id": "resume_flow",
+      "label": "Resume Experiment"
+    },
+    {
+      "id": "winner_flow",
+      "label": "Select Winner Flow"
+    },
+    {
+      "id": "winner_input",
+      "label": "Input Winner Variant"
+    },
+    {
+      "id": "winner_save",
+      "label": "Update Existing & New Users"
+    },
+    {
+      "id": "refresh_detail",
+      "label": "Refreshed Detail View"
+    },
+    {
+      "id": "allocation_edit",
+      "label": "Edit Allocation"
+    },
+    {
+      "id": "reweight_type",
+      "label": "Reweight Type"
+    },
+    {
+      "id": "new_user_reweight",
+      "label": "Review Changes"
+    },
+    {
+      "id": "full_reweight",
+      "label": "Update All Shares"
+    },
+    {
+      "id": "confirm_reweight",
+      "label": "Confirm?"
+    },
+    {
+      "id": "save_success",
+      "label": "Save & Persist Counts"
+    },
+    {
+      "id": "stale_error",
+      "label": "Review Stale Data"
+    },
+    {
+      "id": "create_new",
+      "label": "Create Managed Experiment"
+    },
+    {
+      "id": "error_403",
+      "label": "Create Forbidden View"
+    },
+    {
+      "id": "create_input",
+      "label": "Input Details"
+    },
+    {
+      "id": "save_new",
+      "label": "Immediate Save"
+    },
+    {
+      "id": "pinned_state",
+      "label": "100% Off Pinned"
+    },
+    {
+      "id": "default_app",
+      "label": "Application Default Applied"
+    },
+    {
+      "id": "total_err",
+      "label": "Total Errors Display"
+    },
+    {
+      "id": "count_unavail",
+      "label": "Counts Unavailable Label"
+    },
+    {
+      "id": "fail_preserve",
+      "label": "Failed Save: Preserve Input"
+    },
+    {
+      "id": "mobile_view",
+      "label": "Mobile Stacked Layout"
+    },
+    {
+      "id": "desktop_view",
+      "label": "Desktop Grid Layout"
+    },
+    {
+      "id": "ui_specs",
+      "label": "Compact Typography"
+    },
+    {
+      "id": "a11y",
+      "label": "Focus-Visible & Keyboard-Safe"
+    },
+    {
+      "id": "off_count",
+      "label": "Off: 84"
+    },
+    {
+      "id": "short_count",
+      "label": "Short: 11"
+    },
+    {
+      "id": "detailed_count",
+      "label": "Detailed: 5"
+    },
+    {
+      "id": "Membership_Stats",
+      "label": "Membership_Stats"
+    },
+    {
+      "id": "done",
+      "label": "Task Complete"
+    }
+  ],
+  "edges": [
+    {
+      "from": "start",
+      "to": "search"
+    },
+    {
+      "from": "search",
+      "to": "results",
+      "label": "Name or Slug"
+    },
+    {
+      "from": "search",
+      "to": "empty_state",
+      "label": "Empty Store"
+    },
+    {
+      "from": "results",
+      "to": "item_row"
+    },
+    {
+      "from": "item_row",
+      "to": "serving_now",
+      "label": "Status Tags"
+    },
+    {
+      "from": "item_row",
+      "to": "enabled_tag",
+      "label": "Status Tags"
+    },
+    {
+      "from": "item_row",
+      "to": "allocating_tag",
+      "label": "Status Tags"
+    },
+    {
+      "from": "item_row",
+      "to": "detail_view",
+      "label": "Click"
+    },
+    {
+      "from": "detail_view",
+      "to": "viewer_mode",
+      "label": "Read-Only"
+    },
+    {
+      "from": "detail_view",
+      "to": "editor_mode",
+      "label": "Admin"
+    },
+    {
+      "from": "editor_mode",
+      "to": "action_menu"
+    },
+    {
+      "from": "action_menu",
+      "to": "pause_flow",
+      "label": "Pause"
+    },
+    {
+      "from": "action_menu",
+      "to": "resume_flow",
+      "label": "Resume"
+    },
+    {
+      "from": "action_menu",
+      "to": "winner_flow",
+      "label": "Select Winner"
+    },
+    {
+      "from": "winner_flow",
+      "to": "winner_input"
+    },
+    {
+      "from": "winner_input",
+      "to": "winner_save"
+    },
+    {
+      "from": "winner_save",
+      "to": "refresh_detail"
+    },
+    {
+      "from": "editor_mode",
+      "to": "allocation_edit"
+    },
+    {
+      "from": "allocation_edit",
+      "to": "reweight_type"
+    },
+    {
+      "from": "reweight_type",
+      "to": "new_user_reweight",
+      "label": "New Users Only"
+    },
+    {
+      "from": "reweight_type",
+      "to": "full_reweight",
+      "label": "Full Allocation"
+    },
+    {
+      "from": "new_user_reweight",
+      "to": "confirm_reweight"
+    },
+    {
+      "from": "confirm_reweight",
+      "to": "save_success",
+      "label": "Yes"
+    },
+    {
+      "from": "confirm_reweight",
+      "to": "stale_error",
+      "label": "Stale Revision"
+    },
+    {
+      "from": "editor_mode",
+      "to": "create_new"
+    },
+    {
+      "from": "create_new",
+      "to": "error_403",
+      "label": "Forbidden"
+    },
+    {
+      "from": "create_new",
+      "to": "create_input"
+    },
+    {
+      "from": "create_input",
+      "to": "save_new"
+    },
+    {
+      "from": "save_new",
+      "to": "pinned_state"
+    },
+    {
+      "from": "pinned_state",
+      "to": "default_app"
+    },
+    {
+      "from": "detail_view",
+      "to": "total_err",
+      "label": "Error"
+    },
+    {
+      "from": "detail_view",
+      "to": "count_unavail",
+      "label": "Network Fail"
+    },
+    {
+      "from": "save_new",
+      "to": "fail_preserve",
+      "label": "Failed Save"
+    },
+    {
+      "from": "fail_preserve",
+      "to": "create_input"
+    },
+    {
+      "from": "detail_view",
+      "to": "mobile_view",
+      "label": "Reflow"
+    },
+    {
+      "from": "detail_view",
+      "to": "desktop_view",
+      "label": "Reflow"
+    },
+    {
+      "from": "mobile_view",
+      "to": "ui_specs"
+    },
+    {
+      "from": "desktop_view",
+      "to": "ui_specs"
+    },
+    {
+      "from": "ui_specs",
+      "to": "a11y"
+    },
+    {
+      "from": "detail_view",
+      "to": "Membership_Stats"
+    },
+    {
+      "from": "save_success",
+      "to": "refresh_detail"
+    },
+    {
+      "from": "stale_error",
+      "to": "allocation_edit"
+    },
+    {
+      "from": "refresh_detail",
+      "to": "done"
+    }
+  ],
+  "nodeCount": 43,
+  "edgeCount": 43
+}

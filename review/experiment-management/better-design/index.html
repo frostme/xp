@@ -1,0 +1,804 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Experiment directory · xp</title>
+    <link rel="stylesheet" href="interior.css" />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        background: var(--background);
+        color: var(--foreground);
+        font: 15px/1.45 var(--font-sans, system-ui);
+        margin: 0;
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+        color: inherit;
+      }
+      button,
+      a {
+        cursor: pointer;
+      }
+      button {
+        border: 1px solid #c5c4bf;
+        border-radius: 5px;
+        background: white;
+        padding: 8px 13px;
+        font-weight: 540;
+      }
+      button:hover {
+        background: var(--secondary);
+      }
+      button.primary {
+        background: var(--primary);
+        color: white;
+        border-color: var(--primary);
+      }
+      :focus-visible {
+        outline: 3px solid var(--ring);
+        outline-offset: 2px;
+      }
+      header {
+        height: 62px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border-bottom: 1px solid #cecec8;
+        padding: 0 4vw;
+        background: var(--card);
+      }
+      header strong {
+        font: 600 19px var(--font-mono, monospace);
+      }
+      header a {
+        color: inherit;
+        text-decoration: none;
+      }
+      header .role {
+        margin-left: auto;
+        color: #52504c;
+      }
+      main {
+        max-width: 1330px;
+        margin: 0 auto;
+        padding: 40px 4vw;
+        display: grid;
+        gap: 32px;
+        grid-template-columns: minmax(210px, 28%) minmax(0, 1fr);
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      h1 {
+        font-size: clamp(24px, 3vw, 36px);
+        letter-spacing: -0.045em;
+        font-weight: 590;
+      }
+      h2 {
+        font-size: 22px;
+        letter-spacing: -0.035em;
+        font-weight: 590;
+      }
+      h3 {
+        font-size: 17px;
+      }
+      input,
+      select {
+        width: 100%;
+        border: 1px solid #b5b4af;
+        border-radius: 5px;
+        background: var(--card);
+        padding: 8px 10px;
+      }
+      label {
+        display: block;
+        margin: 12px 0 4px;
+        font-weight: 560;
+      }
+      nav {
+        min-width: 0;
+      }
+      .titlebar,
+      .actionrow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .titlebar {
+        margin-bottom: 16px;
+      }
+      nav ul {
+        list-style: none;
+        padding: 0;
+        margin: 15px 0;
+      }
+      nav li a {
+        display: block;
+        color: inherit;
+        text-decoration: none;
+        padding: 12px 14px;
+        border-radius: 6px;
+      }
+      nav a:hover {
+        background: var(--card);
+      }
+      nav a[aria-current] {
+        background: var(--primary);
+        color: var(--primary-foreground);
+      }
+      nav li small {
+        display: block;
+        font-size: 13px;
+        margin-top: 3px;
+      }
+      article {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: clamp(19px, 3vw, 44px);
+        box-shadow: 0 3px 8px #211e120c;
+      }
+      article:focus {
+        outline: 0;
+      }
+      article > p {
+        margin-top: 8px;
+      }
+      code {
+        font-family: var(--font-mono, monospace);
+        overflow-wrap: anywhere;
+      }
+      .status {
+        display: flex;
+        gap: 8px;
+        margin-top: 16px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .phase {
+        background: var(--secondary);
+        padding: 4px 8px;
+        border-radius: 4px;
+      }
+      .enabled {
+        color: #285a3c;
+      }
+      .status span {
+        font-weight: 560;
+      }
+      .summary {
+        margin: 24px 0;
+        padding: 18px 0;
+        border-block: 1px solid var(--border);
+      }
+      .summary dl {
+        display: grid;
+        gap: 9px;
+        grid-template-columns: 9rem 1fr;
+      }
+      .summary dd,
+      .summary dt {
+        margin: 0;
+      }
+      .summary dt {
+        color: #53514e;
+      }
+      table {
+        border-collapse: collapse;
+        margin: 14px 0 20px;
+        width: 100%;
+      }
+      th,
+      td {
+        padding: 10px 5px;
+        border-bottom: 1px solid var(--border);
+        text-align: right;
+        overflow-wrap: anywhere;
+        font-variant-numeric: tabular-nums;
+      }
+      th:first-child,
+      td:first-child {
+        text-align: left;
+      }
+      thead th {
+        font-size: 13px;
+        color: #56544e;
+      }
+      tbody th {
+        font-weight: 520;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .return {
+        display: none;
+      }
+      dialog {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 24px;
+        width: min(500px, 92vw);
+        color: inherit;
+      }
+      dialog::backdrop {
+        background: #29272077;
+      }
+      dialog .actions {
+        margin-top: 18px;
+      }
+      .error {
+        color: #8d292a;
+      }
+      .note {
+        color: #56544e;
+        font-size: 14px;
+        margin: 10px 0;
+      }
+      .success {
+        color: #26593b;
+      }
+      .stack {
+        display: grid;
+        gap: 12px;
+      }
+      .row {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: 1.4fr 0.6fr 1fr;
+        align-items: center;
+        margin: 12px 0;
+      }
+      .row label {
+        margin: 0;
+      }
+      #feedback:empty {
+        display: none;
+      }
+      #feedback {
+        margin-bottom: 14px;
+      }
+      .total {
+        text-align: right;
+      }
+      .intent {
+        font-size: 18px;
+        margin: 16px 0;
+      }
+      .links {
+        margin-top: 25px;
+      }
+      @media (max-width: 760px) {
+        header {
+          padding: 0 16px;
+        }
+        main {
+          display: block;
+          padding: 18px 12px;
+        }
+        main[data-page="directory"] article,
+        main:not([data-page="directory"]) nav {
+          display: none;
+        }
+        .return {
+          display: inline-block;
+          color: inherit;
+          margin-bottom: 15px;
+        }
+        nav .titlebar {
+          margin-top: 8px;
+        }
+        article {
+          padding: 18px 15px;
+        }
+        .summary dl {
+          grid-template-columns: 1fr;
+          gap: 2px;
+        }
+        .summary dd + dt {
+          margin-top: 8px;
+        }
+        .row {
+          grid-template-columns: minmax(0, 1.3fr) minmax(48px, 0.6fr) minmax(70px, 1fr);
+        }
+        th,
+        td {
+          padding: 8px 4px;
+        }
+        thead th {
+          font-size: 12px;
+        }
+        table {
+          table-layout: fixed;
+        }
+        th:first-child {
+          width: 35%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong>xp</strong><span>/</span><a href="#directory">Experiment management</a
+      ><span class="role" id="role"></span>
+    </header>
+    <main>
+      <nav aria-label="Experiments"></nav>
+      <article tabindex="-1"></article>
+    </main>
+    <dialog aria-labelledby="confirmTitle">
+      <form method="dialog">
+        <h2 id="confirmTitle"></h2>
+        <div id="impact"></div>
+        <div class="actions">
+          <button value="cancel" autofocus>Back</button
+          ><button value="apply" id="confirmAction"></button>
+        </div>
+      </form>
+    </dialog>
+    <script>
+      const args = new URLSearchParams(location.search);
+      const managed = (slug, phase, cohorts, split, counts, enabled = true, winner = null) => ({
+        slug,
+        phase,
+        cohorts,
+        split,
+        counts,
+        enabled,
+        winner,
+        revision: 1,
+      });
+      const fixtures = [
+        managed("existing-banner", "Legacy uniform", ["control", "short"], [50, 50], [14, 21]),
+        managed(
+          "delivery-promise",
+          "Awaiting launch",
+          ["off", "next-day-delivery-with-order-tracking"],
+          [100, 0],
+          [0, 0],
+          true,
+          "off",
+        ),
+        managed(
+          "checkout-copy",
+          "Allocating",
+          ["off", "short", "detailed"],
+          [90, 5, 5],
+          [84, 11, 5],
+        ),
+        managed("address-hint", "Allocating", ["off", "compact"], [75, 25], [23, 7], false),
+        managed(
+          "cart-recap",
+          "Winner selected",
+          ["off", "compact"],
+          [50, 50],
+          [36, 28],
+          true,
+          "off",
+        ),
+      ];
+      const rows = args.has("empty") ? [] : fixtures;
+      const readOnly = args.get("access") === "view",
+        mayCreate = !readOnly && !args.has("disable-create");
+      let query = "",
+        page = 0,
+        fault = args.get("error"),
+        draft,
+        opener,
+        commit,
+        notice = "";
+      const nav = document.querySelector("nav"),
+        article = document.querySelector("article"),
+        modal = document.querySelector("dialog");
+      const esc = (s) =>
+        String(s)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;");
+      const name = (s) => s.charAt(0).toUpperCase() + s.slice(1).replaceAll("-", " ");
+      const btn = (cmd, label, primary = false) =>
+        '<button data-cmd="' +
+        cmd +
+        '" class="' +
+        (primary ? "primary" : "") +
+        '">' +
+        label +
+        "</button>";
+      const link = (slug) => "#" + encodeURIComponent(slug);
+      const current = () => decodeURIComponent(location.hash.slice(1)) || "directory";
+      function directory() {
+        nav.innerHTML =
+          '<div class="titlebar"><h2>Experiments</h2>' +
+          (mayCreate ? btn("create", "Create") : "") +
+          '</div><label for="filter">Search experiments</label><input type="search" id="filter" placeholder="Name or slug"><div id="list"></div>';
+        const input = document.getElementById("filter");
+        input.value = query;
+        function list() {
+          const items = rows.filter((r) =>
+            (r.slug + " " + name(r.slug)).includes(query.toLowerCase()),
+          );
+          const result = items.slice(page * 5, page * 5 + 5);
+          const selected =
+            current() === "directory"
+              ? (rows.find((r) => r.slug === "checkout-copy") ?? rows[0])?.slug
+              : current();
+          document.getElementById("list").innerHTML =
+            "<ul>" +
+            result
+              .map(
+                (r) =>
+                  "<li><a " +
+                  (selected === r.slug ? 'aria-current="page" ' : "") +
+                  'href="' +
+                  link(r.slug) +
+                  '">' +
+                  esc(name(r.slug)) +
+                  "<small>" +
+                  (!r.enabled ? "Paused · " : "") +
+                  r.phase +
+                  "</small></a></li>",
+              )
+              .join("") +
+            "</ul>" +
+            (!items.length
+              ? "<p>" + (!rows.length ? "No experiments yet." : "No matches.") + "</p>"
+              : "") +
+            (page ? btn("previous", "Previous") : "") +
+            ((page + 1) * 5 < items.length ? btn("next", "Next") : "");
+        }
+        input.oninput = () => {
+          query = input.value.toLowerCase();
+          page = 0;
+          list();
+        };
+        list();
+      }
+      function outcomes(r) {
+        if (!r.enabled) return ["Application default", "Application default"];
+        if (r.winner) {
+          const value =
+            r.winner === "off" && (r.phase !== "Legacy uniform" || r.cohorts.includes("on"))
+              ? "Application default"
+              : r.winner;
+          return [value, value + " · no automatic join"];
+        }
+        return [
+          "Their stored cohort",
+          r.phase === "Legacy uniform" ? "Uniform assignment" : "Weighted assignment",
+        ];
+      }
+      function head(r) {
+        return (
+          "<h1>" +
+          esc(name(r.slug)) +
+          "</h1><code>" +
+          esc(r.slug) +
+          '</code><div class="status"><span class="' +
+          (r.enabled ? "enabled" : "") +
+          '">' +
+          (r.enabled ? "Enabled" : "Paused") +
+          '</span> <span class="phase">' +
+          r.phase +
+          "</span></div>"
+        );
+      }
+      function showDetail(r) {
+        const [existing, future] = outcomes(r);
+        const explanation = r.winner
+          ? (r.phase === "Awaiting launch" ? "Initial off pin" : "Winner") + " · " + esc(r.winner)
+          : "";
+        article.innerHTML =
+          head(r) +
+          '<div class="summary"><h2>Serving now</h2><dl><dt>Existing members</dt><dd>' +
+          existing +
+          "</dd><dt>New visitors</dt><dd>" +
+          future +
+          "</dd></dl>" +
+          explanation +
+          '</div><div class="titlebar"><h2>Cohorts</h2><small>Revision ' +
+          r.revision +
+          "</small></div><table><thead><tr><th>Cohort</th><th>" +
+          (r.winner || !r.enabled ? "Saved split" : "New assignment share") +
+          "</th><th>Current memberships</th></tr></thead><tbody>" +
+          r.cohorts
+            .map(
+              (c, i) =>
+                '<tr><th scope="row"><code>' +
+                esc(c) +
+                "</code></th><td>" +
+                r.split[i] +
+                "%</td><td>" +
+                (fault === "counts" ? "Unavailable" : r.counts[i]) +
+                "</td></tr>",
+            )
+            .join("") +
+          "</tbody></table>" +
+          (fault === "counts"
+            ? '<p role="alert">Membership counts could not be loaded. ' +
+              btn("retry", "Retry counts") +
+              "</p>"
+            : "") +
+          '<div class="actions">' +
+          (readOnly
+            ? ""
+            : !r.enabled
+              ? btn("resume", "Resume", true)
+              : (r.phase === "Awaiting launch" || r.phase === "Allocating"
+                  ? btn(
+                      "split",
+                      r.phase === "Awaiting launch" ? "Launch rollout" : "Adjust split",
+                      true,
+                    )
+                  : "") +
+                btn("pause", "Pause") +
+                (!r.winner ? btn("winner", "Select winner") : "")) +
+          "</div>";
+      }
+      function newExperiment() {
+        article.innerHTML =
+          '<h1>Create experiment</h1><p>The off control is included. Visitors receive the application default until launch.</p><form id="new"><label for="slug">Experiment slug</label><input id="slug" required><label for="treat">Treatment names, separated by commas</label><input id="treat" required><p class="error" role="alert"></p><button class="primary">Create experiment</button></form>';
+        article.querySelector("form").onsubmit = (e) => {
+          e.preventDefault();
+          const slug = document.getElementById("slug").value,
+            names = document
+              .getElementById("treat")
+              .value.split(",")
+              .map((c) => c.trim());
+          const pattern = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+          const error = !pattern.test(slug)
+            ? "Use a kebab-case slug."
+            : rows.some((r) => r.slug === slug)
+              ? "This experiment already exists."
+              : names.some((c) => !pattern.test(c) || c === "off") ||
+                  new Set(names).size !== names.length
+                ? "Enter distinct treatment names."
+                : "";
+          if (error) {
+            article.querySelector('[role="alert"]').textContent = error;
+            return;
+          }
+          const cohorts = ["off", ...names];
+          rows.push(
+            managed(
+              slug,
+              "Awaiting launch",
+              cohorts,
+              cohorts.map((_, i) => (i ? 0 : 100)),
+              cohorts.map(() => 0),
+              true,
+              "off",
+            ),
+          );
+          location.hash = link(slug);
+        };
+      }
+      function split(r) {
+        draft = r.split.map(String);
+        article.innerHTML =
+          head(r) +
+          '<div class="summary"><h2>' +
+          (r.phase === "Awaiting launch" ? "Launch rollout" : "Adjust split") +
+          '</h2><p class="note">Every new assignment uses the proposed split. Existing members keep their cohort.</p></div><form id="editor"><div class="row"><b>Cohort</b><b>Saved</b><b>Proposed %</b></div>' +
+          r.cohorts
+            .map(
+              (c, i) =>
+                '<div class="row"><label for="w' +
+                i +
+                '"><code>' +
+                esc(c) +
+                "</code></label><span>" +
+                r.split[i] +
+                '%</span><input aria-label="' +
+                esc(c) +
+                ' percent" id="w' +
+                i +
+                '" inputmode="decimal" value="' +
+                r.split[i] +
+                '"></div>',
+            )
+            .join("") +
+          '<p class="total" id="total"></p><p class="error" role="alert"></p><button class="primary">Review split</button></form>';
+        const form = document.getElementById("editor");
+        function total() {
+          draft = [...form.querySelectorAll("input")].map((x) => x.value);
+          document.getElementById("total").textContent =
+            "Total " + Number(draft.reduce((a, v) => a + Number(v || 0), 0).toFixed(2)) + "%";
+        }
+        form.oninput = total;
+        total();
+        form.onsubmit = (e) => {
+          e.preventDefault();
+          total();
+          if (
+            draft.some((s) => !/^\d{1,3}(\.\d{1,2})?$/.test(s) || Number(s) > 100) ||
+            draft.reduce((n, s) => n + Math.round(Number(s) * 100), 0) !== 10000
+          ) {
+            form.querySelector('[role="alert"]').textContent =
+              "Enter valid shares that add to 100%.";
+            return;
+          }
+          confirm(r, "split", () => {
+            r.split = draft.map(Number);
+            r.phase = "Allocating";
+            r.winner = null;
+          });
+        };
+      }
+      function selectWinner(r) {
+        article.innerHTML =
+          head(r) +
+          '<div class="summary"><h2>Select a winner</h2></div><label for="winner">Winning cohort</label><select id="winner">' +
+          r.cohorts.map((c) => "<option>" + esc(c) + "</option>").join("") +
+          '</select><p class="links">' +
+          btn("reviewwinner", "Review winner", true) +
+          "</p>";
+      }
+      function confirm(r, action, work, winner) {
+        const label = {
+          split: r.phase === "Awaiting launch" ? "Launch rollout" : "Apply split",
+          pause: "Pause experiment",
+          resume: "Resume experiment",
+          winner: "Select " + winner + " as winner",
+        }[action];
+        const impacts = {
+          split: ["Keep their current cohort.", "Join using the proposed split."],
+          pause: ["Receive the application default.", "Receive the default without joining."],
+          resume: ["Return to the saved serving behavior.", "Follow the saved phase and split."],
+          winner: [
+            winner === "off" ? "Receive the application default." : "Receive " + winner + ".",
+            "Receive the winner without joining.",
+          ],
+        }[action];
+        document.querySelector("#confirmTitle").textContent = label + "?";
+        document.querySelector("#confirmAction").textContent = label;
+        document.querySelector("#impact").innerHTML =
+          "<p><code>" +
+          esc(r.slug) +
+          "</code> · revision " +
+          r.revision +
+          "</p>" +
+          (action === "split"
+            ? "<table><thead><tr><th>Cohort</th><th>Saved</th><th>Proposed</th></tr></thead><tbody>" +
+              r.cohorts
+                .map(
+                  (c, i) =>
+                    "<tr><th>" +
+                    esc(c) +
+                    "</th><td>" +
+                    r.split[i] +
+                    "%</td><td>" +
+                    Number(draft[i]) +
+                    "%</td></tr>",
+                )
+                .join("") +
+              "</tbody></table>"
+            : "") +
+          '<div class="summary"><dl><dt>Existing members</dt><dd>' +
+          esc(impacts[0]) +
+          "</dd><dt>New visitors</dt><dd>" +
+          esc(impacts[1]) +
+          "</dd><dt>Stored counts</dt><dd>Stay unchanged.</dd></dl></div>";
+        opener = document.activeElement;
+        commit = () => {
+          if (fault === "save" || fault === "stale") {
+            const stale = fault === "stale";
+            fault = null;
+            const msg = article.querySelector('[role="alert"]');
+            if (msg) {
+              msg.textContent = stale
+                ? "Revision changed. Check the latest split before submitting. "
+                : "Save failed. Your proposed split is preserved.";
+              if (stale) {
+                r.revision++;
+                msg.insertAdjacentHTML("beforeend", btn("compare", "Review latest split"));
+              }
+            }
+            return;
+          }
+          work();
+          r.revision++;
+          notice = label + " saved.";
+          render();
+        };
+        modal.returnValue = "";
+        modal.showModal();
+      }
+      modal.addEventListener("close", () => {
+        if (modal.returnValue === "apply") commit();
+        else opener?.focus();
+      });
+      function render() {
+        const view = current(),
+          r = rows.find((r) => r.slug === view);
+        directory();
+        document.querySelector("main").dataset.page = view === "directory" ? "directory" : "detail";
+        if (view === "create" && mayCreate) newExperiment();
+        else if (r) showDetail(r);
+        else if (view === "directory" && rows.length)
+          showDetail(rows.find((r) => r.slug === "checkout-copy") || rows[0]);
+        else
+          article.innerHTML =
+            "<h1>" +
+            (view === "directory" ? "No experiments yet" : "Experiment unavailable") +
+            "</h1>";
+        article.insertAdjacentHTML(
+          "afterbegin",
+          '<a class="return" href="#directory">← Experiments</a>' +
+            (notice ? '<p class="success" role="status">' + esc(notice) + "</p>" : ""),
+        );
+        notice = "";
+      }
+      document.body.addEventListener("click", (e) => {
+        const control = e.target.closest("[data-cmd]");
+        if (!control) return;
+        const cmd = control.dataset.cmd,
+          r =
+            rows.find((r) => r.slug === current()) ||
+            (current() === "directory"
+              ? rows.find((r) => r.slug === "checkout-copy") || rows[0]
+              : undefined);
+        if (cmd === "create") {
+          location.hash = "create";
+          return;
+        }
+        if (cmd === "next" || cmd === "previous") {
+          page += cmd === "next" ? 1 : -1;
+          directory();
+          return;
+        }
+        if (!r) return;
+        if (cmd === "retry") {
+          fault = null;
+          render();
+          return;
+        }
+        if (readOnly) return;
+        if (cmd === "split") split(r);
+        if (cmd === "winner") selectWinner(r);
+        if (cmd === "compare") {
+          article.querySelector('[role="alert"]').textContent =
+            "Latest saved split, revision " +
+            r.revision +
+            ": " +
+            r.split.map((n) => n + "%").join(" / ") +
+            ". Review your proposal before saving.";
+        }
+        if (cmd === "pause" || cmd === "resume")
+          confirm(r, cmd, () => {
+            r.enabled = cmd === "resume";
+          });
+        if (cmd === "reviewwinner") {
+          const winner = document.getElementById("winner").value;
+          confirm(
+            r,
+            "winner",
+            () => {
+              r.winner = winner;
+              r.phase = "Winner selected";
+            },
+            winner,
+          );
+        }
+      });
+      document.getElementById("role").textContent = readOnly ? "View access" : "Manage access";
+      window.onhashchange = () => {
+        render();
+        article.focus();
+      };
+      render();
+    </script>
+  </body>
+</html>
