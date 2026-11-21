@@ -67,6 +67,10 @@ const decision = await xp.resolveCohort(userId, "checkout-banner");
 
 A missing identity or missing application user resolves to `{ slug: null }`. Create the application user through your normal account lifecycle. A paused experiment also resolves to null. Resuming restores winner-first resolution, followed by a sticky assignment or new bucketing. An assigned flag-off slug maps to null for the public decision. The existing `getGroup` method returns the stored off slug. A missing experiment for a known user is an error.
 
+## Analytics for new cohort memberships
+
+Pass the optional `analytics` configuration to `initializeXp` or the synchronous server constructor to capture new memberships. A stored flag-off assignment generates a join, including when the HTTP response returns a null slug. Returning a pinned winner generates no join. The host controls consent, external identity and the worker. [Analytics guide](analytics.md)
+
 ## Express
 
 In the following examples, `authenticateSession(cookie)` represents your application's existing session verification. It returns an account with a string or numeric `id`, or null for a guest.

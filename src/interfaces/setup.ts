@@ -39,6 +39,8 @@ export interface SetupOptions {
   config?: string;
   schema?: string;
   migrationsDir?: string;
+  /** Generate the separately versioned analytics outbox storage extension. */
+  analytics?: boolean;
   models?: boolean;
   modelsDir?: string;
   language?: SetupLanguage;

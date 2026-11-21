@@ -4,7 +4,9 @@ import path from "node:path";
 
 import type { GeneratedArtifacts, ProjectDetection, ResolvedSetup } from "~/interfaces/setup";
 
+import { analyticsTables } from "../analyticsStorage";
 import { renderSql, STORAGE_VERSION } from "../storage";
+import { analyticsPrismaModels } from "./analytics-models";
 import { shellQuote } from "./common";
 import { generateMongoBootstrap } from "./mongodb";
 import { patchPrismaConfig } from "./prisma-config";
@@ -83,8 +85,14 @@ function existingUser(files: Map<string, string>, options: ResolvedSetup): UserM
       const body = maskComments(block.body);
       const mapped = /@@map\(\s*"([^"]+)"\s*\)/.exec(body)?.[1] ?? block.name;
       if (
-        ["experiments", "cohorts", "user_cohorts"].includes(mapped) ||
-        /^Xp(?:Experiment|Cohort|UserCohort)$/.test(block.name)
+        [
+          "experiments",
+          "cohorts",
+          "user_cohorts",
+          ...(options.analytics ? analyticsTables.map((table) => table.name) : []),
+        ].includes(mapped) ||
+        /^Xp(?:Experiment|Cohort|UserCohort)$/.test(block.name) ||
+        (options.analytics && analyticsTables.some((table) => table.model === block.name))
       ) {
         throw new Error(
           `Prisma model ${block.name} already maps an xp table. Initial setup will not rewrite an existing xp schema.`,
@@ -307,6 +315,8 @@ export async function generatePrisma(
         : `model XpUser {\n  id ${keyType} @id\n  xpAssignments XpUserCohort[]\n  @@map("users")\n}\n\n`) +
       contribution;
   }
+  if (options.analytics)
+    schemaContribution += "\n" + analyticsPrismaModels(options.database, datasource);
   schemaContribution = schemaContribution.replaceAll("@db.", `@${datasource}.`);
   if (!user && options.userStorage === "reuse") {
     integrated = false;
@@ -434,4 +444,55 @@ export async function generatePrisma(
     "Pass a supported native database client to @frostme/xp/server; generated Prisma models do not enable server(prismaClient).",
   );
   return artifacts;
+}
+
+/** Append to the verified xp schema while validating all models in a multi-file project. */
+export async function extendPrismaAnalytics(
+  options: ResolvedSetup,
+  project: ProjectDetection,
+  previous: GeneratedArtifacts["files"],
+): Promise<GeneratedArtifacts> {
+  const { files } = await schemaFiles(options, project);
+  const generated = previous.find(
+    (file) =>
+      /\.prisma(?:\.snippet)?$/.test(file.path) &&
+      prismaBlocks(file.content).some(
+        (block) => block.name === "XpExperiment" && block.kind === "model",
+      ),
+  );
+  if (!generated)
+    throw new Error("Cannot locate the installed XpExperiment model for analytics setup.");
+  // May include the staged v1-to-v2 upgrade.
+  files.set(generated.path, generated.content);
+  let datasource = "db";
+  for (const content of files.values()) {
+    for (const block of prismaBlocks(content)) {
+      if (block.kind === "datasource") datasource = block.name;
+      if (
+        block.kind === "model" &&
+        analyticsTables.some(
+          (table) =>
+            table.model === block.name ||
+            new RegExp('@@map\\s*\\(\\s*"' + table.name + '"\\s*\\)').test(
+              maskComments(block.body),
+            ),
+        )
+      ) {
+        throw new Error(
+          "Prisma schema already contains an analytics model or physical table. Resolve the collision before running setup.",
+        );
+      }
+    }
+  }
+  const content = generated.content + "\n" + analyticsPrismaModels(options.database, datasource);
+  files.set(generated.path, content);
+  const prerequisites: string[] = [];
+  if (!generated.path.endsWith(".snippet"))
+    await validateSchema(options, project, files, prerequisites);
+  return {
+    files: [{ ...generated, content, merge: true }],
+    prerequisites,
+    nextSteps: [],
+    warnings: [],
+  };
 }
