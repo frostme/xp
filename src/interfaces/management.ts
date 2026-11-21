@@ -30,3 +30,21 @@ export interface ManagementDetail extends DirectoryEntry {
     value: Experiment["cohorts"][number]["value"];
   }[];
 }
+
+export interface ManagedDefinitionInput {
+  slug: string;
+  cohorts: readonly string[];
+}
+
+export interface ExperimentManagement {
+  readonly allowCreate: boolean;
+  list(query: DirectoryQuery): Promise<DirectoryPage>;
+  detail(slug: string, access: "view" | "manage"): Promise<ManagementDetail>;
+  apply(
+    slug: string,
+    revision: number,
+    command: RolloutCommand,
+    expectedId?: Experiment["id"],
+  ): Promise<void>;
+  create(input: ManagedDefinitionInput): Promise<Experiment>;
+}

@@ -1,35 +1,25 @@
-import type { Experiment, ExperimentSlug } from "~/entities";
+import type { ExperimentSlug } from "~/entities";
 import type { ExperimentDefinition } from "~/entities/rollout";
 import type { IExperimentDAO } from "~/interfaces";
-import type { DirectoryQuery, ManagementAccess, ManagementDetail } from "~/interfaces/management";
+import type { ExperimentManagement, ManagedDefinitionInput } from "~/interfaces/management";
 
 import { ExperimentNotFoundError } from "~/errors/experimentNotFoundError";
 import { ManagementForbiddenError } from "~/errors/managementForbiddenError";
 
-import type { RolloutCommand } from "./rollout";
-
 import { validateExperimentSlug } from "../user/validateExperimentSlug";
 import { availableActions, applyRollout } from "./rollout";
-
-export interface ManagedDefinitionInput {
-  slug: string;
-  cohorts: readonly string[];
-}
 
 export function createExperimentManagement(
   experiments: IExperimentDAO,
   allowCreate: boolean,
   definition: (input: ManagedDefinitionInput) => ExperimentDefinition,
-) {
+): ExperimentManagement {
   return {
     allowCreate,
-    list(query: DirectoryQuery) {
+    list(query) {
       return experiments.listPage(query);
     },
-    async detail(
-      slug: string,
-      access: Exclude<ManagementAccess, "deny">,
-    ): Promise<ManagementDetail> {
+    async detail(slug, access) {
       const experiment = await experiments.findBySlug(
         validateExperimentSlug(slug) as ExperimentSlug,
       );
@@ -62,10 +52,10 @@ export function createExperimentManagement(
           ),
       };
     },
-    apply(slug: string, revision: number, command: RolloutCommand, expectedId?: Experiment["id"]) {
+    apply(slug, revision, command, expectedId) {
       return applyRollout(experiments, slug, revision, command, expectedId);
     },
-    async create(input: ManagedDefinitionInput) {
+    async create(input) {
       if (!allowCreate)
         throw new ManagementForbiddenError("Experiment creation is disabled in xp.config.json.");
       return experiments.create(definition(input));
