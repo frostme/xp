@@ -93,6 +93,7 @@
     "test:schemas": "wireit",
     "test:transports": "vitest run --config vitest.transport.config.ts",
     "test:hosts": "node scripts/host-package-smoke.mjs",
+    "test:analytics-journey": "node scripts/test-analytics-journey.mjs",
     "test:journey": "node scripts/test-installed-journey.mjs",
     "test:frontend": "node scripts/test-frontend.mjs",
     "test:frontend:journey": "node scripts/test-frontend-journey.mjs",

@@ -11,6 +11,7 @@ const config: KnipConfig = {
     "scripts/fixtures/protocol-browser/*.{ts,tsx,mjs}",
     "scripts/fixtures/soap/*.{ts,js,mjs}",
     "scripts/fixtures/xp-journey/*.test.mjs",
+    "scripts/fixtures/analytics-journey/{*.test.mjs,worker.mjs}",
     "scripts/fixtures/xp-journey/protocol-page.mjs",
     "scripts/fixtures/host-package-smoke/*.{ts,tsx,mjs}",
     "src/**/__tests__/*-integration.{ts,tsx}",
