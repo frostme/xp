@@ -12,4 +12,6 @@ Hosts can mount `ResolveCohort` with standalone Fastify or NestJS on Express and
 
 ## Operations and storage
 
-Future projects include analytics connectors and a hosted or self-hostable experiment management page. Further ORM runtime adapters, generator/version profiles, migration execution, cross-database migration, external identity storage and weighted bucketing remain open.
+The analytics storage extension captures cohort joins transactionally and supports a host-run delivery worker for Amplitude, Segment, Mixpanel, Fullstory, Heap, PostHog and custom destinations. [Analytics guide](analytics.md)
+
+A hosted or self-hostable experiment management page remains planned. Further ORM runtime adapters, generator/version profiles, migration execution, cross-database migration, external identity storage and weighted bucketing remain open.
