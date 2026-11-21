@@ -26,6 +26,9 @@
   "exports": {
     ".": "./dist/index.js",
     "./cli": "./dist/cli/index.js",
+    "./analytics/amplitude": "./dist/adaptors/analytics/amplitude.js",
+    "./analytics/segment": "./dist/adaptors/analytics/segment.js",
+    "./analytics/mixpanel": "./dist/adaptors/analytics/mixpanel.js",
     "./analytics": "./dist/analytics/index.js",
     "./server": "./dist/server/index.js",
     "./client": "./dist/client/index.js",
