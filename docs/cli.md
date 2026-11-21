@@ -138,7 +138,7 @@ Setup records normalized choices, storage version, generated paths, and fingerpr
 
 An unchanged rerun is a no-op. Changed or missing generated files are reported as conflicts; setup does not overwrite manual edits or rewrite historical migrations. Different setup options after initial generation require an explicit follow-up migration. Schema upgrades are not inferred from deleting or replacing the manifest.
 
-When upgrading storage v1, setup recognizes the Prisma or Drizzle config it generated on the first run. The upgrade keeps host config edits and adds the availability field to the integrated Prisma schema. Drizzle preserves its recorded snapshots, applied SQL and subsequent application migrations. A changed xp-owned Drizzle declaration requires a manual schema merge.
+When upgrading storage v1 or v2, setup recognizes the Prisma or Drizzle config it generated on the first run. The upgrade keeps host config edits and adds the missing experiment fields to the integrated Prisma schema. Drizzle preserves its recorded snapshots, applied SQL and subsequent application migrations. A changed xp-owned Drizzle declaration requires a manual schema merge.
 
 Planning fingerprints source files and applying checks them again. New files and precise existing schema/config changes are staged before publication. If writing fails, setup attempts to restore its changes while preserving concurrent edits. The final result distinguishes complete file generation from files requiring manual integration; it never means the database has been migrated.
 
@@ -166,7 +166,11 @@ The exported types include `SetupOptions`, `ProjectDetection`, `SetupPlan`, and 
 
 ## Upgrading existing storage
 
-Run `xp setup --dry-run` in the application that holds the v1 `.xp/setup.json`. Setup verifies the recorded files and previews the v2 migration and model changes. Run `xp setup` again to generate them. Apply the migration with your application's normal runner before deploying the updated xp server. Previously applied migrations retain their original contents and fingerprints.
+Run `xp setup --dry-run` in the application that holds the v1 or v2 `.xp/setup.json`. Review the generated v3 migration and model changes. Run `xp setup` to write them, then apply the migration with your application's normal runner before deploying the updated server. Previously applied migrations retain their contents and fingerprints.
+
+The SQL upgrade adds nullable `experiments.rollout_phase` and integer `experiments.rollout_revision` with a default of zero. The v1 upgrade also adds `enabled` with a default of true. Old rows keep their uniform allocation and existing decisions. New managed rows start at revision one with `awaiting-launch`. The remaining phases are `allocating` and `winner-selected`. Plan a downgrade before creating managed experiments, since dropping those columns discards their lifecycle state.
+
+MongoDB and DynamoDB store optional rollout fields on the experiment document or parent item. Existing records need no backfill or key changes. Hosts with a custom MongoDB collection validator must allow `rollout_phase` as a string and `rollout_revision` as a nonnegative integer value.
 
 ### Vue and Nuxt
 
@@ -225,6 +229,6 @@ This command previews the additive storage changes for a native PostgreSQL appli
 bun run xp setup --orm none --database postgres --user-storage reuse --user-id-type TEXT --migrations-dir migrations --analytics --dry-run --yes
 ```
 
-Remove `--dry-run` to write the reviewed plan. On an existing installation, run setup from the package containing `.xp/setup.json` and repeat its original storage options. The wizard offers the same analytics choice. Base v2 and analytics v1 have separate version fields. Enabling analytics preserves existing users and memberships. Setup verifies hashes of files it owns and leaves migration execution to the host.
+Remove `--dry-run` to write the reviewed plan. On an existing installation, run setup from the package containing `.xp/setup.json` and repeat its original storage options. The wizard offers the same analytics choice. Base storage v3 and the analytics v1 extension have separate version fields. When enabling analytics on a v1 or v2 base, apply the generated base upgrade first. Enabling analytics preserves existing users and memberships. Setup verifies hashes of files it owns and leaves migration execution to the host.
 
 Apply generated native or ORM migrations with the tool that owns your schema. Apply base and availability migrations first, then the analytics migration. For Prisma, review the model contribution, deploy the migration and regenerate the client. For Drizzle, review the schema change and generated SQL, journal and snapshot together. MongoDB requires a replica set and the generated analytics indexes. On DynamoDB, apply the generated update-table input after the base table is active and wait for the new GSI to become active. A provisioned-capacity table needs an index throughput setting. Use the generated next steps for the selected profile. [Producer startup check, disabling capture and retiring queued work](analytics.md)

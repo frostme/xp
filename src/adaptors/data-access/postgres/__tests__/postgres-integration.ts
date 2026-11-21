@@ -15,7 +15,7 @@ import { registerSqlAnalyticsContract } from "../../__tests__/sqlAnalytics";
 import { setupPostgres } from "./fixture";
 
 registerSqlAnalyticsContract(setupPostgres);
-registerStorageContract("postgres", setupPostgres, () => setupPostgres(1));
+registerStorageContract("postgres", setupPostgres, setupPostgres);
 
 describe.skipIf(selectedDatabase() !== "postgres")("PostgreSQL connection ownership", () => {
   it("keeps a caller-owned pool usable after rollback and successful operations", async () => {

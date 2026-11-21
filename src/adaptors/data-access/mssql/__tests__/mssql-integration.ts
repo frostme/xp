@@ -12,7 +12,7 @@ import { registerSqlAnalyticsContract } from "../../__tests__/sqlAnalytics";
 import { setupMssql } from "./fixture";
 
 registerSqlAnalyticsContract(setupMssql);
-registerStorageContract("mssql", setupMssql, () => setupMssql(1));
+registerStorageContract("mssql", setupMssql, setupMssql);
 
 describe.skipIf(selectedDatabase() !== "mssql")("SQL Server connection ownership", () => {
   it("rolls back a failed create and returns the transaction connection to the caller's pool", async () => {

@@ -6,7 +6,7 @@ import path from "node:path";
 import type { GeneratedArtifacts, ProjectDetection, ResolvedSetup } from "~/interfaces/setup";
 
 import { analyticsTables, renderAnalyticsSql } from "../analyticsStorage";
-import { renderAvailabilityUpgrade, renderSql, STORAGE_VERSION, userIdSql } from "../storage";
+import { renderStorageUpgrade, renderSql, STORAGE_VERSION, userIdSql } from "../storage";
 import { analyticsDrizzleModels } from "./analytics-models";
 import { shellQuote } from "./common";
 import { command, localPackage, projectPath, readInput, runLocal } from "./schema-utils";
@@ -40,7 +40,7 @@ function renderSchema(options: ResolvedSetup, output: string, user: UserExport |
   const json = pg
     ? "jsonb(\"value\").notNull().default(sql`'null'::jsonb`)"
     : 'json("value").notNull()';
-  const imports = `${options.analytics ? (pg ? "bigint, varchar, " : "bigint, ") : ""}${table}, ${pg ? "serial, integer, doublePrecision, jsonb" : "int, double, json, varchar"}, boolean, text, unique, index, check, foreignKey, primaryKey, customType`;
+  const imports = `${options.analytics ? "bigint, " : ""}${table}, ${pg ? "serial, integer, doublePrecision, jsonb, varchar" : "int, double, json, varchar"}, boolean, text, unique, index, check, foreignKey, primaryKey, customType`;
   const preamble = cjs
     ? `const { ${imports} } = require("drizzle-orm/${dialect}-core");\nconst { sql } = require("drizzle-orm");\n`
     : `import { ${imports} } from "drizzle-orm/${dialect}-core";\nimport { sql } from "drizzle-orm";\n`;
@@ -63,7 +63,7 @@ function renderSchema(options: ResolvedSetup, output: string, user: UserExport |
     source += `${exp} xpUsers = ${table}("users", { id: xpUserKey("id").notNull() }, (table) => [primaryKey({columns: [table.id], name: "users_pkey"})]);\n`;
   const slug = (name: string) => (pg ? `text("${name}")` : `xpSlug("${name}")`);
   const enumType = pg ? 'text("type")' : 'varchar("type", { length: 32 })';
-  source += `\n${exp} xpExperiments = ${table}("experiments", {\n  id: ${id},\n  name: text("name").notNull(),\n  slug: ${slug("slug")}.notNull().unique("experiments_slug_key"),\n  type: ${enumType}.notNull(),\n  description: text("description").notNull(),\n  winner: ${slug("winner")},\n  enabled: boolean("enabled").notNull().default(true),\n}, (table) => [\n  primaryKey({columns: [table.id], name: "experiments_pkey"}),\n  check("experiments_type_check", sql\`\${table.type} in ('flag', 'simple', 'multivariate', 'dynamic')\`),\n]);\n\n${exp} xpCohorts = ${table}("cohorts", {\n  id: ${id},\n  experimentId: ${integer}("experiment_id").notNull(),\n  slug: ${slug("slug")}.notNull().unique("cohorts_slug_key"),\n  type: ${enumType}.notNull(),\n  description: text("description").notNull(),\n  percentage: ${percentage}("percentage").notNull(),\n  value: ${json},\n}, (table) => [\n  primaryKey({columns: [table.id], name: "cohorts_pkey"}),\n  foreignKey({name: "cohorts_experiment_id_fkey", columns: [table.experimentId], foreignColumns: [xpExperiments.id]}).onDelete("no action").onUpdate("no action"),\n  unique("cohorts_id_experiment_id_key").on(table.id, table.experimentId),\n  index("cohorts_experiment_id_idx").on(table.experimentId),\n  check("cohorts_type_check", sql\`\${table.type} in ('control', 'treatment')\`),\n  check("cohorts_percentage_check", sql\`\${table.percentage} >= 0 and \${table.percentage} <= 100\`),\n]);\n\n${exp} xpUserCohorts = ${table}("user_cohorts", {\n  id: ${id},\n  userId: xpUserKey("user_id").notNull(),\n  experimentId: ${integer}("experiment_id").notNull(),\n  cohortId: ${integer}("cohort_id").notNull(),\n}, (table) => [\n  primaryKey({columns: [table.id], name: "user_cohorts_pkey"}),\n  foreignKey({name: "user_cohorts_user_id_fkey", columns: [table.userId], foreignColumns: [${userReference}]}).onDelete("no action").onUpdate("no action"),\n  foreignKey({name: "user_cohorts_experiment_id_fkey", columns: [table.experimentId], foreignColumns: [xpExperiments.id]}).onDelete("no action").onUpdate("no action"),\n  unique("user_cohorts_user_id_experiment_id_key").on(table.userId, table.experimentId),\n  foreignKey({name: "user_cohorts_cohort_id_experiment_id_fkey", columns: [table.cohortId, table.experimentId], foreignColumns: [xpCohorts.id, xpCohorts.experimentId]}).onDelete("no action").onUpdate("no action"),\n  index("user_cohorts_experiment_id_idx").on(table.experimentId),\n  index("user_cohorts_cohort_id_idx").on(table.cohortId),\n]);\n`;
+  source += `\n${exp} xpExperiments = ${table}("experiments", {\n  id: ${id},\n  name: text("name").notNull(),\n  slug: ${slug("slug")}.notNull().unique("experiments_slug_key"),\n  type: ${enumType}.notNull(),\n  description: text("description").notNull(),\n  winner: ${slug("winner")},\n  enabled: boolean("enabled").notNull().default(true),\n  rolloutPhase: varchar("rollout_phase", {length: 20}),\n  rolloutRevision: ${integer}("rollout_revision").notNull().default(0),\n}, (table) => [\n  primaryKey({columns: [table.id], name: "experiments_pkey"}),\n  check("experiments_rollout_phase_check", sql\`\${table.rolloutPhase} in ('awaiting-launch', 'allocating', 'winner-selected')\`),\n  check("experiments_rollout_revision_check", sql\`\${table.rolloutRevision} >= 0\`),\n  check("experiments_type_check", sql\`\${table.type} in ('flag', 'simple', 'multivariate', 'dynamic')\`),\n]);\n\n${exp} xpCohorts = ${table}("cohorts", {\n  id: ${id},\n  experimentId: ${integer}("experiment_id").notNull(),\n  slug: ${slug("slug")}.notNull().unique("cohorts_slug_key"),\n  type: ${enumType}.notNull(),\n  description: text("description").notNull(),\n  percentage: ${percentage}("percentage").notNull(),\n  value: ${json},\n}, (table) => [\n  primaryKey({columns: [table.id], name: "cohorts_pkey"}),\n  foreignKey({name: "cohorts_experiment_id_fkey", columns: [table.experimentId], foreignColumns: [xpExperiments.id]}).onDelete("no action").onUpdate("no action"),\n  unique("cohorts_id_experiment_id_key").on(table.id, table.experimentId),\n  index("cohorts_experiment_id_idx").on(table.experimentId),\n  check("cohorts_type_check", sql\`\${table.type} in ('control', 'treatment')\`),\n  check("cohorts_percentage_check", sql\`\${table.percentage} >= 0 and \${table.percentage} <= 100\`),\n]);\n\n${exp} xpUserCohorts = ${table}("user_cohorts", {\n  id: ${id},\n  userId: xpUserKey("user_id").notNull(),\n  experimentId: ${integer}("experiment_id").notNull(),\n  cohortId: ${integer}("cohort_id").notNull(),\n}, (table) => [\n  primaryKey({columns: [table.id], name: "user_cohorts_pkey"}),\n  foreignKey({name: "user_cohorts_user_id_fkey", columns: [table.userId], foreignColumns: [${userReference}]}).onDelete("no action").onUpdate("no action"),\n  foreignKey({name: "user_cohorts_experiment_id_fkey", columns: [table.experimentId], foreignColumns: [xpExperiments.id]}).onDelete("no action").onUpdate("no action"),\n  unique("user_cohorts_user_id_experiment_id_key").on(table.userId, table.experimentId),\n  foreignKey({name: "user_cohorts_cohort_id_experiment_id_fkey", columns: [table.cohortId, table.experimentId], foreignColumns: [xpCohorts.id, xpCohorts.experimentId]}).onDelete("no action").onUpdate("no action"),\n  index("user_cohorts_experiment_id_idx").on(table.experimentId),\n  index("user_cohorts_cohort_id_idx").on(table.cohortId),\n]);\n`;
   if (options.analytics) source += analyticsDrizzleModels(options, exp);
   if (cjs)
     source += `\nmodule.exports = {${user ? "" : "xpUsers, "}xpExperiments, xpCohorts, xpUserCohorts${options.analytics ? ", " + analyticsTables.map((table) => table.model).join(", ") : ""}};\n`;
@@ -387,12 +387,39 @@ function validateDelta(sql: string, tables: string[]): void {
   }
 }
 
+/** Kit owns the snapshot. Only replace its SQL when the delta is exactly our upgrade. */
+function validateUpgradeDelta(sql: string, fromVersion: number): void {
+  const operations = sql
+    .replaceAll("--> statement-breakpoint", "")
+    .replace(/[`"]/g, "")
+    .toLowerCase()
+    .split(";")
+    .map((statement) => statement.trim().replace(/\s+/g, " "))
+    .filter(Boolean);
+  const expected = [
+    ...(fromVersion === 1
+      ? [
+          /^alter table experiments add (?:column )?enabled boolean (?:default true not null|not null default true)$/,
+        ]
+      : []),
+    /^alter table experiments add (?:column )?rollout_phase varchar\(20\)$/,
+    /^alter table experiments add (?:column )?rollout_revision (?:int|integer) (?:default 0 not null|not null default 0)$/,
+    /^alter table experiments add constraint experiments_rollout_phase_check check\s*\(\s*(?:experiments\.)?rollout_phase in \('awaiting-launch', 'allocating', 'winner-selected'\)\s*\)$/,
+    /^alter table experiments add constraint experiments_rollout_revision_check check\s*\(\s*(?:experiments\.)?rollout_revision >= 0\s*\)$/,
+  ];
+  if (
+    operations.length !== expected.length ||
+    !expected.every((pattern) => operations.some((op) => pattern.test(op)))
+  )
+    throw new Error("Drizzle proposed a different delta than the xp storage upgrade.");
+}
+
 export async function generateDrizzle(
   options: ResolvedSetup,
   project: ProjectDetection,
-  upgradeSchema?: string,
-  baseVersion = 1,
+  upgrade?: { path: string; fromVersion: number },
 ): Promise<GeneratedArtifacts> {
+  const upgradeSchema = upgrade?.path;
   if (options.database !== "postgres" && options.database !== "mysql")
     throw new Error(
       "Stable Drizzle setup supports PostgreSQL and MySQL. Select native output for SQL Server.",
@@ -516,7 +543,7 @@ export async function generateDrizzle(
   if (!kit || !orm) {
     if (upgradeSchema)
       throw new Error(
-        "Install drizzle-orm and drizzle-kit to generate the v2 migration and snapshot, then rerun xp setup.",
+        "Install drizzle-orm and drizzle-kit to generate the migration and snapshot, then rerun xp setup.",
       );
     artifacts.prerequisites.push(
       `Install the supported drizzle-orm and drizzle-kit packages, then run ${command(project, "drizzle-kit", `generate --name=xp_setup${options.config ? ` --config ${shellQuote(options.config)}` : ""}`)}. No migration metadata was fabricated.`,
@@ -574,7 +601,7 @@ export async function generateDrizzle(
         upgradeSchema
           ? options.analytics
             ? "--name=xp_analytics_v1"
-            : "--name=xp_storage_v2"
+            : "--name=xp_storage_v3"
           : "--name=xp_setup",
       ],
       stage,
@@ -595,18 +622,16 @@ export async function generateDrizzle(
         `Drizzle did not produce exactly one new xp migration; generation requires manual review. ${generationOutput.slice(-1200)}`,
       );
     const delta = generated.get(sqlFiles[0]!)!;
-    // Before generating, the unchanged host schema must match its complete snapshot.
-    // After generation, accept only the requested tables and the v1 availability column.
-    const availability =
-      /ALTER TABLE [`"]experiments[`"] ADD (?:COLUMN )?[`"]enabled[`"] boolean(?: DEFAULT true NOT NULL| NOT NULL DEFAULT true);/i;
-    const addAvailability = Boolean(upgradeSchema) && baseVersion === 1;
-    if (addAvailability && !availability.test(delta))
-      throw new Error("Drizzle did not generate the expected experiments.enabled upgrade.");
-    const remaining = (addAvailability ? delta.replace(availability, "") : delta)
+    const parts = delta
       .replaceAll("--> statement-breakpoint", "")
-      .trim();
+      .split(";")
+      .filter((s) => s.trim());
+    const baseUpgrade = upgrade && upgrade.fromVersion < STORAGE_VERSION;
+    const rolloutOperations = parts.filter((s) => /alter table ["`]experiments["`]/i.test(s));
+    if (baseUpgrade) validateUpgradeDelta(rolloutOperations.join(";"), upgrade.fromVersion);
+    const remaining = parts.filter((s) => !baseUpgrade || !rolloutOperations.includes(s)).join(";");
     const tables = [
-      ...(upgradeSchema
+      ...(upgrade
         ? []
         : [
             "experiments",
@@ -614,11 +639,12 @@ export async function generateDrizzle(
             "user_cohorts",
             ...(options.userStorage === "create" ? ["users"] : []),
           ]),
-      ...(options.analytics ? analyticsTables.map((table) => table.name) : []),
+      ...(options.analytics && !beforeOutput?.includes("xp_analytics_deliveries")
+        ? analyticsTables.map((t) => t.name)
+        : []),
     ];
     if (tables.length) validateDelta(remaining, tables);
-    else if (remaining)
-      throw new Error("Drizzle proposed additional changes beyond experiments.enabled.");
+    else if (remaining.trim()) throw new Error("Unexpected Drizzle changes.");
     if (user) {
       const snapshotFile = [...generated.keys()].find(
         (file) => file.endsWith("_snapshot.json") && !history.has(file),
@@ -652,7 +678,7 @@ export async function generateDrizzle(
     }
     generated.set(
       sqlFiles[0]!,
-      `-- xp storage schema v${STORAGE_VERSION}\n${[...(upgradeSchema ? (addAvailability ? renderAvailabilityUpgrade(options).up : []) : renderSql(options).up), ...(options.analytics ? renderAnalyticsSql(options.database).up : [])].join("\n--> statement-breakpoint\n")}\n`,
+      `-- xp storage schema v${STORAGE_VERSION}\n${[...(upgrade ? (baseUpgrade ? renderStorageUpgrade(options, upgrade.fromVersion).up : []) : renderSql(options).up), ...(tables.includes("xp_analytics_deliveries") ? renderAnalyticsSql(options.database).up : [])].join("\n--> statement-breakpoint\n")}\n`,
     );
     for (const [file, content] of generated)
       if (history.get(file) !== content)

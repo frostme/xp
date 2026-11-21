@@ -249,7 +249,10 @@ export default class ProjectManager implements IProjectManager {
     const installAnalytics = settings.analytics === true && !installed;
     const existingFiles: FileChange[] = [];
     if (state && previous) {
-      if (![1, STORAGE_VERSION].includes(previous.schemaVersion) || !Array.isArray(previous.files))
+      if (
+        ![1, 2, STORAGE_VERSION].includes(previous.schemaVersion) ||
+        !Array.isArray(previous.files)
+      )
         throw new Error(
           "The existing setup manifest belongs to an unsupported schema version. Upgrade through an explicit migration.",
         );
@@ -271,7 +274,7 @@ export default class ProjectManager implements IProjectManager {
           content === null ||
           currentHash === null ||
           (currentHash !== entry.hash &&
-            ((previous.schemaVersion !== 1 && !installAnalytics) ||
+            ((previous.schemaVersion === STORAGE_VERSION && !installAnalytics) ||
               !canUpgradeEditedFile(previous, entry, content)))
         )
           throw new Error(
@@ -315,7 +318,7 @@ export default class ProjectManager implements IProjectManager {
     }
     const generated = !previous
       ? await this.generator.generate(settings, project)
-      : previous.schemaVersion === 1 || settings.orm === "drizzle"
+      : previous.schemaVersion < STORAGE_VERSION || settings.orm === "drizzle"
         ? await generateUpgrade(settings, project, existingFiles, previous.schemaVersion)
         : { files: [], warnings: [], prerequisites: [], nextSteps: strings(previous.nextSteps) };
     if (installAnalytics)

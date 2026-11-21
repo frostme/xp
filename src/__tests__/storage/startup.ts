@@ -1,8 +1,9 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ExperimentSlugConflictError } from "~/errors";
 import { initializeXp } from "~/server";
 
 import type { StorageFixture, experimentInput } from "./contract";
@@ -17,8 +18,8 @@ export function registerStartupContract(
   describe("runtime startup", () => {
     let cwd: string;
     const boot = () => initializeXp({ ...current().startupOptions, cwd });
-    const config = (experiments: unknown[]) =>
-      writeFile(join(cwd, "xp.config.json"), JSON.stringify({ experiments }));
+    const config = (experiments: unknown[], management?: { allowCreate: boolean }) =>
+      writeFile(join(cwd, "xp.config.json"), JSON.stringify({ experiments, management }));
     beforeEach(async () => {
       cwd = await mkdtemp(join(tmpdir(), "xp-boot-"));
     });
@@ -50,10 +51,78 @@ export function registerStartupContract(
       await expect(runtime.resolveCohort("customer", "cta")).resolves.toEqual({ slug: "cta_on" });
     });
 
+    it("resolves competing seed and page creates to one complete pinned definition", async () => {
+      const { adaptor } = current();
+      await config([], { allowCreate: true });
+      const page = (await boot()).management;
+      const slug = "checkout-copy";
+      await config([{ slug, cohorts: ["off", "seed-copy"], rollout: "off-first" }]);
+      const [seed, operator, observer] = await Promise.allSettled([
+        boot(),
+        page.create({ slug, cohorts: ["page-copy", "off"] }),
+        vi.waitUntil(() => adaptor.experimentDAO.findBySlug(slug), { interval: 5, timeout: 5000 }),
+      ]);
+      if (seed.status === "rejected") throw seed.reason;
+      if (observer.status === "rejected") throw observer.reason;
+      const firstRead = observer.value;
+      const startup = seed.value;
+      let treatment: string;
+      if (operator.status === "fulfilled") {
+        expect(startup.seedReport).toEqual({ created: [], skipped: [slug] });
+        treatment = "page-copy";
+      } else {
+        expect(operator.reason).toBeInstanceOf(ExperimentSlugConflictError);
+        expect(startup.seedReport).toEqual({ created: [slug], skipped: [] });
+        treatment = "seed-copy";
+      }
+      await expect(page.create({ slug, cohorts: ["third-copy"] })).rejects.toBeInstanceOf(
+        ExperimentSlugConflictError,
+      );
+      expect(firstRead).toMatchObject({
+        slug,
+        enabled: true,
+        winner: "checkout-copy_off",
+        rolloutPhase: "awaiting-launch",
+        revision: 1,
+      });
+      expect(firstRead!.cohorts).toHaveLength(2);
+      expect(firstRead!.cohorts).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ slug: "checkout-copy_off", type: "control", percentage: 100 }),
+          expect.objectContaining({
+            slug: `${slug}_${treatment}`,
+            type: "treatment",
+            percentage: 0,
+          }),
+        ]),
+      );
+      await config([]);
+      const restarted = await boot();
+      expect(restarted.seedReport).toEqual({ created: [], skipped: [] });
+      expect(restarted.management.allowCreate).toBe(false);
+      expect(await adaptor.experimentDAO.findBySlug(slug)).toEqual(firstRead);
+    });
+
+    it("rolls back an off-first create when the treatment slug is already claimed", async () => {
+      const { adaptor } = current();
+      const blocker = makeExperiment("claimed-cohort");
+      blocker.cohorts[1]!.slug = "new-copy_short";
+      await adaptor.experimentDAO.create(blocker);
+      await config([], { allowCreate: true });
+      const page = (await boot()).management;
+      await expect(page.create({ slug: "new-copy", cohorts: ["short"] })).rejects.toThrow();
+      expect(await adaptor.experimentDAO.findBySlug("new-copy")).toBeNull();
+      expect(await adaptor.cohortDAO.findBySlug("new-copy_off")).toBeNull();
+      expect((await adaptor.cohortDAO.findBySlug("new-copy_short"))?.slug).toBe("new-copy_short");
+    });
+
     it("validates the entire config file before writing any experiment", async () => {
       const { adaptor } = current();
       await config([flag, { ...delivery, cohorts: ["control", "not_valid"] }]);
       await expect(boot()).rejects.toThrow("$.experiments[1].cohorts[1]");
+      expect(await adaptor.experimentDAO.list()).toEqual([]);
+      await config([flag, { slug: "off-only", cohorts: ["off"], rollout: "off-first" }]);
+      await expect(boot()).rejects.toThrow("$.experiments[1].cohorts");
       expect(await adaptor.experimentDAO.list()).toEqual([]);
       if ("tableName" in current().startupOptions) {
         await config([
@@ -62,6 +131,21 @@ export function registerStartupContract(
         ]);
         await expect(boot()).rejects.toThrow("$.experiments[1].cohorts");
         expect(await adaptor.experimentDAO.list()).toEqual([]);
+        const treatments = Array.from({ length: 32 }, (_, index) => `treatment-${index}`);
+        await config([flag, { slug: "large-rollout", rollout: "off-first", cohorts: treatments }]);
+        await expect(boot()).rejects.toThrow("$.experiments[1].cohorts");
+        expect(await adaptor.experimentDAO.list()).toEqual([]);
+        await config([
+          { slug: "large-rollout", rollout: "off-first", cohorts: treatments.slice(1) },
+        ]);
+        expect((await boot()).seedReport.created).toEqual(["large-rollout"]);
+        const limit = await adaptor.experimentDAO.findBySlug("large-rollout");
+        expect(limit).toMatchObject({
+          winner: "large-rollout_off",
+          rolloutPhase: "awaiting-launch",
+          revision: 1,
+        });
+        expect(limit?.cohorts).toHaveLength(32);
       }
     });
 

@@ -15,7 +15,7 @@ import { registerSqlAnalyticsContract } from "../../__tests__/sqlAnalytics";
 import { setupMysql } from "./fixture";
 
 registerSqlAnalyticsContract(setupMysql);
-registerStorageContract("mysql", setupMysql, () => setupMysql({}, 1));
+registerStorageContract("mysql", setupMysql, (version) => setupMysql({}, version));
 
 describe.skipIf(selectedDatabase() !== "mysql")("MySQL connection ownership and JSON", () => {
   it("releases its only pool connection after both rollback and success", async () => {

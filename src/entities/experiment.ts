@@ -1,3 +1,4 @@
+import type { RolloutPhase } from "./rollout";
 import type { ExperimentName, ExperimentSlug, ExperimentType, CohortSlug } from "./types";
 
 import Cohort from "./cohort";
@@ -11,4 +12,6 @@ export default class Experiment extends Entity<Experiment, "Experiment"> {
   enabled!: boolean;
   winner!: CohortSlug | null;
   cohorts!: Cohort[];
+  rolloutPhase?: RolloutPhase;
+  revision?: number;
 }

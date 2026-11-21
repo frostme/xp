@@ -33,7 +33,7 @@ For example, a SOAP host using PostgreSQL can run `npm install @frostme/xp pg so
 
 ## Initialize before accepting requests
 
-Generate storage with `xp setup`, review its files, and apply the migration through your normal deployment process. For an existing installation, run setup in the directory containing its v1 `.xp/setup.json` and apply the v2 upgrade before deploying the new server. The CLI guide covers ORM-specific setup and generated files. [CLI guide](cli.md)
+Generate storage with `xp setup`, review its files, and apply the migration through your normal deployment process. For an existing installation, run setup in the directory containing its v1 or v2 `.xp/setup.json` and apply the v3 upgrade before deploying the new server. The CLI guide covers ORM-specific setup and generated files. [CLI guide](cli.md)
 
 Place this `xp.config.json` in the application's working directory.
 
@@ -55,7 +55,7 @@ console.log(xp.driverKind, xp.dialect, xp.seedReport);
 
 Pass a connected pg client/pool, mysql2 promise client/pool, mssql pool, MongoClient with `databaseName`, or DynamoDBDocumentClient with `tableName`. A Sequelize 6 instance supports PostgreSQL with pg, MySQL with mysql2, and SQL Server with tedious. Keep the instance connected while serving requests. Use `server(connection, options)` from the same entry point for synchronous construction.
 
-`cwd` defaults to the working directory. `configPath` selects an explicit path relative to it. A missing conventional file produces empty `created` and `skipped` lists. An explicit missing file, invalid declaration or failed write rejects startup. The file accepts only unique kebab-case experiment slugs and at least two distinct local cohort names per experiment. DynamoDB allows up to 32 initial cohorts. xp validates all declarations before writing, then commits each new experiment and its cohorts together. The first cohort is the control. The exact on/off pair forms a flag. Other pairs are simple experiments, and larger groups are multivariate. Stored percentages sum to 100 and the current bucketer chooses uniformly.
+`cwd` defaults to the working directory. `configPath` selects an explicit path relative to it. A missing conventional file produces empty `created` and `skipped` lists. An explicit missing file, invalid declaration or failed write rejects startup. The file accepts unique kebab-case experiment slugs. A legacy declaration requires at least two distinct local cohort names. DynamoDB allows up to 32 initial cohorts. xp validates all declarations before writing, then commits each new experiment and its cohorts together. The first cohort is the control. The exact on/off pair forms a flag. Other pairs are simple experiments, and larger groups are multivariate. Legacy definitions store percentages totaling 100 and choose new cohorts uniformly.
 
 Initialization skips every existing experiment, including cohorts added to its JSON declaration. Removing a declaration leaves its data in storage. A retry after a partial boot can create the remaining experiments. Use the server management API to edit live definitions. Both availability operations are idempotent.
 
@@ -66,6 +66,21 @@ const decision = await xp.resolveCohort(userId, "checkout-banner");
 ```
 
 A missing identity or missing application user resolves to `{ slug: null }`. Create the application user through your normal account lifecycle. A paused experiment also resolves to null. Resuming restores winner-first resolution, followed by a sticky assignment or new bucketing. An assigned flag-off slug maps to null for the public decision. The existing `getGroup` method returns the stored off slug. A missing experiment for a known user is an error.
+
+## Managed definitions
+
+Add `rollout: "off-first"` to a declaration to seed a managed experiment. The off control may appear anywhere in the declaration. xp moves it first, or supplies it if omitted. Include at least one distinct treatment. The 32-cohort DynamoDB limit includes off. A managed definition, its off winner, initial revision and all cohorts become visible together.
+
+```json
+{
+  "management": { "allowCreate": false },
+  "experiments": [
+    { "slug": "checkout-copy", "cohorts": ["short", "detailed"], "rollout": "off-first" }
+  ]
+}
+```
+
+This definition starts enabled and awaiting launch at 100% off. The two treatments start at 0%. The host's create switch defaults to false and is read at initialization. Config seeds can still create missing experiments. When creation is enabled, a trusted host can call `runtime.management.create({ slug, cohorts })` to persist the same off-first definition. A duplicate slug returns a conflict. An empty installation can declare `"experiments": []`. Adding an existing slug to config, removing its declaration, and restarting all preserve the saved database definition.
 
 ## Analytics for new cohort memberships
 

@@ -17,6 +17,12 @@ import type {
 import type { PendingDelivery } from "~/entities/analytics";
 
 import {
+  initialDelivery,
+  rolloutMetadata,
+  type ExperimentDefinition,
+  type RolloutPhase,
+} from "~/entities/rollout";
+import {
   DuplicateAssignmentError,
   ExperimentPausedError,
   ExperimentSlugConflictError,
@@ -41,8 +47,13 @@ import {
 type Action = NonNullable<TransactWriteCommandInput["TransactItems"]>[number];
 type Item = Record<string, any>;
 type State = "active" | "deleting";
-type StoredExperiment = Omit<Experiment, "cohorts" | "enabled"> &
-  Key & { enabled?: boolean; state: State };
+type StoredExperiment = Omit<Experiment, "cohorts" | "enabled" | "rolloutPhase" | "revision"> &
+  Key & {
+    enabled?: boolean;
+    state: State;
+    rollout_phase?: RolloutPhase;
+    rollout_revision?: number;
+  };
 type StoredCohort = Cohort & Key & { experiment_id: PKey<"Experiment">; state: State };
 type StoredMembership = UserCohort & Key;
 const attempts = 5;
@@ -231,6 +242,7 @@ export default class DynamoDBStore {
       description: current.description,
       enabled: current.enabled ?? true,
       winner: current.winner,
+      ...rolloutMetadata(current.rollout_phase, current.rollout_revision),
       cohorts,
     };
   }
@@ -285,7 +297,7 @@ export default class DynamoDBStore {
     ];
   }
 
-  async createExperiment(input: CreationPayload<Experiment>): Promise<Experiment> {
+  async createExperiment(input: ExperimentDefinition): Promise<Experiment> {
     if (input.cohorts.length > 32) {
       throw new ValidationError("DynamoDB supports at most 32 initial cohorts per experiment");
     }
@@ -305,11 +317,11 @@ export default class DynamoDBStore {
       slug: input.slug,
       description: input.description,
       type: input.type,
-      winner: null,
     };
+    const delivery = initialDelivery(input);
     try {
       await this.write([
-        this.put({ ...experimentKey(id), ...fields, state: "active" }),
+        this.put({ ...experimentKey(id), ...fields, ...delivery, state: "active" }),
         this.put({ ...experimentClaim(input.slug), experiment_id: id }),
         ...cohorts.flatMap((cohort) => this.cohortItems(cohort).map((item) => this.put(item))),
       ]);
@@ -321,7 +333,13 @@ export default class DynamoDBStore {
       }
       throw error;
     }
-    return { ...fields, enabled: true, cohorts };
+    return {
+      ...fields,
+      enabled: true,
+      winner: delivery.winner,
+      ...rolloutMetadata(delivery.rollout_phase, delivery.rollout_revision),
+      cohorts,
+    };
   }
 
   private updateAction(key: Key, updates: Item): Action | null {

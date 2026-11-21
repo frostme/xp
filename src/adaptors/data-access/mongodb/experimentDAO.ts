@@ -1,15 +1,16 @@
 import { randomUUID } from "node:crypto";
 
-import type { Experiment, ExperimentSlug, PKey, CreationPayload } from "~/entities";
+import type { Experiment, ExperimentSlug, PKey } from "~/entities";
 import type { IExperimentDAO } from "~/interfaces";
 
+import { initialDelivery, type ExperimentDefinition } from "~/entities/rollout";
 import { ExperimentSlugConflictError, NotFoundError } from "~/errors";
 
 import MongoStore, {
   type CohortDocument,
   type ExperimentDocument,
   isDuplicateKey,
-  mapCohort,
+  mapExperiment,
 } from "./store";
 
 export default class MongoExperimentDAO implements IExperimentDAO {
@@ -37,14 +38,14 @@ export default class MongoExperimentDAO implements IExperimentDAO {
     return Promise.all(records.map((record) => this.store.experiment(record)));
   }
 
-  async create(input: CreationPayload<Experiment>): Promise<Experiment> {
+  async create(input: ExperimentDefinition): Promise<Experiment> {
     const record: ExperimentDocument = {
       id: randomUUID() as PKey<"Experiment">,
       name: input.name,
       slug: input.slug,
       type: input.type,
       description: input.description,
-      winner: null,
+      ...initialDelivery(input),
       version: 0,
     };
     const cohorts: CohortDocument[] = input.cohorts.map((cohort) => ({
@@ -80,16 +81,7 @@ export default class MongoExperimentDAO implements IExperimentDAO {
         );
       }
     });
-    return {
-      id: record.id,
-      name: record.name,
-      slug: record.slug,
-      type: record.type,
-      description: record.description,
-      winner: null,
-      enabled: true,
-      cohorts: cohorts.map(mapCohort),
-    };
+    return mapExperiment(record, cohorts);
   }
 
   async update(

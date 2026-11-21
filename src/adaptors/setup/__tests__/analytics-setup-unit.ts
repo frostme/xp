@@ -5,8 +5,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { SetupDatabase, SetupOptions } from "~/interfaces/setup";
 
+import { fingerprint } from "../filesystem";
 import SetupGenerators from "../generators";
 import ProjectManager from "../projectManager";
+import { renderSql } from "../storage";
 
 const dirs: string[] = [];
 const manager = new ProjectManager(new SetupGenerators());
@@ -31,7 +33,7 @@ async function fixture(database: SetupDatabase, extra: SetupOptions = {}) {
 
 describe("additive analytics v1 storage setup", () => {
   it.each(["postgres", "mysql", "mssql", "mongodb", "dynamodb"] as const)(
-    "installs on fresh and existing v2 %s and retains the base fingerprints",
+    "installs on fresh and existing v3 %s and retains the base fingerprints",
     async (database) => {
       const options = await fixture(database);
       const base = await manager.planSetup(options);
@@ -62,7 +64,7 @@ describe("additive analytics v1 storage setup", () => {
       await manager.applySetup(upgraded);
       expect(
         JSON.parse(await readFile(path.join(options.cwd, ".xp/setup.json"), "utf8")),
-      ).toMatchObject({ schemaVersion: 2, extensions: { analytics: 1 } });
+      ).toMatchObject({ schemaVersion: 3, extensions: { analytics: 1 } });
       expect((await manager.applySetup(await manager.planSetup({ cwd: options.cwd }))).status).toBe(
         "unchanged",
       );
@@ -74,23 +76,36 @@ describe("additive analytics v1 storage setup", () => {
     },
   );
 
-  it("upgrades v1 before enabling capture and preserves other extension versions", async () => {
-    const options = await fixture("postgres");
-    const plan = await manager.planSetup(options);
-    await manager.applySetup(plan);
-    const file = path.join(options.cwd, ".xp/setup.json");
-    const manifest = JSON.parse(await readFile(file, "utf8"));
-    manifest.schemaVersion = 1;
-    manifest.extensions = { other: 2 };
-    await writeFile(file, JSON.stringify(manifest));
-    const upgraded = await manager.planSetup({ cwd: options.cwd, analytics: true });
-    expect(upgraded.files.map((output) => output.path)).toEqual(
-      expect.arrayContaining([
-        expect.stringMatching(/_xp_storage_v2.up.sql$/),
-        expect.stringMatching(/_xp_analytics_v1.up.sql$/),
-      ]),
-    );
-    await manager.applySetup(upgraded);
-    expect(JSON.parse(await readFile(file, "utf8")).extensions).toEqual({ other: 2, analytics: 1 });
-  });
+  it.each([1, 2])(
+    "upgrades v%i before enabling capture and preserves other extension versions",
+    async (version) => {
+      const options = await fixture("postgres");
+      const plan = await manager.planSetup(options);
+      await manager.applySetup(plan);
+      const file = path.join(options.cwd, ".xp/setup.json");
+      const manifest = JSON.parse(await readFile(file, "utf8"));
+      manifest.schemaVersion = version;
+      const historical = renderSql(plan.options, { version });
+      for (const entry of manifest.files) {
+        const statements = entry.path.endsWith(".up.sql") ? historical.up : historical.down;
+        const content = statements.join("\n\n") + "\n";
+        await writeFile(path.join(options.cwd, entry.path), content);
+        entry.hash = fingerprint(content);
+      }
+      manifest.extensions = { other: 2 };
+      await writeFile(file, JSON.stringify(manifest));
+      const upgraded = await manager.planSetup({ cwd: options.cwd, analytics: true });
+      expect(upgraded.files.map((output) => output.path)).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(/_xp_storage_v3\.up\.sql$/),
+          expect.stringMatching(/_xp_analytics_v1.up.sql$/),
+        ]),
+      );
+      await manager.applySetup(upgraded);
+      expect(JSON.parse(await readFile(file, "utf8")).extensions).toEqual({
+        other: 2,
+        analytics: 1,
+      });
+    },
+  );
 });

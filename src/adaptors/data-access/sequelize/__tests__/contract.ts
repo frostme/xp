@@ -13,7 +13,7 @@ export function registerSequelizeContract(dialect: SequelizeDialect) {
     registerStorageContract(
       dialect,
       () => setupSequelize(dialect),
-      () => setupSequelize(dialect, 1),
+      (version) => setupSequelize(dialect, version),
     );
 
     it("keeps the caller's instance usable after rollback and binds quoted Unicode values", async () => {

@@ -15,7 +15,7 @@ export interface MssqlFixture extends StorageFixture {
   connectionConfig: sql.config;
 }
 
-export async function setupMssql(version: 1 | 2 = 2): Promise<MssqlFixture> {
+export async function setupMssql(version: 1 | 2 | 3 = 3): Promise<MssqlFixture> {
   const database = `xp_${randomUUID().replaceAll("-", "")}`;
   const config: sql.config = {
     server: process.env["MSSQL_HOST"] ?? "127.0.0.1",
@@ -54,7 +54,7 @@ export async function setupMssql(version: 1 | 2 = 2): Promise<MssqlFixture> {
           await pool.request().query(statement);
       },
       async applyUpgrade() {
-        for (const sql of generatedUpgrade("mssql")) await pool.request().query(sql);
+        for (const sql of generatedUpgrade("mssql", version)) await pool.request().query(sql);
       },
       async seedUser(id) {
         await pool

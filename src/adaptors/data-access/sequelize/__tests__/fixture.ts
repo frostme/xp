@@ -50,7 +50,7 @@ async function usingSequelize(
 
 export async function setupSequelize(
   dialect: SequelizeDialect,
-  version: 1 | 2 = 2,
+  version: 1 | 2 | 3 = 3,
 ): Promise<SequelizeFixture> {
   if (dialect === "postgres") {
     const native = await setupPostgres(version);
