@@ -137,7 +137,7 @@ Setup records normalized choices, storage version, generated paths, and fingerpr
 
 An unchanged rerun is a no-op. Changed or missing generated files are reported as conflicts; setup does not overwrite manual edits or rewrite historical migrations. Different setup options after initial generation require an explicit follow-up migration. Schema upgrades are not inferred from deleting or replacing the manifest.
 
-When upgrading storage v1, setup recognizes the Prisma or Drizzle config it generated on the first run. The upgrade keeps host config edits and adds the availability field to the integrated Prisma schema. Drizzle preserves its recorded snapshots, applied SQL and subsequent application migrations. A changed xp-owned Drizzle declaration requires a manual schema merge.
+When upgrading storage v1 or v2, setup recognizes the Prisma or Drizzle config it generated on the first run. The upgrade keeps host config edits and adds the missing experiment fields to the integrated Prisma schema. Drizzle preserves its recorded snapshots, applied SQL and subsequent application migrations. A changed xp-owned Drizzle declaration requires a manual schema merge.
 
 Planning fingerprints source files and applying checks them again. New files and precise existing schema/config changes are staged before publication. If writing fails, setup attempts to restore its changes while preserving concurrent edits. The final result distinguishes complete file generation from files requiring manual integration; it never means the database has been migrated.
 
@@ -165,7 +165,11 @@ The exported types include `SetupOptions`, `ProjectDetection`, `SetupPlan`, and 
 
 ## Upgrading existing storage
 
-Run `xp setup --dry-run` in the application that holds the v1 `.xp/setup.json`. Setup verifies the recorded files and previews the v2 migration and model changes. Run `xp setup` again to generate them. Apply the migration with your application's normal runner before deploying the updated xp server. Previously applied migrations retain their original contents and fingerprints.
+Run `xp setup --dry-run` in the application that holds the v1 or v2 `.xp/setup.json`. Review the generated v3 migration and model changes. Run `xp setup` to write them, then apply the migration with your application's normal runner before deploying the updated server. Previously applied migrations retain their contents and fingerprints.
+
+The SQL upgrade adds nullable `experiments.rollout_phase` and integer `experiments.rollout_revision` with a default of zero. The v1 upgrade also adds `enabled` with a default of true. Old rows keep their uniform allocation and existing decisions. New managed rows start at revision one with `awaiting-launch`. The remaining phases are `allocating` and `winner-selected`. Plan a downgrade before creating managed experiments, since dropping those columns discards their lifecycle state.
+
+MongoDB and DynamoDB store optional rollout fields on the experiment document or parent item. Existing records need no backfill or key changes. Hosts with a custom MongoDB collection validator must allow `rollout_phase` as a string and `rollout_revision` as a nonnegative integer value.
 
 ### Vue and Nuxt
 

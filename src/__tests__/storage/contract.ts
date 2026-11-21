@@ -75,49 +75,61 @@ function sortedCohorts(experiment: Experiment) {
 export function registerStorageContract(
   name: Database,
   setup: () => Promise<StorageFixture>,
-  setupV1: () => Promise<StorageFixture> = setup,
+  setupPrevious: (version: 1 | 2) => Promise<StorageFixture> = setup,
 ) {
-  describe.skipIf(selectedDatabase() !== name)(`${name} version 1 storage upgrade`, () => {
-    it("preserves winners and sticky memberships across upgrade, restart and repeated pause/resume", async () => {
-      const fixture = await setupV1();
-      try {
-        const { adaptor, server, seedUser } = fixture;
-        await seedUser(userId);
-        await seedUser(anotherUserId);
-        const sticky = await server.createExperiment(experimentInput("sticky-experiment"));
-        const finished = await server.createExperiment(experimentInput("finished-experiment"));
-        const cases = [sticky, finished].map((experiment) => ({
-          experiment,
-          assigned: experiment.cohorts.find((c) => c.type === "control")!,
-          treatment: experiment.cohorts.find((c) => c.type === "treatment")!,
-        }));
-        for (const { experiment, assigned } of cases)
-          await server.joinCohort(userId, experiment.slug, assigned.slug);
-        const winner = cases[1]!.treatment;
-        await server.finalizeExperiment(finished.id, winner.id);
-        await fixture.applyUpgrade();
-        for (const { experiment, assigned } of cases) {
-          const expected = experiment.id === finished.id ? winner.slug : assigned.slug;
-          const before = await adaptor.userDAO.findUserCohort(userId, experiment.id);
-          expect(await server.getGroup(userId, experiment.slug)).toBe(expected);
-          await server.pauseExperiment(experiment.slug);
-          await server.pauseExperiment(experiment.slug);
-          const reopened = fixture.reopen();
-          expect(await reopened.getGroup(userId, experiment.slug)).toBeNull();
-          expect(await reopened.getGroup(anotherUserId, experiment.slug)).toBeNull();
-          await expect(
-            reopened.joinCohort(anotherUserId, experiment.slug, assigned.slug),
-          ).rejects.toBeInstanceOf(ExperimentPausedError);
-          expect(await adaptor.userDAO.findUserCohort(anotherUserId, experiment.id)).toBeNull();
-          expect(await adaptor.userDAO.findUserCohort(userId, experiment.id)).toEqual(before);
-          await reopened.resumeExperiment(experiment.slug);
-          await reopened.resumeExperiment(experiment.slug);
-          expect(await server.getGroup(userId, experiment.slug)).toBe(expected);
+  const versions: (1 | 2)[] = name === "mongodb" || name === "dynamodb" ? [1] : [1, 2];
+  describe.skipIf(selectedDatabase() !== name)(`${name} storage upgrade`, () => {
+    it.each(versions)(
+      "preserves v%i availability, winners and sticky memberships across upgrade and restart",
+      async (version) => {
+        const fixture = await setupPrevious(version);
+        try {
+          const { adaptor, server, seedUser } = fixture;
+          await seedUser(userId);
+          await seedUser(anotherUserId);
+          const sticky = await server.createExperiment(experimentInput("sticky-experiment"));
+          const finished = await server.createExperiment(experimentInput("finished-experiment"));
+          const cases = [sticky, finished].map((experiment) => ({
+            experiment,
+            assigned: experiment.cohorts.find((c) => c.type === "control")!,
+            treatment: experiment.cohorts.find((c) => c.type === "treatment")!,
+          }));
+          for (const { experiment, assigned } of cases)
+            await server.joinCohort(userId, experiment.slug, assigned.slug);
+          const winner = cases[1]!.treatment;
+          await server.finalizeExperiment(finished.id, winner.id);
+          if (version === 2) await server.pauseExperiment(sticky.slug);
+          await fixture.applyUpgrade();
+          if (version === 2) {
+            expect(await fixture.reopen().getGroup(userId, sticky.slug)).toBeNull();
+            await server.resumeExperiment(sticky.slug);
+          }
+          for (const { experiment, assigned } of cases) {
+            const upgraded = await adaptor.experimentDAO.getById(experiment.id);
+            expect(upgraded.rolloutPhase).toBeUndefined();
+            expect(upgraded.cohorts.map((cohort) => cohort.percentage).sort()).toEqual([40, 60]);
+            const expected = experiment.id === finished.id ? winner.slug : assigned.slug;
+            const before = await adaptor.userDAO.findUserCohort(userId, experiment.id);
+            expect(await server.getGroup(userId, experiment.slug)).toBe(expected);
+            await server.pauseExperiment(experiment.slug);
+            await server.pauseExperiment(experiment.slug);
+            const reopened = fixture.reopen();
+            expect(await reopened.getGroup(userId, experiment.slug)).toBeNull();
+            expect(await reopened.getGroup(anotherUserId, experiment.slug)).toBeNull();
+            await expect(
+              reopened.joinCohort(anotherUserId, experiment.slug, assigned.slug),
+            ).rejects.toBeInstanceOf(ExperimentPausedError);
+            expect(await adaptor.userDAO.findUserCohort(anotherUserId, experiment.id)).toBeNull();
+            expect(await adaptor.userDAO.findUserCohort(userId, experiment.id)).toEqual(before);
+            await reopened.resumeExperiment(experiment.slug);
+            await reopened.resumeExperiment(experiment.slug);
+            expect(await server.getGroup(userId, experiment.slug)).toBe(expected);
+          }
+        } finally {
+          await fixture.cleanup();
         }
-      } finally {
-        await fixture.cleanup();
-      }
-    });
+      },
+    );
   });
   describe.skipIf(selectedDatabase() !== name)(`${name} storage contract`, () => {
     let fixture: StorageFixture | undefined;

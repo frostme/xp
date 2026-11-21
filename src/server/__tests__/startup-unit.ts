@@ -35,7 +35,30 @@ describe("seed configuration", () => {
     expect(() => parseSeedConfig({ experiments: [flag, flag] })).toThrow("$.experiments[1].slug");
     const config = { experiments: [flag, { slug: "many", cohorts: names(33) }] };
     expect(() => parseSeedConfig(config, 32)).toThrow("$.experiments[1].cohorts");
-    expect(parseSeedConfig(config)[1]!.cohorts).toHaveLength(33);
+    expect(parseSeedConfig(config).experiments[1]!.cohorts).toHaveLength(33);
+  });
+
+  it("normalizes opt-in controls, validates host policy and leaves the legacy definition uniform", () => {
+    const settings = parseSeedConfig({
+      management: { allowCreate: true },
+      experiments: [{ slug: "managed", cohorts: ["short", "off"], rollout: "off-first" }, flag],
+    });
+    expect(settings.allowCreate).toBe(true);
+    expect(
+      settings.experiments[0]?.cohorts.map(({ slug, percentage }) => [slug, percentage]),
+    ).toEqual([
+      ["managed_off", 100],
+      ["managed_short", 0],
+    ]);
+    expect(settings.experiments[1]).not.toHaveProperty("rollout");
+    for (const management of [null, { allowCreate: "true" }, { create: false }]) {
+      expect(() => parseSeedConfig({ experiments: [], management })).toThrow("$.management");
+    }
+    for (const cohorts of [["off"], ["short", "off", "off"], ["short", "short"]]) {
+      expect(() =>
+        parseSeedConfig({ experiments: [{ slug: "managed", rollout: "off-first", cohorts }] }),
+      ).toThrow("$.experiments[0].cohorts");
+    }
   });
 
   it("derives metadata and stores seven equal shares with the rounding remainder on the last", () => {
@@ -46,7 +69,7 @@ describe("seed configuration", () => {
         { slug: "delivery-copy", cohorts: ["control", "short"] },
         { slug: "many", cohorts: names(7) },
       ],
-    });
+    }).experiments;
     expect(cta).toMatchObject({
       name: "Cta",
       slug: "cta",
@@ -65,7 +88,7 @@ describe("seed configuration", () => {
   });
 
   it("only accepts a duplicate parent-slug claim confirmed by a complete live read", async () => {
-    const input = parseSeedConfig({ experiments: [flag] });
+    const { experiments: input } = parseSeedConfig({ experiments: [flag] });
     const error = new ExperimentSlugConflictError("cta");
     const dao = { findBySlug: vi.fn(), create: vi.fn() };
     const attempt = async (failure: Error, stored: unknown) => {
@@ -95,10 +118,16 @@ describe("startup file selection", () => {
   });
 
   it("distinguishes an absent conventional config from an explicitly requested file", async () => {
-    await expect(readSeedConfig(cwd, undefined)).resolves.toEqual([]);
+    await expect(readSeedConfig(cwd, undefined)).resolves.toEqual({
+      allowCreate: false,
+      experiments: [],
+    });
     await expect(readSeedConfig(cwd, "custom.json")).rejects.toThrow(join(cwd, "custom.json"));
     await writeFile(join(cwd, "custom.json"), '{"experiments":[]}');
-    await expect(readSeedConfig(cwd, "custom.json")).resolves.toEqual([]);
+    await expect(readSeedConfig(cwd, "custom.json")).resolves.toEqual({
+      allowCreate: false,
+      experiments: [],
+    });
     await writeFile(join(cwd, "xp.config.json"), "{!!");
     await expect(readSeedConfig(cwd, undefined)).rejects.toThrow(join(cwd, "xp.config.json"));
   });

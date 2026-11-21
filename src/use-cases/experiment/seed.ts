@@ -1,11 +1,11 @@
-import type { CreationPayload, Experiment } from "~/entities";
+import type { ExperimentDefinition } from "~/entities/rollout";
 import type { IExperimentDAO } from "~/interfaces";
 import type { SeedReport } from "~/interfaces/runtime";
 
 import { ExperimentSlugConflictError } from "~/errors";
 
 export async function seedExperiments(
-  experiments: readonly CreationPayload<Experiment>[],
+  experiments: readonly ExperimentDefinition[],
   dao: IExperimentDAO,
 ): Promise<SeedReport> {
   const report: SeedReport = { created: [], skipped: [] };

@@ -19,7 +19,7 @@ export async function readSeedConfig(
       "code" in cause &&
       cause.code === "ENOENT"
     )
-      return [];
+      return { allowCreate: false, experiments: [] };
     throw new Error(`Could not read xp configuration at ${path}`, { cause });
   }
   try {

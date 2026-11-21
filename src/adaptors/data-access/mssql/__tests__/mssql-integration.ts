@@ -10,7 +10,7 @@ import { renderSql } from "~/adaptors/setup/storage";
 
 import { setupMssql } from "./fixture";
 
-registerStorageContract("mssql", setupMssql, () => setupMssql(1));
+registerStorageContract("mssql", setupMssql, setupMssql);
 
 describe.skipIf(selectedDatabase() !== "mssql")("SQL Server connection ownership", () => {
   it("rolls back a failed create and returns the transaction connection to the caller's pool", async () => {

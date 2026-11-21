@@ -77,7 +77,7 @@ function canUpgradeEditedFile(
   // original bytes as a prefix of its entries before accepting an extension.
   const journal = JSON.parse(current);
   if (!Array.isArray(journal?.entries)) return false;
-  const migration = manifest.files.find((file) => file.purpose === "Drizzle SQL migration");
+  const migration = manifest.files.findLast((file) => file.purpose === "Drizzle SQL migration");
   if (!migration) return false;
   const tag = path.basename(migration.path, ".sql");
   const index = journal.entries.findIndex((item: { tag: string }) => item?.tag === tag);
@@ -235,7 +235,10 @@ export default class ProjectManager implements IProjectManager {
     const previous: SetupManifest | null = state ? JSON.parse(state) : null;
     const existingFiles: FileChange[] = [];
     if (state && previous) {
-      if (![1, STORAGE_VERSION].includes(previous.schemaVersion) || !Array.isArray(previous.files))
+      if (
+        ![1, 2, STORAGE_VERSION].includes(previous.schemaVersion) ||
+        !Array.isArray(previous.files)
+      )
         throw new Error(
           "The existing setup manifest belongs to an unsupported schema version. Upgrade through an explicit migration.",
         );
@@ -257,7 +260,8 @@ export default class ProjectManager implements IProjectManager {
           content === null ||
           currentHash === null ||
           (currentHash !== entry.hash &&
-            (previous.schemaVersion !== 1 || !canUpgradeEditedFile(previous, entry, content)))
+            (previous.schemaVersion === STORAGE_VERSION ||
+              !canUpgradeEditedFile(previous, entry, content)))
         )
           throw new Error(
             `Previously generated file changed or is missing: ${file}. Restore it before rerunning initial setup; xp will not overwrite your edits.`,
@@ -299,7 +303,7 @@ export default class ProjectManager implements IProjectManager {
       }
     }
     const generated = previous
-      ? await generateUpgrade(settings, project, existingFiles)
+      ? await generateUpgrade(settings, project, existingFiles, previous.schemaVersion)
       : await this.generator.generate(settings, project);
     const files: FileChange[] = [];
     const seen = new Set<string>();

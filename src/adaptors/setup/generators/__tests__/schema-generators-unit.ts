@@ -9,7 +9,7 @@ import type { GeneratedArtifacts, ProjectDetection, ResolvedSetup } from "~/inte
 import SetupGenerators from "..";
 import { storedOptions } from "../../discovery";
 import ProjectManager from "../../projectManager";
-import { renderSql, renderAvailabilityUpgrade } from "../../storage";
+import { renderSql, renderStorageUpgrade } from "../../storage";
 import { generateDrizzle } from "../drizzle";
 import { generatePrisma } from "../prisma";
 import { patchPrismaConfig } from "../prisma-config";
@@ -268,7 +268,7 @@ describe("Drizzle source-only planning", () => {
   });
 });
 
-async function saveV1Manifest(options: ResolvedSetup, entries: [string, string][]) {
+async function saveManifest(options: ResolvedSetup, version: number, entries: [string, string][]) {
   const files = await Promise.all(
     entries.map(async ([file, purpose]) => ({
       path: file,
@@ -280,7 +280,7 @@ async function saveV1Manifest(options: ResolvedSetup, entries: [string, string][
     options.cwd,
     ".xp/setup.json",
     JSON.stringify({
-      schemaVersion: 1,
+      schemaVersion: version,
       options: storedOptions(options),
       files,
       warnings: [],
@@ -294,9 +294,14 @@ async function saveV1Manifest(options: ResolvedSetup, entries: [string, string][
 const sqlModules = process.env["XP_SCHEMA_TOOLS_NODE_MODULES"];
 const mongoModules = process.env["XP_PRISMA_MONGO_NODE_MODULES"];
 describe.skipIf(!sqlModules)("pinned schema toolchain compatibility", () => {
-  it.each(["postgres", "mysql"] as const)(
-    "upgrades v1 Drizzle %s with its generated config and preserves the applied migration and snapshot",
-    async (database) => {
+  it.each([
+    ["postgres", 1],
+    ["mysql", 1],
+    ["postgres", 2],
+    ["mysql", 2],
+  ] as const)(
+    "upgrades Drizzle %s from v%i with its generated config and preserves the applied migration and snapshot",
+    async (database, version) => {
       const { options } = await fixture(
         {
           orm: "drizzle",
@@ -315,10 +320,20 @@ describe.skipIf(!sqlModules)("pinned schema toolchain compatibility", () => {
       );
       const { cwd } = options;
       // The source is the unmodified schema from xp 00108c6. Kit owns the history format.
-      const schema = await readFile(
+      const v1Schema = await readFile(
         new URL(`./fixtures/storage-v1/drizzle-${database}.txt`, import.meta.url),
         "utf8",
       );
+      const schema =
+        version === 1
+          ? v1Schema
+          : v1Schema
+              .replace("schema v1", "schema v2")
+              .replace(", text, unique", ", boolean, text, unique")
+              .replace(
+                /( {2}winner: [^\n]+\n)/,
+                '$1  enabled: boolean("enabled").notNull().default(true),\n',
+              );
       await put(cwd, "src/schema.ts", schema);
       const config = `export default {dialect:"${database === "mysql" ? "mysql" : "postgresql"}",schema:"src/schema.ts",out:"drizzle"};\n`;
       await put(cwd, "drizzle.config.ts", config);
@@ -328,12 +343,12 @@ describe.skipIf(!sqlModules)("pinned schema toolchain compatibility", () => {
       const snapshotPath = "drizzle/meta/0000_snapshot.json";
       const journalPath = "drizzle/meta/_journal.json";
       const oldSql =
-        "-- xp storage schema v1\n" +
-        renderSql(options, { version: 1 }).up.join("\n--> statement-breakpoint\n") +
+        `-- xp storage schema v${version}\n` +
+        renderSql(options, { version }).up.join("\n--> statement-breakpoint\n") +
         "\n";
       await put(cwd, sqlPath, oldSql);
       const oldSnapshot = await readFile(path.join(cwd, snapshotPath), "utf8");
-      const original = await saveV1Manifest(options, [
+      const original = await saveManifest(options, version, [
         ["src/schema.ts", "Drizzle xp table declarations"],
         ["drizzle.config.ts", "Drizzle schema and migration paths"],
         [sqlPath, "Drizzle SQL migration"],
@@ -358,9 +373,9 @@ describe.skipIf(!sqlModules)("pinned schema toolchain compatibility", () => {
       const plan = await manager.planSetup({ cwd });
       await manager.applySetup(plan);
       expect(await readFile(path.join(cwd, "drizzle.config.ts"), "utf8")).toBe(hostConfig);
-      const upgradeSql = await readFile(path.join(cwd, "drizzle/0002_xp_storage_v2.sql"), "utf8");
+      const upgradeSql = await readFile(path.join(cwd, "drizzle/0002_xp_storage_v3.sql"), "utf8");
       expect(upgradeSql).toBe(
-        `-- xp storage schema v2\n${renderAvailabilityUpgrade(options).up.join("\n")}\n`,
+        `-- xp storage schema v3\n${renderStorageUpgrade(options, version).up.join("\n")}\n`,
       );
       const snapshot = JSON.parse(
         await readFile(path.join(cwd, "drizzle/meta/0002_snapshot.json"), "utf8"),
@@ -371,6 +386,8 @@ describe.skipIf(!sqlModules)("pinned schema toolchain compatibility", () => {
           name: "experiments",
           columns: expect.objectContaining({
             enabled: expect.objectContaining({ notNull: true, default: true }),
+            rollout_phase: expect.objectContaining({ notNull: false }),
+            rollout_revision: expect.objectContaining({ notNull: true, default: 0 }),
           }),
         }),
       );
@@ -378,7 +395,7 @@ describe.skipIf(!sqlModules)("pinned schema toolchain compatibility", () => {
         JSON.parse(await readFile(path.join(cwd, journalPath), "utf8")).entries.map(
           (entry: { tag: string }) => entry.tag,
         ),
-      ).toEqual(["0000_xp_setup", "0001_application", "0002_xp_storage_v2"]);
+      ).toEqual(["0000_xp_setup", "0001_application", "0002_xp_storage_v3"]);
       expect(await runLocal(kit, ["generate", "--name=after_upgrade"], cwd)).toContain(
         "No schema changes",
       );
@@ -394,51 +411,62 @@ describe.skipIf(!sqlModules)("pinned schema toolchain compatibility", () => {
     },
   );
 
-  it("adds only the v2 field to a host-edited Prisma schema and preserves its original migration", async () => {
-    const { options } = await fixture(
-      { ormVersion: "7.10.1", schema: "prisma/schema.prisma", language: "javascript" },
-      sqlModules,
-    );
-    const { cwd } = options;
-    const schemaPath = options.schema!;
-    const v1Schema = await readFile(
-      new URL("./fixtures/storage-v1/prisma-postgres.txt", import.meta.url),
-      "utf8",
-    );
-    await put(cwd, schemaPath, v1Schema);
-    await put(
-      cwd,
-      "prisma.config.ts",
-      'export default {schema:"prisma/schema.prisma",migrations:{path:"prisma/migrations"}};\n',
-    );
-    const sqlPath = "prisma/migrations/20200101000000_xp_setup/migration.sql";
-    const oldSql =
-      "-- xp storage schema v1\n" + renderSql(options, { version: 1 }).up.join("\n\n") + "\n";
-    await put(cwd, sqlPath, oldSql);
-    const original = await saveV1Manifest(options, [
-      [schemaPath, "Integrated Prisma xp schema"],
-      ["prisma.config.ts", "Prisma schema/migration paths and environment-based connection"],
-      [sqlPath, "Prisma SQL migration"],
-    ]);
-    const appModel = "\nmodel Order {\n  id Int @id\n}\n";
-    await put(cwd, schemaPath, v1Schema + appModel);
-    const manager = new ProjectManager(new SetupGenerators());
-    const plan = await manager.planSetup({ cwd });
-    await manager.applySetup(plan);
-    expect(await readFile(path.join(cwd, schemaPath), "utf8")).toContain(appModel);
-    expect(
-      await runLocal(path.join(sqlModules!, "prisma/build/index.js"), ["validate"], cwd),
-    ).toContain("valid");
-    expect(
-      plan.files
-        .filter((file) => file.path.endsWith(".sql") && file.action === "create")
-        .map((file) => file.content),
-    ).toEqual([renderAvailabilityUpgrade(options).up[0] + "\n"]);
-    expect(await readFile(path.join(cwd, sqlPath), "utf8")).toBe(oldSql);
-    const updated = JSON.parse(await readFile(path.join(cwd, ".xp/setup.json"), "utf8"));
-    expect(updated.files).toContainEqual(original.find((file) => file.path === sqlPath));
-    expect((await manager.applySetup(await manager.planSetup({ cwd }))).status).toBe("unchanged");
-  });
+  it.each([1, 2])(
+    "adds the missing fields to a host-edited v%i Prisma schema and preserves its original migration",
+    async (version) => {
+      const { options } = await fixture(
+        { ormVersion: "7.10.1", schema: "prisma/schema.prisma", language: "javascript" },
+        sqlModules,
+      );
+      const { cwd } = options;
+      const schemaPath = options.schema!;
+      const v1Schema = await readFile(
+        new URL("./fixtures/storage-v1/prisma-postgres.txt", import.meta.url),
+        "utf8",
+      );
+      const schema =
+        version === 1
+          ? v1Schema
+          : v1Schema
+              .replace("schema v1", "schema v2")
+              .replace(/( {2}winner String\?[^\n]*\n)/, "$1  enabled Boolean @default(true)\n");
+      await put(cwd, schemaPath, schema);
+      await put(
+        cwd,
+        "prisma.config.ts",
+        'export default {schema:"prisma/schema.prisma",migrations:{path:"prisma/migrations"}};\n',
+      );
+      const sqlPath = "prisma/migrations/20200101000000_xp_setup/migration.sql";
+      const oldSql =
+        `-- xp storage schema v${version}\n` +
+        renderSql(options, { version }).up.join("\n\n") +
+        "\n";
+      await put(cwd, sqlPath, oldSql);
+      const original = await saveManifest(options, version, [
+        [schemaPath, "Integrated Prisma xp schema"],
+        ["prisma.config.ts", "Prisma schema/migration paths and environment-based connection"],
+        [sqlPath, "Prisma SQL migration"],
+      ]);
+      const appModel = "\nmodel Order {\n  id Int @id\n}\n";
+      await put(cwd, schemaPath, schema + appModel);
+      const manager = new ProjectManager(new SetupGenerators());
+      const plan = await manager.planSetup({ cwd });
+      await manager.applySetup(plan);
+      expect(await readFile(path.join(cwd, schemaPath), "utf8")).toContain(appModel);
+      expect(
+        await runLocal(path.join(sqlModules!, "prisma/build/index.js"), ["validate"], cwd),
+      ).toContain("valid");
+      expect(
+        plan.files
+          .filter((file) => file.path.endsWith(".sql") && file.action === "create")
+          .map((file) => file.content),
+      ).toEqual([renderStorageUpgrade(options, version).up[0] + "\n"]);
+      expect(await readFile(path.join(cwd, sqlPath), "utf8")).toBe(oldSql);
+      const updated = JSON.parse(await readFile(path.join(cwd, ".xp/setup.json"), "utf8"));
+      expect(updated.files).toContainEqual(original.find((file) => file.path === sqlPath));
+      expect((await manager.applySetup(await manager.planSetup({ cwd }))).status).toBe("unchanged");
+    },
+  );
 
   it("loads the generated nested Prisma configuration with its actual CLI", async () => {
     const { options, project } = await fixture(

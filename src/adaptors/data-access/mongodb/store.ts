@@ -2,7 +2,14 @@ import type { ClientSession, MongoClient } from "mongodb";
 
 import type { Cohort, Experiment, PKey, User, UserCohort } from "~/entities";
 
-export type ExperimentDocument = Omit<Experiment, "cohorts" | "enabled"> & {
+import { rolloutMetadata, type RolloutPhase } from "~/entities/rollout";
+
+export type ExperimentDocument = Omit<
+  Experiment,
+  "cohorts" | "enabled" | "rolloutPhase" | "revision"
+> & {
+  rollout_phase?: RolloutPhase;
+  rollout_revision?: number;
   enabled?: boolean;
   version: number;
 };
@@ -54,17 +61,22 @@ export default class MongoStore {
     const cohorts = await this.cohorts
       .find({ experiment_id: record.id }, { readPreference: "primary" })
       .toArray();
-    return {
-      id: record.id,
-      name: record.name,
-      slug: record.slug,
-      type: record.type,
-      description: record.description,
-      enabled: record.enabled ?? true,
-      winner: record.winner,
-      cohorts: cohorts.map(mapCohort),
-    };
+    return mapExperiment(record, cohorts);
   }
+}
+
+export function mapExperiment(record: ExperimentDocument, cohorts: CohortDocument[]): Experiment {
+  return {
+    id: record.id,
+    name: record.name,
+    slug: record.slug,
+    type: record.type,
+    description: record.description,
+    enabled: record.enabled ?? true,
+    winner: record.winner,
+    ...rolloutMetadata(record.rollout_phase, record.rollout_revision),
+    cohorts: cohorts.map(mapCohort),
+  };
 }
 
 export function mapCohort(record: CohortDocument): CohortDocument {

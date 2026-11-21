@@ -117,6 +117,8 @@ try {
             const models = (loaded.defineXpModels ?? loaded.default.defineXpModels)(sequelize);
             assert.equal(models.XpExperiment.getTableName(), "experiments");
             assert.equal(models.XpExperiment.getAttributes().enabled.defaultValue, true);
+            assert.equal(models.XpExperiment.getAttributes().rollout_phase.allowNull, true);
+            assert.equal(models.XpExperiment.getAttributes().rollout_revision.defaultValue, 0);
             await sequelize.close();
           }
           if (file.path.includes("models") && orm === "typeorm") {
@@ -134,6 +136,8 @@ try {
             const experiment = source.getMetadata("XpExperiment");
             assert.equal(experiment.tableName, "experiments");
             assert.equal(experiment.findColumnWithPropertyName("enabled").default, true);
+            assert.equal(experiment.findColumnWithPropertyName("rollout_phase").isNullable, true);
+            assert.equal(experiment.findColumnWithPropertyName("rollout_revision").default, 0);
             if (database === "mongodb") {
               assert.equal(experiment.objectIdColumn.databaseName, "_id");
               assert.equal(
@@ -168,6 +172,7 @@ try {
             const models = (loaded.defineXpModels ?? loaded.default.defineXpModels)(connection);
             assert.equal(models.XpExperiment.collection.name, "experiments");
             assert.equal(models.XpExperiment.schema.path("enabled").defaultValue, true);
+            assert.equal(models.XpExperiment.schema.path("rollout_revision").defaultValue, 0);
             assert.equal(models.XpExperiment.schema.options.autoCreate, false);
             await connection.close();
           }

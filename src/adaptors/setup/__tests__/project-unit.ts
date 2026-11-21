@@ -641,32 +641,36 @@ describe("setup review regressions", () => {
   });
 });
 
-describe("storage v1 upgrade", () => {
-  it("preserves applied migration fingerprints, adds the upgrade, and reruns cleanly", async () => {
-    const cwd = await fixture({ "package.json": pkg() });
-    const manager = new ProjectManager(generator());
-    await manager.applySetup(await manager.planSetup({ cwd, ...native }));
-    const manifestPath = path.join(cwd, ".xp/setup.json");
-    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-    manifest.schemaVersion = 1;
-    await writeFile(manifestPath, JSON.stringify(manifest));
-    const plan = await manager.planSetup({ cwd });
-    const original = manifest.files[0];
-    expect(plan.files.find((file) => file.path === original.path)).toMatchObject({
-      action: "unchanged",
-      beforeHash: original.hash,
-    });
-    expect(
-      plan.files.find((file) => file.path.endsWith("_xp_storage_v2.up.sql"))?.content,
-    ).toContain("ALTER TABLE experiments ADD enabled BOOLEAN NOT NULL DEFAULT TRUE");
-    await manager.applySetup(plan);
-    const saved = JSON.parse(await readFile(manifestPath, "utf8"));
-    expect(saved.schemaVersion).toBe(2);
-    expect(saved.files).toContainEqual(original);
-    expect(
-      (await manager.planSetup({ cwd })).files.every((file) => file.action === "unchanged"),
-    ).toBe(true);
-  });
+describe("storage upgrade", () => {
+  it.each([1, 2])(
+    "preserves v%i migration fingerprints, adds the needed columns, and reruns cleanly",
+    async (version) => {
+      const cwd = await fixture({ "package.json": pkg() });
+      const manager = new ProjectManager(generator());
+      await manager.applySetup(await manager.planSetup({ cwd, ...native }));
+      const manifestPath = path.join(cwd, ".xp/setup.json");
+      const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+      manifest.schemaVersion = version;
+      await writeFile(manifestPath, JSON.stringify(manifest));
+      const plan = await manager.planSetup({ cwd });
+      const original = manifest.files[0];
+      expect(plan.files.find((file) => file.path === original.path)).toMatchObject({
+        action: "unchanged",
+        beforeHash: original.hash,
+      });
+      const sql = plan.files.find((file) => file.path.endsWith("_xp_storage_v3.up.sql"))!.content;
+      expect(sql.includes("ADD enabled BOOLEAN NOT NULL DEFAULT TRUE")).toBe(version === 1);
+      expect(sql).toContain("ADD rollout_phase VARCHAR(20) NULL");
+      expect(sql).toContain("ADD rollout_revision INTEGER NOT NULL DEFAULT 0");
+      await manager.applySetup(plan);
+      const saved = JSON.parse(await readFile(manifestPath, "utf8"));
+      expect(saved.schemaVersion).toBe(3);
+      expect(saved.files).toContainEqual(original);
+      expect(
+        (await manager.planSetup({ cwd })).files.every((file) => file.action === "unchanged"),
+      ).toBe(true);
+    },
+  );
 });
 
 describe("combined setup rollback", () => {

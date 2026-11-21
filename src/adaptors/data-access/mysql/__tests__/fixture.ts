@@ -21,7 +21,7 @@ export interface MysqlFixture extends StorageFixture {
 
 export async function setupMysql(
   options: Pick<PoolOptions, "connectionLimit" | "jsonStrings"> = {},
-  version: 1 | 2 = 2,
+  version: 1 | 2 | 3 = 3,
 ): Promise<MysqlFixture> {
   const database = `xp_${randomUUID().replaceAll("-", "")}`;
   const config: ConnectionOptions = {
@@ -55,7 +55,7 @@ export async function setupMysql(
       server: server(pool),
       reopen: () => server(pool),
       async applyUpgrade() {
-        for (const sql of generatedUpgrade("mysql")) await pool.query(sql);
+        for (const sql of generatedUpgrade("mysql", version)) await pool.query(sql);
       },
       async seedUser(id) {
         await pool.execute("INSERT INTO users (id) VALUES (?) ON DUPLICATE KEY UPDATE id = id", [

@@ -1,5 +1,4 @@
-import type { CohortRuntime } from "~/interfaces/runtime";
-
+import { parseManagedDefinition } from "~/adaptors/validation/zod/seed";
 import { ServerFramework } from "~/frameworks";
 import {
   GetGroup,
@@ -15,6 +14,7 @@ import {
   RemoveCohort,
   SetExperimentAvailability,
 } from "~/use-cases";
+import { createExperimentManagement } from "~/use-cases/experiment/management";
 import { seedExperiments } from "~/use-cases/experiment/seed";
 
 import { detectClient, type ServerOptions } from "./detectClient";
@@ -29,9 +29,7 @@ export interface InitializeOptions extends ServerOptions {
   configPath?: string;
 }
 
-function createServer(
-  serverConfig: ReturnType<typeof detectClient>,
-): ServerFramework & CohortRuntime {
+function createServer(serverConfig: ReturnType<typeof detectClient>, allowCreate = false) {
   const groupUseCase = new GetGroup(
     serverConfig.dao.userDAO,
     serverConfig.dao.experimentDAO,
@@ -97,6 +95,9 @@ function createServer(
     new SetExperimentAvailability(serverConfig.dao.experimentDAO),
   );
   return Object.assign(framework, {
+    management: createExperimentManagement(serverConfig.dao.experimentDAO, allowCreate, (input) =>
+      parseManagedDefinition(input, serverConfig.driverKind === "dynamodb" ? 32 : undefined),
+    ),
     driverKind: serverConfig.driverKind,
     ...(serverConfig.driverKind === "sequelize" ? { dialect: serverConfig.dialect } : {}),
     resolveCohort: groupUseCase.resolveCohort.bind(groupUseCase),
@@ -110,11 +111,11 @@ export default function server(client: unknown, options: ServerOptions = {}) {
 
 export async function initializeXp({ connection, cwd, configPath, ...options }: InitializeOptions) {
   const config = detectClient(connection, options);
-  const declarations = await readSeedConfig(
+  const { experiments, allowCreate } = await readSeedConfig(
     cwd,
     configPath,
     config.driverKind === "dynamodb" ? 32 : undefined,
   );
-  const seedReport = await seedExperiments(declarations, config.dao.experimentDAO);
-  return Object.assign(createServer(config), { seedReport });
+  const seedReport = await seedExperiments(experiments, config.dao.experimentDAO);
+  return Object.assign(createServer(config, allowCreate), { seedReport });
 }

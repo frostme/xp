@@ -1,7 +1,7 @@
 import type { ResolvedSetup, SetupDatabase } from "~/interfaces/setup";
 
 /** Persistence contract, intentionally separate from the public domain entities. */
-export const STORAGE_VERSION = 2;
+export const STORAGE_VERSION = 3;
 export const STORAGE = {
   experimentTypes: ["flag", "simple", "multivariate", "dynamic"],
   cohortTypes: ["control", "treatment"],
@@ -131,18 +131,47 @@ function enabledColumn(database: SetupDatabase): string {
     : "enabled BOOLEAN NOT NULL DEFAULT TRUE";
 }
 
-export function renderAvailabilityUpgrade(options: ResolvedSetup): {
-  up: string[];
-  down: string[];
-} {
-  if (!isSql(options.database)) return { up: [], down: [] };
+function rolloutColumns(database: SetupDatabase): string[] {
+  return [
+    "rollout_phase VARCHAR(20) NULL",
+    database === "mssql"
+      ? "rollout_revision INT NOT NULL CONSTRAINT experiments_rollout_revision_df DEFAULT 0"
+      : "rollout_revision INTEGER NOT NULL DEFAULT 0",
+    "CONSTRAINT experiments_rollout_phase_check CHECK (rollout_phase IN ('awaiting-launch', 'allocating', 'winner-selected'))",
+    "CONSTRAINT experiments_rollout_revision_check CHECK (rollout_revision >= 0)",
+  ];
+}
+
+/** Apply one additive DDL statement to the schema recorded in the host manifest. */
+export function renderStorageUpgrade(
+  options: ResolvedSetup,
+  fromVersion: number,
+): { up: string[]; down: string[] } {
+  const { database } = options;
+  if (!isSql(database)) return { up: [], down: [] };
+  if (fromVersion !== 1 && fromVersion !== 2)
+    throw new Error(`Unsupported storage upgrade from version ${fromVersion}`);
+  const columns = [
+    ...(fromVersion === 1 ? [enabledColumn(database)] : []),
+    ...rolloutColumns(database),
+  ];
+  const dropCheck = database === "mysql" ? "DROP CHECK" : "DROP CONSTRAINT";
   return {
-    up: [`ALTER TABLE experiments ADD ${enabledColumn(options.database)};`],
+    up: [`ALTER TABLE experiments ADD ${columns.join(database === "mssql" ? ", " : ", ADD ")};`],
     down: [
-      ...(options.database === "mssql"
-        ? ["ALTER TABLE experiments DROP CONSTRAINT experiments_enabled_df;"]
+      `ALTER TABLE experiments ${dropCheck} experiments_rollout_phase_check;`,
+      `ALTER TABLE experiments ${dropCheck} experiments_rollout_revision_check;`,
+      ...(database === "mssql"
+        ? [
+            "ALTER TABLE experiments DROP CONSTRAINT experiments_rollout_revision_df;",
+            ...(fromVersion === 1
+              ? ["ALTER TABLE experiments DROP CONSTRAINT experiments_enabled_df;"]
+              : []),
+          ]
         : []),
-      "ALTER TABLE experiments DROP COLUMN enabled;",
+      "ALTER TABLE experiments DROP COLUMN rollout_phase;",
+      "ALTER TABLE experiments DROP COLUMN rollout_revision;",
+      ...(fromVersion === 1 ? ["ALTER TABLE experiments DROP COLUMN enabled;"] : []),
     ],
   };
 }
@@ -193,6 +222,7 @@ export function renderSql(
       `description ${text} NOT NULL`,
       `winner ${slug} NULL`,
       ...(version >= 2 ? [enabledColumn(database)] : []),
+      ...(version >= 3 ? rolloutColumns(database) : []),
       "CONSTRAINT experiments_pkey PRIMARY KEY (id)",
       "CONSTRAINT experiments_slug_key UNIQUE (slug)",
       `CONSTRAINT experiments_type_check CHECK (type IN (${enums(STORAGE.experimentTypes)}))`,
