@@ -1,0 +1,18 @@
+ ✓ src/adaptors/data-access/postgres/__tests__/combined-features-integration.ts > fences weighted draws and captures only committed joins on postgres 727ms
+ ✓ src/adaptors/data-access/postgres/__tests__/combined-features-integration.ts > fences weighted draws and captures only committed joins on Sequelize postgres 945ms
+      Tests  2 passed (2)
+   Start at  16:19:33
+   Duration  4.01s (tests 43%, import 31%, transform 26%)
+ ✓ src/adaptors/data-access/mysql/__tests__/combined-features-integration.ts > fences weighted draws and captures only committed joins on mysql 1571ms
+ ✓ src/adaptors/data-access/mysql/__tests__/combined-features-integration.ts > fences weighted draws and captures only committed joins on Sequelize mysql 1745ms
+      Tests  2 passed (2)
+   Start at  16:19:38
+   Duration  8.37s (tests 41%, import 34%, transform 25%)
+ ✓ src/adaptors/data-access/mongodb/__tests__/combined-features-integration.ts > fences weighted draws and captures only committed joins on mongodb 4984ms
+      Tests  1 passed (1)
+   Start at  16:19:49
+   Duration  7.22s (tests 78%, transform 12%, import 10%)
+ ✓ src/adaptors/data-access/dynamodb/__tests__/combined-features-integration.ts > fences weighted draws and captures only committed joins on dynamodb 5440ms
+      Tests  1 passed (1)
+   Start at  16:19:59
+   Duration  8.41s (tests 70%, import 15%, transform 15%)

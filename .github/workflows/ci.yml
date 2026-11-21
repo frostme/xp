@@ -127,6 +127,9 @@ jobs:
         run: |
           bunx playwright install --with-deps chromium
           bun run test:frontend:journey
+      - name: Installed management workflow in Chromium and PostgreSQL
+        if: matrix.database == 'postgres'
+        run: bun run test:management-journey
       - uses: actions/upload-artifact@v4
         if: failure() && matrix.database == 'postgres'
         with:

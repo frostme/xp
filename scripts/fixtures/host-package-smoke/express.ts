@@ -3,10 +3,11 @@ import type { AddressInfo } from "node:net";
 import { xpMiddleware } from "@frostme/xp";
 import { createRestLoader } from "@frostme/xp/client";
 import { xpMiddleware as configureXp } from "@frostme/xp/server/express";
-import { createXpManagementHandler, type ManagementOptions } from "@frostme/xp/server/management";
 import express from "express";
 import assert from "node:assert/strict";
 import { once } from "node:events";
+
+import { managementHandler, managementPath, verifyManagementMount } from "./management.js";
 
 const app = express();
 app.locals.xp = {
@@ -22,30 +23,12 @@ app.use((request, _response, next) => {
 });
 app.use("/api", xpMiddleware);
 app.use("/custom", configureXp({ route: "/decide", connection: app.locals.xp }));
-const basePath = "/shop/internal/experiments";
-const runtime: ManagementOptions["runtime"] = {
-  management: {
-    allowCreate: false,
-    list: async () => ({ items: [], nextCursor: null }),
-    async detail() {
-      throw new Error("No experiments");
-    },
-    async create() {
-      throw new Error("Creation disabled");
-    },
-    async apply() {
-      throw new Error("No experiments");
-    },
-  },
-};
-app.use(basePath, createXpManagementHandler({ runtime, basePath, access: () => "view" }));
+app.use(managementPath, managementHandler);
 const http = app.listen(0, "127.0.0.1");
 try {
   await once(http, "listening");
   const origin = `http://127.0.0.1:${(http.address() as AddressInfo).port}`;
-  const res = await fetch(origin + basePath + "/api/capabilities");
-  assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { access: "view", allowCreate: false });
+  await verifyManagementMount(origin);
   for (const route of ["/api/xp", "/custom/decide"]) {
     assert.equal(await createRestLoader({ endpoint: origin + route })("checkout"), "checkout_on");
   }

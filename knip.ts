@@ -14,6 +14,7 @@ const config: KnipConfig = {
     "scripts/fixtures/protocol-browser/*.{ts,tsx,mjs}",
     "scripts/fixtures/soap/*.{ts,js,mjs}",
     "scripts/fixtures/xp-journey/*.test.mjs",
+    "scripts/fixtures/management-journey/*.test.mjs",
     "scripts/fixtures/xp-journey/protocol-page.mjs",
     "scripts/fixtures/host-package-smoke/*.{ts,tsx,mjs}",
     "src/**/__tests__/*-integration.{ts,tsx}",
@@ -34,6 +35,8 @@ const config: KnipConfig = {
       "unresolved",
     ],
     "scripts/toolchains/solid-v*/vite.config.mjs": ["unlisted"],
+    // The management runner copies the shared database fixture into its packed consumer.
+    "scripts/fixtures/management-journey/journey.test.mjs": ["unresolved"],
     // Native tooling and packed Svelte fixtures install their own pinned dependencies.
     "tools/svelte/svelte.config.js": ["unlisted"],
     "scripts/fixtures/frontend/{svelte,sveltekit}/**": ["unlisted", "unresolved"],

@@ -25,6 +25,14 @@ describe("operator allocation", () => {
   ])("assigns basis point %i to cohort %i", (draw, id) => {
     expect(weightedCohort(cohorts, () => draw / 10000).id).toBe(id);
   });
+  it("places the exact 0.03% boundary in the next cohort", () => {
+    const allocation = [
+      { ...cohorts[1]!, percentage: 0.03 },
+      { ...cohorts[0]!, percentage: 99.97 },
+    ];
+    expect(weightedCohort(allocation, () => 0.0002999999999999999).id).toBe(1);
+    expect(weightedCohort(allocation, () => 0.0003).id).toBe(3);
+  });
   it("allocates the entire range to one treatment without sampling zero weight rows", () => {
     const chosen = cohorts.map((row) => ({ ...row, percentage: row.id === 2 ? 100 : 0 }));
     for (const draw of [0, 0.5, 0.999999]) expect(weightedCohort(chosen, () => draw).id).toBe(2);

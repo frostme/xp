@@ -71,3 +71,20 @@ Open the configured base path in the host after signing in. Search the directory
 The directory, `/create`, `/experiments/:slug` and `/experiments/:slug/split` accept direct links under the base path. Script and stylesheet requests stay on the same mount and use the same host authorization. The package supplies these assets. The host can use its existing Content Security Policy provided it allows the page's own scripts, styles and API connections.
 
 Review each change before applying it. Adjusting the split affects future assignments. Pausing preserves the saved phase and memberships. Selecting a winner changes what existing members see. A failed save keeps the proposal available, and a competing edit offers **Review current values** before another submission.
+
+## Fastify and NestJS
+
+In Fastify, install the hook below after the host's session hook. The handler receives the authenticated raw request before Fastify parses its body. Return an explicit public `origin` in the handler options if the host terminates TLS upstream.
+
+```ts
+const handler = createXpManagementHandler({ runtime, basePath, access: operatorAccess });
+fastify.addHook("onRequest", async (request, reply) => {
+  const path = request.url.split("?", 1)[0];
+  if (path === basePath || path?.startsWith(basePath + "/")) {
+    reply.hijack();
+    await handler(request.raw, reply.raw);
+  }
+});
+```
+
+For NestJS with Express, call `adapter.getInstance().use(basePath, handler)` on the application's `ExpressAdapter`. For NestJS with Fastify, install the hook on `adapter.getInstance()` before startup. Mount authentication explicitly on these routes. A Nest controller guard runs later in the request lifecycle. The host-package checks start real Express, standalone Fastify, Nest Express and Nest Fastify applications and verify authenticated and denied requests against the packed module.
