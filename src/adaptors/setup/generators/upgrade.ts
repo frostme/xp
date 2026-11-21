@@ -19,6 +19,7 @@ export async function generateUpgrade(
   options: ResolvedSetup,
   project: ProjectDetection,
   previous: GeneratedFile[],
+  baseVersion = 1,
 ): Promise<GeneratedArtifacts> {
   if (options.orm === "drizzle") {
     const schema = previous.find(
@@ -27,7 +28,7 @@ export async function generateUpgrade(
         file.purpose === "Drizzle schema contribution requiring manual integration",
     );
     if (!schema) throw new Error("Cannot locate the v1 Drizzle xp schema in the setup manifest.");
-    return generateDrizzle(options, project, schema.path);
+    return generateDrizzle(options, project, schema.path, baseVersion);
   }
   const generated = generateModels(options);
   for (const model of generated.files) model.merge = true;
@@ -82,7 +83,7 @@ export async function generateUpgrade(
       );
     }
   } else if (isSql(options.database)) {
-    const migration = generateSql(options, project, true);
+    const migration = generateSql(options, project, "availability");
     generated.files.push(...migration.files);
     generated.nextSteps.push(...migration.nextSteps);
     generated.prerequisites.push(...migration.prerequisites);
