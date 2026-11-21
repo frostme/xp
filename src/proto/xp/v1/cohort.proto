@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package xp.v1;
+
+service CohortService {
+  rpc ResolveCohort(ResolveCohortRequest) returns (ResolveCohortResponse);
+}
+
+message ResolveCohortRequest {
+  string slug = 1;
+}
+
+message ResolveCohortResponse {
+  optional string slug = 1;
+}

@@ -48,6 +48,12 @@ const hosts = [
     sources: ["nestjs.ts", `nest-${platform}.ts`],
     execute: `compiled/nest-${platform}.js`,
   })),
+  {
+    name: "grpc",
+    peers: ["@grpc/grpc-js", "@grpc/proto-loader"],
+    sources: ["grpc.ts"],
+    execute: "compiled/grpc.js",
+  },
   // Compile the xp contract strictly. Yoga's own lru-cache v10 declarations are
   // incompatible with TypeScript 7's Map iterators, so run its host fixture as JS.
   {
@@ -95,6 +101,8 @@ function checkIsolatedPeers(directory, peers) {
     "@nestjs/core",
     "@nestjs/platform-fastify",
     "@nestjs/platform-express",
+    "@grpc/grpc-js",
+    "@grpc/proto-loader",
   ]) {
     if (!peers.includes(name)) {
       assert.throws(

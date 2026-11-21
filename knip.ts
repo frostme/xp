@@ -33,6 +33,7 @@ const config: KnipConfig = {
     "scripts/fixtures/frontend/{svelte,sveltekit}/**": ["unlisted", "unresolved"],
     // Angular peers belong to the isolated compiler or packed application install.
     "scripts/fixtures/frontend/angular/src/**": ["unlisted", "unresolved"],
+    "src/proto/**/*_pb.ts": ["exports", "types"],
     "src/cli/termcn/**": ["exports", "types"],
     // The installed CLI creates these two modules before the packed consumer compiles.
     "scripts/fixtures/frontend/react/src/{App,main}.tsx": ["unresolved"],
@@ -42,6 +43,7 @@ const config: KnipConfig = {
     "astro",
     "lint-staged",
     "@swc-node/register",
+    "@bufbuild/protoc-gen-es",
     "pino",
     "@angular/core",
     "svelte",
