@@ -51,6 +51,7 @@ const labels = {
   config: "Configuration file",
   schema: "Schema file or directory",
   migrationsDir: "Migrations directory",
+  analytics: "Generate analytics outbox storage",
   models: "Generate supporting models / types",
   modelsDir: "Models directory",
   language: "Output language",
@@ -64,7 +65,10 @@ const labels = {
 type Field = keyof typeof labels;
 const storageGroups: { title: string; fields: Field[] }[] = [
   { title: "Storage", fields: ["orm", "database", "ormVersion", "config", "schema"] },
-  { title: "Output", fields: ["migrationsDir", "models", "modelsDir", "language", "moduleFormat"] },
+  {
+    title: "Output",
+    fields: ["migrationsDir", "models", "modelsDir", "language", "moduleFormat", "analytics"],
+  },
   {
     title: "User identity",
     fields: ["userStorage", "userIdType", "userIdCharset", "userIdCollation", "tableName"],
@@ -100,6 +104,7 @@ function selections(field: Field): readonly string[] | undefined {
       return ORMS;
     case "database":
       return DATABASES;
+    case "analytics":
     case "models":
       return ["no", "yes"];
     case "language":
@@ -114,7 +119,13 @@ function selections(field: Field): readonly string[] | undefined {
 }
 function fieldValue(options: ScopedSetupOptions, field: Field): string {
   const value = options[field];
-  return field === "models" ? (value ? "yes" : "no") : typeof value === "string" ? value : "";
+  return field === "models" || field === "analytics"
+    ? value
+      ? "yes"
+      : "no"
+    : typeof value === "string"
+      ? value
+      : "";
 }
 function groupFor(field: Field, groups: typeof storageGroups) {
   return Math.max(
@@ -278,9 +289,9 @@ function SetupWizard({
     const next = {
       ...(project?.options.scope ? { scope: project.options.scope } : {}),
       ...choices,
-      [field]: field === "models" ? value === "yes" : value,
+      [field]: field === "models" || field === "analytics" ? value === "yes" : value,
     };
-    if (!value && field !== "models") delete next[field];
+    if (!value && field !== "models" && field !== "analytics") delete next[field];
     if (field === "orm") delete next.ormVersion;
     if (field === "frontend" && value !== "astro") delete next.island;
     if (field === "scope") {

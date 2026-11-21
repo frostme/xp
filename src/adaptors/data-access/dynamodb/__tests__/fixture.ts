@@ -1,10 +1,18 @@
-import { CreateTableCommand, DeleteTableCommand, DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import {
+  CreateTableCommand,
+  DeleteTableCommand,
+  DescribeTableCommand,
+  DynamoDBClient,
+  UpdateTableCommand,
+} from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand, ScanCommand } from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "node:crypto";
+import { expect } from "vitest";
 
 import type { StorageFixture } from "~/__tests__/storage/contract";
 
-import { generatedDynamo } from "~/__tests__/storage/setup";
+import { generatedDynamo, setupOptions } from "~/__tests__/storage/setup";
+import { generateAnalyticsIndex } from "~/adaptors/setup/generators/dynamodb";
 import server from "~/server";
 
 import DynamoDBAdaptor from "..";
@@ -12,6 +20,7 @@ import { userKey } from "../schema";
 
 export async function dynamodbFixture(): Promise<
   StorageFixture & {
+    applyAnalytics(): Promise<void>;
     client: DynamoDBDocumentClient;
     tableName: string;
     seedPrimitiveUser(id: string | number): Promise<void>;
@@ -38,6 +47,21 @@ export async function dynamodbFixture(): Promise<
       reopen: () => server(client, { tableName }),
       // Version 1 experiments omit enabled and require no storage alteration.
       applyUpgrade: () => Promise.resolve(),
+      async applyAnalytics() {
+        const spec = generateAnalyticsIndex({ ...setupOptions("dynamodb"), tableName });
+        await raw.send(new UpdateTableCommand(JSON.parse(spec.files[0]!.content)));
+        await expect
+          .poll(
+            async () => {
+              const { Table } = await raw.send(new DescribeTableCommand({ TableName: tableName }));
+              return Table?.GlobalSecondaryIndexes?.find(
+                (index) => index.IndexName === "xp_analytics_due",
+              )?.IndexStatus;
+            },
+            { timeout: 15_000, interval: 100 },
+          )
+          .toBe("ACTIVE");
+      },
       client,
       tableName,
       seedUser: seedPrimitiveUser,

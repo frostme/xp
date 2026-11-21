@@ -30,6 +30,7 @@ const help = `
     --config <path>            ORM configuration file
     --schema <path>            Schema file or directory
     --migrations-dir <path>    Migration / provisioning output directory
+    --analytics                Include durable analytics outbox storage (default off)
     --models / --no-models     Optional supporting models or types (default off)
     --models-dir <path>        Supporting models / types output directory
     --language <language>      typescript or javascript
@@ -67,6 +68,7 @@ export function parseArguments(argv: string[]) {
       config: { type: "string" },
       schema: { type: "string" },
       migrationsDir: { type: "string" },
+      analytics: { type: "boolean" },
       models: { type: "boolean" },
       modelsDir: { type: "string" },
       language: { type: "string" },

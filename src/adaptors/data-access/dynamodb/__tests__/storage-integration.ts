@@ -4,10 +4,13 @@ import {
   TransactWriteCommand,
   type DynamoDBDocumentClient,
 } from "@aws-sdk/lib-dynamodb";
+import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { CohortSlug, PKey } from "~/entities";
+import type { PendingDelivery } from "~/entities/analytics";
 
+import { analyticsContract } from "~/__tests__/storage/analyticsContract";
 import {
   experimentInput,
   registerStorageContract,
@@ -30,6 +33,61 @@ describe.skipIf(selectedDatabase() !== "dynamodb")("DynamoDB limits and resumabl
     await fixture?.cleanup();
   });
 
+  it("captures analytics atomically and fences indexed deliveries", async () => {
+    await analyticsContract(fixture);
+  });
+
+  it("paginates due queries and gives each row to at most one concurrent worker", async () => {
+    await fixture.applyAnalytics();
+    const destination = { key: "sink", provider: "custom:test" };
+    await fixture.adaptor.analytics!.ready([destination]);
+    const experiment = await fixture.adaptor.experimentDAO.create(experimentInput());
+    const cohort = experiment.cohorts[0]!;
+    for (let i = 0; i < 4; i++) {
+      const user = ("worker-race-" + i) as PKey<"User">;
+      await fixture.seedUser(user);
+      const delivery: PendingDelivery = {
+        event: {
+          name: "xp.cohort.joined",
+          version: 1,
+          id: randomUUID(),
+          occurredAt: new Date().toISOString(),
+          experimentSlug: experiment.slug,
+          cohortSlug: cohort.slug,
+          source: "manual",
+        },
+        destinationKey: destination.key,
+        provider: destination.provider,
+        subjectId: "mapped-" + i,
+      };
+      await fixture.adaptor.userDAO.addUserCohort(user, experiment.id, cohort.id, [delivery]);
+    }
+
+    let continuations = 0;
+    const client = {
+      send: (command: any) => {
+        if (command instanceof ScanCommand) throw new Error("Worker issued a table scan");
+        if (command instanceof QueryCommand) {
+          expect(command.input.IndexName).toBe("xp_analytics_due");
+          if (command.input.ExclusiveStartKey) continuations++;
+          return fixture.client.send(new QueryCommand({ ...command.input, Limit: 1 }));
+        }
+        return fixture.client.send(command);
+      },
+    } as DynamoDBDocumentClient;
+    const store = new DynamoDBAdaptor(client, fixture.tableName).analytics;
+    const opts = { now: Date.now() + 100, limit: 4, leaseMs: 60_000 };
+    await expect.poll(async () => (await store.inspect("sink", "pending", 4)).length).toBe(4);
+    const lists = await Promise.all([
+      store.claim(destination, opts),
+      store.claim(destination, opts),
+    ]);
+    const claims = lists.flat();
+    expect(continuations).toBeGreaterThan(0);
+    expect(claims).toHaveLength(4);
+    expect(new Set(claims.map((row) => row.event.id)).size).toBe(4);
+    expect(new Set(claims.map((row) => row.leaseToken)).size).toBe(4);
+  });
   it("finds an experiment by literal name through sparse physical scan pages", async () => {
     const input = { ...experimentInput("checkout"), name: "Check [A+B]" };
     await fixture.adaptor.experimentDAO.create(input);

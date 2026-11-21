@@ -12,6 +12,8 @@ Hosts can mount `ResolveCohort` with standalone Fastify or NestJS on Express and
 
 ## Operations and storage
 
+The analytics storage extension captures cohort joins transactionally and supports a host-run delivery worker for Amplitude, Segment, Mixpanel, Fullstory, Heap, PostHog and custom destinations. [Analytics guide](analytics.md)
+
 A host can mount the operator page on its own authenticated route. It reads current membership counts and supports off-first creation, weighted launch and adjustment, pause, resume and final winner selection. Existing experiments keep their uniform assignment behavior. [Management guide](management.md)
 
-Analytics connectors are tracked independently. Further ORM runtime adapters, generator/version profiles, migration execution, cross-database migration and external identity storage remain open.
+Further ORM runtime adapters, generator/version profiles, migration execution, cross-database migration and external identity storage remain open.

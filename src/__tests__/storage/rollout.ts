@@ -72,6 +72,7 @@ function interceptInsert(
     async () => {
       throw new Error("A managed decision called the legacy bucketer");
     },
+    undefined,
     () => draw,
   );
 }

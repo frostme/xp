@@ -10,12 +10,13 @@ import server from "~/server";
 import { detectClient } from "~/server/detectClient";
 
 export interface SequelizeFixture extends StorageFixture {
+  applyAnalytics(): Promise<void>;
   startupOptions: { connection: Sequelize };
   reopen(): ReturnType<typeof server>;
 }
 
 async function usingSequelize(
-  native: StorageFixture,
+  native: StorageFixture & { applyAnalytics(): Promise<void> },
   connect: () => Sequelize,
 ): Promise<SequelizeFixture> {
   let connection: Sequelize | undefined;

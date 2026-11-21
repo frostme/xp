@@ -169,8 +169,12 @@ describe("host runtime and identity selection", () => {
     const selectOrm = createRuntimeSelector({ connection: "sequelize" });
     expect(selectOrm(orm)).toBe(orm);
     expect(() => selectOrm(pg)).toThrow("sequelize");
-    expect(() => createRuntimeSelector({ connection: {} })).toThrow("Unsupported database client");
   });
+
+  it("rejects an unsupported host connection after probing installed drivers", () => {
+    // The first raw connection probes optional peer packages, including the native SQL drivers.
+    expect(() => createRuntimeSelector({ connection: {} })).toThrow("Unsupported database client");
+  }, 30_000);
 
   it("uses only the selected identity source, preserving finite numbers and resolver errors", async () => {
     const header = vi.fn(() => "proxy-id"),

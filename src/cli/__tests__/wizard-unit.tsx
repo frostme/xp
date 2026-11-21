@@ -96,6 +96,11 @@ const editOutput = async (app: Awaited<ReturnType<typeof render>>) => {
 };
 
 describe("setup wizard", () => {
+  it("accepts analytics as an explicit storage flag", () => {
+    expect(parseArguments(["setup", "--analytics", "--dry-run"]).options.analytics).toBe(true);
+    expect(parseArguments(["setup", "--dry-run"]).options.analytics).toBeUndefined();
+  });
+
   it("opens at review and applies once only after explicit confirmation", async () => {
     const f = fixture();
     const finish = vi.fn();
@@ -134,7 +139,7 @@ describe("setup wizard", () => {
     expect(f.applying).not.toHaveBeenCalled();
   });
 
-  it("edits models and a new directory without copying unrelated detected defaults", async () => {
+  it("edits models, output and analytics without copying unrelated detected defaults", async () => {
     const f = fixture();
     const app = await render(<Wizard framework={f.framework} options={{}} onFinish={vi.fn()} />);
     await frameContains(app, "Review actions");
@@ -155,6 +160,11 @@ describe("setup wizard", () => {
     );
     expect(f.planning.mock.calls.at(-1)?.[0]).not.toHaveProperty("orm");
     await choose(app, 5);
+    await frameContains(app, "Generate analytics outbox storage");
+    await choose(app, 1);
+    await frameContains(app, "Output settings");
+    expect(f.planning).toHaveBeenLastCalledWith(expect.objectContaining({ analytics: true }));
+    await choose(app, 6);
     await frameContains(app, "Review actions");
   });
 

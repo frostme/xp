@@ -70,6 +70,10 @@ the experiment then resumes normal bucketing.
 Cohort percentages are stored as supplied. The current random bucketer still
 chooses uniformly, rather than weighting choices by percentage.
 
+## Cohort join analytics
+
+Applications can opt into durable delivery of new memberships to Amplitude, Segment, Mixpanel, Fullstory, Heap, PostHog or a custom server adaptor. The host maps consent and identity per destination, runs the worker and controls retention. [Configuration, delivery guarantees and provider examples](docs/analytics.md)
+
 ## Development
 
 ```sh
