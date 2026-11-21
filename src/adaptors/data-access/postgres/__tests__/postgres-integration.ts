@@ -13,7 +13,7 @@ import server from "~/server";
 import PostgresAdaptor from "..";
 import { setupPostgres } from "./fixture";
 
-registerStorageContract("postgres", setupPostgres, () => setupPostgres(1));
+registerStorageContract("postgres", setupPostgres, setupPostgres);
 
 describe.skipIf(selectedDatabase() !== "postgres")("PostgreSQL connection ownership", () => {
   it("keeps a caller-owned pool usable after rollback and successful operations", async () => {

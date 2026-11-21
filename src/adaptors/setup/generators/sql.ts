@@ -1,6 +1,6 @@
 import type { GeneratedArtifacts, ProjectDetection, ResolvedSetup } from "~/interfaces/setup";
 
-import { renderSql, renderAvailabilityUpgrade } from "../storage";
+import { renderSql, renderStorageUpgrade } from "../storage";
 import {
   codeExtension,
   command,
@@ -15,10 +15,11 @@ import {
 export function generateSql(
   options: ResolvedSetup,
   project: ProjectDetection,
-  upgrade = false,
+  fromVersion?: number,
 ): GeneratedArtifacts {
-  const { up, down } = upgrade ? renderAvailabilityUpgrade(options) : renderSql(options);
-  const label = upgrade ? "xp_storage_v2" : "xp_setup";
+  const upgrade = fromVersion !== undefined;
+  const { up, down } = upgrade ? renderStorageUpgrade(options, fromVersion) : renderSql(options);
+  const label = upgrade ? "xp_storage_v3" : "xp_setup";
   const stamp = migrationStamp();
   const result: GeneratedArtifacts = { files: [], warnings: [], prerequisites: [], nextSteps: [] };
   const directory = options.migrationsDir;
@@ -32,14 +33,14 @@ export function generateSql(
       {
         path: upPath,
         content: sqlHeader + up.join("\n\n") + "\n",
-        purpose: upgrade ? "Add experiment availability" : "Create xp storage",
+        purpose: upgrade ? "Upgrade xp experiment storage to v3" : "Create xp storage",
       },
       {
         path: outputPath(directory, `${stamp}_${label}.down.sql`),
         content:
           sqlHeader + "-- Application users are deliberately preserved.\n" + down.join("\n") + "\n",
         purpose: upgrade
-          ? "Remove the experiment availability column"
+          ? "Restore the previous experiment columns"
           : "Remove xp-owned storage; preserve users",
       },
     );
@@ -60,8 +61,8 @@ export function generateSql(
     );
   } else if (options.orm === "typeorm") {
     const timestamp = Date.now();
-    const className = `${upgrade ? "XpStorageV2" : "XpSetup"}${timestamp}`;
-    name = `${timestamp}-${upgrade ? "XpStorageV2" : "XpSetup"}.${codeExtension(options)}`;
+    const className = `${upgrade ? "XpStorageV3" : "XpSetup"}${timestamp}`;
+    name = `${timestamp}-${upgrade ? "XpStorageV3" : "XpSetup"}.${codeExtension(options)}`;
     code =
       (typed ? `import type { MigrationInterface, QueryRunner } from "typeorm";\n\n` : "") +
       `${esm ? "export " : ""}class ${className}${typed ? " implements MigrationInterface" : ""} {\n  name = ${JSON.stringify(className)};\n  async up(queryRunner${typed ? ": QueryRunner" : ""})${typed ? ": Promise<void>" : ""} {\n${up.map((sql) => `    await queryRunner.query(${JSON.stringify(sql)});`).join("\n")}\n  }\n  async down(queryRunner${typed ? ": QueryRunner" : ""})${typed ? ": Promise<void>" : ""} {\n${down.map((sql) => `    await queryRunner.query(${JSON.stringify(sql)});`).join("\n")}\n  }\n}\n${esm ? "" : `module.exports = { ${className} };\n`}`;
